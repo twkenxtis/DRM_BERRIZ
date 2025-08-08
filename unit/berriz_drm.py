@@ -1,7 +1,9 @@
 import asyncio
+import os
 import json
 import logging
 import re
+from logging.handlers import TimedRotatingFileHandler
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
@@ -15,9 +17,40 @@ from key.local_vault import LocalKeyVault
 from static.PlaybackInfo import PlaybackInfo
 from static.PublicInfo import PublicInfo
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+
+def setup_logging() -> logging.Logger:
+    """Set up logging with console and rotating file handlers."""
+    log_directory = "logs"
+    os.makedirs(log_directory, exist_ok=True)
+
+    log_format = logging.Formatter(
+        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
+    )
+    log_level = logging.INFO
+
+    app_logger = logging.getLogger("berriz_drm")
+    app_logger.setLevel(log_level)
+    if app_logger.hasHandlers():
+        app_logger.handlers.clear()
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_format)
+
+    app_file_handler = logging.handlers.TimedRotatingFileHandler(
+        filename=os.path.join(log_directory, "berriz_drm.py.log"),
+        when="midnight",
+        interval=1,
+        backupCount=30,
+        encoding="utf-8",
+    )
+    app_file_handler.setFormatter(log_format)
+
+    app_logger.addHandler(console_handler)
+    app_logger.addHandler(app_file_handler)
+    return app_logger
+
+
+logger = setup_logging()
 
 
 class VodProcess:
@@ -49,7 +82,7 @@ class VodProcess:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            logging.error(f"Request error: {e}")
+            logger.error(f"Request error: {e}")
             return None
 
 
@@ -98,7 +131,7 @@ class Key_handle:
 
     def send_drm(self):
         if self.playback_info.code != "0000":
-            logging.error(f"Error code: {self.playback_info.code}", self.playback_info)
+            logger.error(f"Error code: {self.playback_info.code}", self.playback_info)
             raise Exception(f"Invalid response code: {self.playback_info.code}")
 
         if hasattr(self.playback_info, "duration"):
@@ -119,14 +152,14 @@ class Key_handle:
             if vault.contains(k):
                 pass
             else:
-                logging.error(f"Key verification FAILED for: {k}")
+                logger.error(f"Key verification FAILED for: {k}")
 
     def search_keys(self):
         vault = LocalKeyVault()
         wv_pssh_value = vault.retrieve(self.wv_pssh)
         msprpro_value = vault.retrieve(self.msprpro)
         if msprpro_value or wv_pssh_value is not None:
-            logging.info(f"Use local key vault keys: {msprpro_value}")
+            logger.info(f"Use local key vault keys: {msprpro_value}")
             return wv_pssh_value, msprpro_value
         return (None, None)
 
@@ -184,4 +217,4 @@ class BerrizProcessor:
         await self.execute_downloads()
 
         print("=== All content processed ===")
-        logging.info(f"Total number of media processed: {len(self.all_playback_infos)}")
+        logger.info(f"Total number of media processed: {len(self.all_playback_infos)}")
