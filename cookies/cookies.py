@@ -2,15 +2,46 @@ import logging
 import os
 import time
 from datetime import datetime, timedelta
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
 import jwt
 import requests
 
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+def setup_logging() -> logging.Logger:
+    """Set up logging with console and rotating file handlers."""
+    log_directory = "logs"
+    os.makedirs(log_directory, exist_ok=True)
+
+    log_format = logging.Formatter(
+        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
+    )
+    log_level = logging.INFO
+
+    app_logger = logging.getLogger("cookies")
+    app_logger.setLevel(log_level)
+    if app_logger.hasHandlers():
+        app_logger.handlers.clear()
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_format)
+
+    app_file_handler = logging.handlers.TimedRotatingFileHandler(
+        filename=os.path.join(log_directory, "cookies.py.log"),
+        when="midnight",
+        interval=1,
+        backupCount=30,
+        encoding="utf-8",
+    )
+    app_file_handler.setFormatter(log_format)
+
+    app_logger.addHandler(console_handler)
+    app_logger.addHandler(app_file_handler)
+    return app_logger
+
+
+logger = setup_logging()
 
 
 class Refresh_JWT:
@@ -45,7 +76,7 @@ class Refresh_JWT:
 
         try:
             response = requests.post(url, headers=headers, json=json_data)
-            logging.info(
+            logger.info(
                 f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] - {response.status_code} {url}"
             )
 
@@ -61,22 +92,22 @@ class Refresh_JWT:
                     readable_time = datetime.fromtimestamp(exp_time).strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )
-                    logging.info(f"Token will expire at {readable_time}")
+                    logger.info(f"Token will expire at {readable_time}")
                 except Exception as decode_error:
-                    logging.warning(f"Failed to decode token: {decode_error}")
+                    logger.warning(f"Failed to decode token: {decode_error}")
 
                 with open(r"cookies\\bz_a.txt", "w") as f:
                     f.write(access_token)
 
-                logging.info(
+                logger.info(
                     f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] - Access Token saved to bz_a.txt"
                 )
                 return access_token
             else:
-                logging.error(f"FAILED: {response.text}")
+                logger.error(f"FAILED: {response.text}")
                 return None
         except Exception as e:
-            logging.error(f"ERROR: {e}")
+            logger.error(f"ERROR: {e}")
             return None
 
     def my_state_test():
@@ -120,14 +151,14 @@ class Refresh_JWT:
         )
         response_json = response.json()
         if response_json.get("message") == "SUCCESS":
-            logging.info("Cookie test successful.")
+            logger.info("Cookie test successful.")
         else:
-            logging.error("Cookie test failed.")
+            logger.error("Cookie test failed.")
 
     def refresh_and_test():
         token = Refresh_JWT.refresh_token()
         if not token:
-            logging.error("Initial token refresh failed.")
+            logger.error("Initial token refresh failed.")
             return None
         time.sleep(1)
         Refresh_JWT.my_state_test()
@@ -146,33 +177,33 @@ class Refresh_JWT:
                 now = datetime.now()
                 delta = (next_refresh_time - now).total_seconds()
                 """
-                logging.info(
+                logger.info(
                     f"Next scheduled refresh time: {next_refresh_time} (in {int(delta)} sec)"
                 )
                 """
                 return delta < 60
         except Exception as e:
-            logging.warning(f"Failed to parse refresh_time.txt: {e}")
+            logger.warning(f"Failed to parse refresh_time.txt: {e}")
             return True
 
     def write_next_refresh_time():
         next_time = datetime.now() + timedelta(minutes=50)
         with open(Refresh_JWT.REFRESH_FILE, "w") as f:
             f.write(next_time.strftime("%Y-%m-%d %H:%M:%S"))
-        logging.info(
+        logger.info(
             f"Next refresh time written to {Refresh_JWT.REFRESH_FILE}: {next_time}"
         )
 
     def main():
         if Refresh_JWT.should_refresh():
-            logging.info("Token refresh triggered.")
+            logger.info("Token refresh triggered.")
             token = Refresh_JWT.refresh_and_test()
             if token:
                 Refresh_JWT.write_next_refresh_time()
             else:
-                logging.warning("Refresh failed, next refresh time not updated.")
+                logger.warning("Refresh failed, next refresh time not updated.")
         else:
-            # logging.info("No need to refresh token yet.")
+            # logger.info("No need to refresh token yet.")
             pass
 
 
