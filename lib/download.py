@@ -1,6 +1,8 @@
 import asyncio
 from datetime import datetime
 import logging
+from logging.handlers import TimedRotatingFileHandler
+import os
 from pathlib import Path
 import shutil
 
@@ -14,9 +16,39 @@ from lib.tools.reName import SUCCESS
 USER_AGENT = "Mozilla/5.0 (Linux; Android 10; SM-G960F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Mobile Safari/537.36"
 
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+def setup_logging() -> logging.Logger:
+    """Set up logging with console and rotating file handlers."""
+    log_directory = "logs"
+    os.makedirs(log_directory, exist_ok=True)
+
+    log_format = logging.Formatter(
+        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
+    )
+    log_level = logging.INFO
+
+    app_logger = logging.getLogger("download")
+    app_logger.setLevel(log_level)
+    if app_logger.hasHandlers():
+        app_logger.handlers.clear()
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_format)
+
+    app_file_handler = logging.handlers.TimedRotatingFileHandler(
+        filename=os.path.join(log_directory, "download.py.log"),
+        when="midnight",
+        interval=1,
+        backupCount=30,
+        encoding="utf-8",
+    )
+    app_file_handler.setFormatter(log_format)
+
+    app_logger.addHandler(console_handler)
+    app_logger.addHandler(app_file_handler)
+    return app_logger
+
+
+logger = setup_logging()
 
 
 class MediaDownloader:
@@ -59,7 +91,9 @@ class MediaDownloader:
                 connector=connector, timeout=timeout, headers={"User-Agent": USER_AGENT}
             )
 
-    async def _download_file(self, url: str, save_path: Path, desc: str = "Downloading") -> bool:
+    async def _download_file(
+        self, url: str, save_path: Path, desc: str = "Downloading"
+    ) -> bool:
         await self._ensure_session()
         try:
             async with self.session.get(url) as response:
@@ -70,7 +104,7 @@ class MediaDownloader:
                         unit="B",
                         unit_scale=True,
                         desc=desc,
-                        leave=False
+                        leave=False,
                     )
                     with open(save_path, "wb") as f:
                         async for chunk in response.content.iter_chunked(10240 * 10240):
@@ -80,14 +114,16 @@ class MediaDownloader:
                     return True
                 return False
         except Exception as e:
-            logging.error(f"Download failed {url}: {str(e)}")
+            logger.error(f"Download failed {url}: {str(e)}")
             return False
 
-    async def download_track(self, track: MediaTrack, track_type: str, progress_bar: tqdm) -> bool:
+    async def download_track(
+        self, track: MediaTrack, track_type: str, progress_bar: tqdm
+    ) -> bool:
         track_dir = self.base_dir / track_type
         track_dir.mkdir(exist_ok=True)
 
-        logging.info(
+        logger.info(
             f"Start downloading {track_type} track: {track.id} [Bitrate: {track.bandwidth}]"
         )
 
@@ -96,15 +132,19 @@ class MediaDownloader:
 
         # Download initialization segment
         init_path = track_dir / f"init{file_ext}"
-        if not await self._download_file(track.init_url, init_path, desc=f"{track_type} init"):
-            logging.error(f"{track_type} Initialization file download failed")
+        if not await self._download_file(
+            track.init_url, init_path, desc=f"{track_type} init"
+        ):
+            logger.error(f"{track_type} Initialization file download failed")
             return False
 
         # Download media segments
         tasks = []
         for i, url in enumerate(track.segment_urls):
             seg_path = track_dir / f"seg_{i:05d}{file_ext}"
-            tasks.append(self._download_file(url, seg_path, desc=f"{track_type} seg {i:05d}"))
+            tasks.append(
+                self._download_file(url, seg_path, desc=f"{track_type} seg {i:05d}")
+            )
 
         results = await asyncio.gather(*tasks)
         for _ in results:
@@ -112,7 +152,7 @@ class MediaDownloader:
 
         success_count = sum(results)
 
-        logging.info(
+        logger.info(
             f"{track_type} Split download complete: Success {success_count}/{len(results)}"
         )
         return success_count == len(results)
@@ -123,17 +163,17 @@ class MediaDownloader:
 
         init_files = list(track_dir.glob("init.*"))
         if not init_files:
-            logging.warning(f"Could not find {track_type} initialization file")
+            logger.warning(f"Could not find {track_type} initialization file")
             return False
 
         segments = sorted(
             track_dir.glob("seg_*.*"), key=lambda x: int(x.stem.split("_")[1])
         )
         if not segments:
-            logging.warning(f"No {track_type} fragment files found")
+            logger.warning(f"No {track_type} fragment files found")
             return False
 
-        logging.info(f"Merge {track_type} tracks: {len(segments)} segments")
+        logger.info(f"Merge {track_type} tracks: {len(segments)} segments")
 
         try:
             with open(output_file, "wb") as outfile:
@@ -143,36 +183,42 @@ class MediaDownloader:
                     with open(seg, "rb") as infile:
                         shutil.copyfileobj(infile, outfile)
 
-            logging.info(f"{track_type} Merger completed: {output_file}")
+            logger.info(f"{track_type} Merger completed: {output_file}")
             return True
         except Exception as e:
-            logging.error(f"{track_type} Merger failed: {str(e)}")
+            logger.error(f"{track_type} Merger failed: {str(e)}")
             return False
 
     async def download_content(self, mpd_content: MPDContent):
         try:
             tasks = []
             progress_bars = []
-            
+
             # Create progress bars for each track
             if mpd_content.video_track:
                 video_pbar = tqdm(
-                    total=len(mpd_content.video_track.segment_urls) + 1,  # +1 for init file
+                    total=len(mpd_content.video_track.segment_urls)
+                    + 1,  # +1 for init file
                     desc="Video track",
                     unit="segment",
-                    position=0
+                    position=0,
                 )
-                tasks.append(self.download_track(mpd_content.video_track, "video", video_pbar))
+                tasks.append(
+                    self.download_track(mpd_content.video_track, "video", video_pbar)
+                )
                 progress_bars.append(video_pbar)
-            
+
             if mpd_content.audio_track:
                 audio_pbar = tqdm(
-                    total=len(mpd_content.audio_track.segment_urls) + 1,  # +1 for init file
+                    total=len(mpd_content.audio_track.segment_urls)
+                    + 1,  # +1 for init file
                     desc="Audio track",
                     unit="segment",
-                    position=1
+                    position=1,
                 )
-                tasks.append(self.download_track(mpd_content.audio_track, "audio", audio_pbar))
+                tasks.append(
+                    self.download_track(mpd_content.audio_track, "audio", audio_pbar)
+                )
                 progress_bars.append(audio_pbar)
 
             # Run downloads concurrently
@@ -197,19 +243,16 @@ class MediaDownloader:
                 await self.session.close()
 
 
-
-
-
 async def run_dl(mpd_uri, decryption_key, json_data):
     parser = MPDParser(mpd_uri)
     mpd_content = parser.get_highest_quality_content()
 
     if not mpd_content.video_track and not mpd_content.audio_track:
-        logging.error("Error: No valid audio or video tracks found in MPD.")
+        logger.error("Error: No valid audio or video tracks found in MPD.")
         return
 
     if mpd_content.drm_info and mpd_content.drm_info.get("default_KID"):
-        logging.info(
+        logger.info(
             f"\nEncrypted content detected (KID: {mpd_content.drm_info['default_KID']})"
         )
 

@@ -1,12 +1,44 @@
-import subprocess
 import logging
+import os
+import subprocess
 from pathlib import Path
 from typing import Optional
+from logging.handlers import TimedRotatingFileHandler
 
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+def setup_logging() -> logging.Logger:
+    """Set up logging with console and rotating file handlers."""
+    log_directory = "logs"
+    os.makedirs(log_directory, exist_ok=True)
+
+    log_format = logging.Formatter(
+        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
+    )
+    log_level = logging.INFO
+
+    app_logger = logging.getLogger("mux")
+    app_logger.setLevel(log_level)
+    if app_logger.hasHandlers():
+        app_logger.handlers.clear()
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_format)
+
+    app_file_handler = logging.handlers.TimedRotatingFileHandler(
+        filename=os.path.join(log_directory, "mux.py.log"),
+        when="midnight",
+        interval=1,
+        backupCount=30,
+        encoding="utf-8",
+    )
+    app_file_handler.setFormatter(log_format)
+
+    app_logger.addHandler(console_handler)
+    app_logger.addHandler(app_file_handler)
+    return app_logger
+
+
+logger = setup_logging()
 
 
 class FFmpegMuxer:
@@ -25,7 +57,7 @@ class FFmpegMuxer:
         kid = self._check_encryption(input_file)
 
         if kid and self.decryption_key:
-            logging.info(
+            logger.info(
                 f"Detected {track_type} track encryption (KID: {kid}), decrypting..."
             )
             decrypted_file = self.base_dir / f"{track_type}_decrypted.ts"
@@ -33,7 +65,7 @@ class FFmpegMuxer:
                 return decrypted_file
             return None
         elif kid:
-            logging.warning(
+            logger.warning(
                 f"Warning: {track_type} track is encrypted but no decryption key is provided."
             )
             return None
@@ -56,7 +88,7 @@ class FFmpegMuxer:
                 return "encrypted_unknown_kid"
             return None
         except Exception as e:
-            logging.error(f"Encryption check failed {file_path}: {str(e)}")
+            logger.error(f"Encryption check failed {file_path}: {str(e)}")
             return None
 
     def _decrypt_file(
@@ -71,9 +103,9 @@ class FFmpegMuxer:
         mp4decrypt_path = parent_tools_dir / "mp4decrypt.exe"
 
         if not mp4decrypt_path.exists():
-            logging.error(f"mp4decrypt.exe not found at: {mp4decrypt_path}")
+            logger.error(f"mp4decrypt.exe not found at: {mp4decrypt_path}")
             return False
-    
+
         try:
             subprocess.run(
                 [
@@ -90,10 +122,10 @@ class FFmpegMuxer:
             return True
 
         except subprocess.CalledProcessError as e:
-            logging.error(f"Decryption failed for {input_path}: {e.stderr or e.stdout}")
+            logger.error(f"Decryption failed for {input_path}: {e.stderr or e.stdout}")
             return False
         except Exception as e:
-            logging.error(f"Unexpected error decrypting {input_path}: {str(e)}")
+            logger.error(f"Unexpected error decrypting {input_path}: {str(e)}")
             return False
 
     def mux_to_mp4(self, output_name: str = "output.mp4") -> bool:
@@ -102,14 +134,14 @@ class FFmpegMuxer:
         audio_file = self._prepare_track("audio")
 
         if not video_file or not audio_file:
-            logging.warning(
+            logger.warning(
                 "Error: Valid video and audio must exist simultaneously for multiplexing."
             )
             return False
 
         output_file = self.base_dir / output_name
 
-        logging.info("Start using FFmpeg to mux video and audio...")
+        logger.info("Start using FFmpeg to mux video and audio...")
 
         # Standard FFmpeg command without modification
         cmd = [
@@ -147,11 +179,11 @@ class FFmpegMuxer:
             )
 
             if result.returncode != 0:
-                logging.error(f"FFmpeg multiplexing failed:\n{result.stderr}")
+                logger.error(f"FFmpeg multiplexing failed:\n{result.stderr}")
                 return False
 
-            logging.info(f"Mixed flow completed: {output_file}")
+            logger.info(f"Mixed flow completed: {output_file}")
             return True
         except Exception as e:
-            logging.error(f"FFmpeg mixing error: {str(e)}")
+            logger.error(f"FFmpeg mixing error: {str(e)}")
             return False

@@ -2,10 +2,47 @@ import logging
 import os
 import requests
 import shutil
+from logging.handlers import TimedRotatingFileHandler
 
 from lib.ffmpeg.parse_mpd import MPDParser, MediaTrack, MPDContent
 from lib.ffmpeg.videoinfo import VideoInfo
 from lib.ffmpeg.mux import FFmpegMuxer
+
+
+def setup_logging() -> logging.Logger:
+    """Set up logging with console and rotating file handlers."""
+    log_directory = "logs"
+    os.makedirs(log_directory, exist_ok=True)
+
+    log_format = logging.Formatter(
+        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
+    )
+    log_level = logging.INFO
+
+    app_logger = logging.getLogger("reName")
+    app_logger.setLevel(log_level)
+    if app_logger.hasHandlers():
+        app_logger.handlers.clear()
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_format)
+
+    app_file_handler = logging.handlers.TimedRotatingFileHandler(
+        filename=os.path.join(log_directory, "reName.py.log"),
+        when="midnight",
+        interval=1,
+        backupCount=30,
+        encoding="utf-8",
+    )
+    app_file_handler.setFormatter(log_format)
+
+    app_logger.addHandler(console_handler)
+    app_logger.addHandler(app_file_handler)
+    return app_logger
+
+
+logger = setup_logging()
+
 
 class SUCCESS:
     def __init__(self, downloader, json_data):
@@ -14,11 +51,11 @@ class SUCCESS:
 
     def when_success(self, success, decryption_key):
         if success:
-            logging.info(
+            logger.info(
                 f"\nDownload complete! File saved to: {self.downloader.base_dir}"
             )
-            logging.info(f"Video file: {self.downloader.base_dir / 'video.ts'}")
-            logging.info(f"Audio file: {self.downloader.base_dir / 'audio.ts'}")
+            logger.info(f"Video file: {self.downloader.base_dir / 'video.ts'}")
+            logger.info(f"Audio file: {self.downloader.base_dir / 'audio.ts'}")
             SUCCESS.dl_thumbnail(self)
 
         # Mux video and audio with FFmpeg
@@ -27,7 +64,7 @@ class SUCCESS:
             SUCCESS.re_name(self)
             SUCCESS.clean_file(self)
         else:
-            logging.error("\nAn error occurred during loading.")
+            logger.error("\nAn error occurred during loading.")
 
     def clean_file(self):
         base_dir = self.downloader.base_dir
@@ -43,22 +80,22 @@ class SUCCESS:
         for fp in file_paths:
             try:
                 fp.unlink()
-                logging.info(f"Removed file: {fp}")
+                logger.info(f"Removed file: {fp}")
             except FileNotFoundError:
-                logging.warning(f"File not found, skipping: {fp}")
+                logger.warning(f"File not found, skipping: {fp}")
             except Exception as e:
-                logging.error(f"Error removing file {fp}: {e}")
+                logger.error(f"Error removing file {fp}: {e}")
 
         # Force-remove non-empty directories
         for subfolder in ["audio", "video"]:
             dir_path = base_dir / subfolder
             try:
                 shutil.rmtree(dir_path)
-                logging.info(f"Force-removed directory: {dir_path}")
+                logger.info(f"Force-removed directory: {dir_path}")
             except FileNotFoundError:
-                logging.warning(f"Directory not found, skipping: {dir_path}")
+                logger.warning(f"Directory not found, skipping: {dir_path}")
             except Exception as e:
-                logging.error(f"Error force-removing directory {dir_path}: {e}")
+                logger.error(f"Error force-removing directory {dir_path}: {e}")
 
     def re_name(self):
         t = (
@@ -81,7 +118,7 @@ class SUCCESS:
         os.rename(
             self.downloader.base_dir / "output.mp4", self.downloader.base_dir / filename
         )
-        logging.info(f"Final output file: {self.downloader.base_dir / filename}")
+        logger.info(f"Final output file: {self.downloader.base_dir / filename}")
 
     def dl_thumbnail(self):
         thumbnail_url = self.json_data.get("media", {}).get("thumbnail_url", "")
@@ -95,5 +132,5 @@ class SUCCESS:
         if response.status_code == 200:
             save_path.write_bytes(response.content)
         else:
-            logging.error(f"{response.status_code} {thumbnail_url}")
-            logging.error("Thumbnail donwload fail")
+            logger.error(f"{response.status_code} {thumbnail_url}")
+            logger.error("Thumbnail donwload fail")
