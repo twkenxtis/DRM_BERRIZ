@@ -1,0 +1,65 @@
+{
+    "code": "0000",
+    "message": "SUCCESS",
+    "data": {
+        "vod": {
+            "duration": 47,
+            "orientation": "HORIZONTAL",
+            "isDrm": true,
+            "drmInfo": {
+                "assertion": "01O3rjPc2k2i1Je7CiPL0Yjl32EFb9bGkcthaVWXfa7YBz9MPK3vIYcgaW09DKXeeaLgkMzI8apNAi5tJbnwXJm8xUj1Fe5mhdezWiJ+BdezXhH5ffeUgpyZCFfqcOWlqICUYtAPoHud6X11KInzvDb8pJbFgJMn4Qw4x/vtGc688SAglCpJoCdNVmnlTzSwOLbXFOkEQizHb/c0fxFeYWCLT2LRJx9bzWcAFSXll0l6/uxeMqNRbVwuGjkX+SkCXof+VKOLcn3echCYufKK7glyBoADSPY3BPqsPGWZXcHqV/WZ8u1+87c9OKse5IUiS/bR+d4n/u55a8LaO11k+5zWwxEb0CSS+7WE62RheBNZEo+TP4z1JmpzVp9PW3Ga3G32NZbBi7eTn8I/S1G/sN3iGDZYYhHlomhkNhB3qzPHtH6PxJEQhgtcOjgILFbxn+0vAOONIt9mx3/Om/9INLbc6C7KF5+CUjjYKPmLYFgp3Rq1yOyLh4zYp7j4fSe25/VagAbKu2pmb4WQgCgoNA5NXCk5BZg5JuYuKJck8Xgkwmxn8+eIpfHigJ+5yrvf+1WDLbgb38nPo7tna8RmbHe9qX4+6/nh7OyXlSmwE7wcuXt5eKQsx25/MaWQNeLejjCoShNbBILJXZxnPObCBIFd/EO7A0YOoNyrC5hbryy/NjU6K6NBGB4kICHzPPVIlsp0PSy991q0EbWDSR6arVkFntJbX4mtY0I1aj0/FQX3viZiudXZ0NKGeJ8/bGMIt6YYdjVVcLErJuS2yYmgEvzeQyEptSbYAS7JAdooyxLWQSOQ6M6FbluER92uZZ8U3U+OBZTdrNWeRWEaw22ImDHjGEky59Y74updrzFhTqNA5Aiou4bzSrAQ53gJa5BBTE+7qo61zMq6zZCgBmWGG48Yv/6z37y+xtgS/Gb8k51Bu9knwMdoDq4jSoFi6khNOZGCE8viqvbOyZOhsMVH5BMOQr0dvzrG5dZDG15BI7Q=",
+                "widevine": {
+                    "licenseUrl": "https://berriz.drmkeyserver.com/widevine_license"
+                },
+                "playready": {
+                    "licenseUrl": "https://berriz.drmkeyserver.com/playready_license"
+                },
+                "fairplay": {
+                    "licenseUrl": "https://berriz.drmkeyserver.com/fairplay_license",
+                    "certUrl": "https://statics.berriz.in/cdn/media/fairplay.cer"
+                }
+            },
+            "hls": {
+                "playbackUrl": "https://statics.berriz.in/cdn/vod/716205766998417424/zafafafm/58fdc4923217c311/manifest.m3u8",
+                "adaptationSet": [
+                    {
+                        "width": 1920,
+                        "height": 1080,
+                        "playbackUrl": "https://statics.berriz.in/cdn/vod/716205766998417424/zafafafm/58fdc4923217c311/manifest_0.m3u8"
+                    },
+                    {
+                        "width": 1280,
+                        "height": 720,
+                        "playbackUrl": "https://statics.berriz.in/cdn/vod/716205766998417424/zafafafm/58fdc4923217c311/manifest_1.m3u8"
+                    },
+                    {
+                        "width": 854,
+                        "height": 480,
+                        "playbackUrl": "https://statics.berriz.in/cdn/vod/716205766998417424/zafafafm/58fdc4923217c311/manifest_2.m3u8"
+                    },
+                    {
+                        "width": 640,
+                        "height": 360,
+                        "playbackUrl": "https://statics.berriz.in/cdn/vod/716205766998417424/zafafafm/58fdc4923217c311/manifest_3.m3u8"
+                    },
+                    {
+                        "width": 256,
+                        "height": 144,
+                        "playbackUrl": "https://statics.berriz.in/cdn/vod/716205766998417424/zafafafm/58fdc4923217c311/manifest_4.m3u8"
+                    }
+                ]
+            },
+            "dash": {
+                "playbackUrl": "https://statics.berriz.in/cdn/vod/716205766998417424/y82e2e2f/58fdc4923217c311/manifest.mpd"
+            }
+        },
+        "photo": null,
+        "youtube": null,
+        "tracking": {
+            "trackingPlaybackPollingIntervalSec": 30
+        },
+        "settlement": {
+            "mediaSettlementToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJiZXJyaXoiLCJpYXQiOjE3NTQ2NTM0ODMsImV4cCI6MTc1NDczOTg4MywibWVtYmVyS2V5IjoiMDE5NTgwN2YtODUwNy0xZmExLTIxOTMtODg0Y2Q0M2MzZGI2IiwibWVkaWFJZCI6IjAxOTcyZTc4LTk4MDgtMTFmZi04NTNlLWM0N2E5MjNhZWI0YSJ9.cjd_5shncLPJ4ZQWTeHZIgs_ocyCUW5-9MZJpw-I7Vg"
+        }
+    }
+}
