@@ -1,5 +1,4 @@
 import os
-import shutil
 from typing import Dict, List, Union
 
 from unit.color import Color
@@ -121,9 +120,11 @@ class NumericSelector:
                     tokens, self.current_page
                 )
         except KeyboardInterrupt:
-            pass
+            for item in self.all_items:
+                item["selected"] = False
+            return {"vods": [], "photos": []}
         except EOFError:
-            pass
+            raise SystemExit("Keyboard Onoerrupt")
 
         return {
             "vods": [i["data"] for i in self.vod_items if i["selected"]],
@@ -132,19 +133,19 @@ class NumericSelector:
 
     def info(self):
         return f"""
-            {Color.bold()}📄 Page {self.current_page + 1}{Color.reset()}
-            {Color.fg("cyan")}{Color.reset()}
-            {Color.bold()}📝 Instructions:{Color.reset()}
-            ▸ Enter numbers to select media (space-separated)
+        {Color.bold()}📄 Page {self.current_page + 1}{Color.reset()}
+        {Color.fg("cyan")}{Color.reset()}
+        {Color.bold()}📝 Instructions:{Color.reset()}
+        ▸ Enter numbers to select media (space-separated)
 
-                {Color.fg("yellow")}• Single index   :{Color.reset()} 3
-                {Color.fg("yellow")}• Range select   :{Color.reset()} 5-7
-                {Color.fg("yellow")}• Select all  :{Color.reset()} 'vall' → {Color.fg("green")}all videos{Color.reset()}
-                                'pall' → {Color.fg("green")}all photos{Color.reset()}
+        {Color.fg("yellow")}• Single index   :{Color.reset()} 3
+        {Color.fg("yellow")}• Range select   :{Color.reset()} 5-7
+        {Color.fg("yellow")}• Select all  :{Color.reset()} 'vall' → {Color.fg("green")}all videos{Color.reset()}
+                        'pall' → {Color.fg("green")}all photos{Color.reset()}
 
-                {Color.fg("yellow")}• Navigation  :{Color.reset()} 'k' → {Color.fg("magenta")}previous page{Color.reset()}
-                                'l' → {Color.fg("magenta")}next page{Color.reset()}
+        {Color.fg("yellow")}• Navigation  :{Color.reset()} 'k' → {Color.fg("magenta")}previous page{Color.reset()}
+                        'l' → {Color.fg("magenta")}next page{Color.reset()}
 
-                {Color.fg("yellow")}• Confirm        :{Color.reset()} Press Enter to confirm selection
-            {Color.fg("cyan")}{Color.reset()}
+        {Color.fg("yellow")}• Confirm        :{Color.reset()} Press 𝟤x Enter to confirm selection
+        {Color.fg("cyan")}{Color.reset()}
             """
