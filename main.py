@@ -37,11 +37,12 @@ def setup_logging() -> logging.Logger:
     return app_logger
 
 
-if __name__ == "__main__":
-    logger = setup_logging()
-    try:
-        final_selection = asyncio.run(handle_choice())
-    except KeyboardInterrupt:
-        pass
-    except Exception as e:
-        logger.critical(f"Main program execution error: {e}", exc_info=True)
+logger = setup_logging()
+
+
+try:
+    final_selection = asyncio.run(handle_choice())
+except KeyboardInterrupt:
+    pass
+except Exception as e:
+    logger.critical(f"Main program execution error: {e}", exc_info=True)
