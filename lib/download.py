@@ -1,15 +1,14 @@
 import asyncio
-from datetime import datetime
 import logging
-from logging.handlers import TimedRotatingFileHandler
 import os
-from pathlib import Path
 import shutil
+from datetime import datetime
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 
 import aiohttp
-from tqdm.asyncio import tqdm
 
-from lib.ffmpeg.parse_mpd import MPDParser, MediaTrack, MPDContent
+from lib.ffmpeg.parse_mpd import MPDContent, MPDParser, MediaTrack
 from lib.tools.reName import SUCCESS
 
 
@@ -91,35 +90,21 @@ class MediaDownloader:
                 connector=connector, timeout=timeout, headers={"User-Agent": USER_AGENT}
             )
 
-    async def _download_file(
-        self, url: str, save_path: Path, desc: str = "Downloading"
-    ) -> bool:
+    async def _download_file(self, url: str, save_path: Path) -> bool:
         await self._ensure_session()
         try:
             async with self.session.get(url) as response:
                 if response.status == 200:
-                    total_size = int(response.headers.get("content-length", 0))
-                    progress_bar = tqdm(
-                        total=total_size,
-                        unit="B",
-                        unit_scale=True,
-                        desc=desc,
-                        leave=False,
-                    )
                     with open(save_path, "wb") as f:
                         async for chunk in response.content.iter_chunked(10240 * 10240):
                             f.write(chunk)
-                            progress_bar.update(len(chunk))
-                    progress_bar.close()
                     return True
                 return False
         except Exception as e:
             logger.error(f"Download failed {url}: {str(e)}")
             return False
 
-    async def download_track(
-        self, track: MediaTrack, track_type: str, progress_bar: tqdm
-    ) -> bool:
+    async def download_track(self, track: MediaTrack, track_type: str) -> bool:
         track_dir = self.base_dir / track_type
         track_dir.mkdir(exist_ok=True)
 
@@ -132,9 +117,7 @@ class MediaDownloader:
 
         # Download initialization segment
         init_path = track_dir / f"init{file_ext}"
-        if not await self._download_file(
-            track.init_url, init_path, desc=f"{track_type} init"
-        ):
+        if not await self._download_file(track.init_url, init_path):
             logger.error(f"{track_type} Initialization file download failed")
             return False
 
@@ -142,14 +125,9 @@ class MediaDownloader:
         tasks = []
         for i, url in enumerate(track.segment_urls):
             seg_path = track_dir / f"seg_{i:05d}{file_ext}"
-            tasks.append(
-                self._download_file(url, seg_path, desc=f"{track_type} seg {i:05d}")
-            )
+            tasks.append(self._download_file(url, seg_path))
 
         results = await asyncio.gather(*tasks)
-        for _ in results:
-            progress_bar.update(1)  # Update the track-level progress bar
-
         success_count = sum(results)
 
         logger.info(
@@ -192,43 +170,14 @@ class MediaDownloader:
     async def download_content(self, mpd_content: MPDContent):
         try:
             tasks = []
-            progress_bars = []
 
-            # Create progress bars for each track
             if mpd_content.video_track:
-                video_pbar = tqdm(
-                    total=len(mpd_content.video_track.segment_urls)
-                    + 1,  # +1 for init file
-                    desc="Video track",
-                    unit="segment",
-                    position=0,
-                )
-                tasks.append(
-                    self.download_track(mpd_content.video_track, "video", video_pbar)
-                )
-                progress_bars.append(video_pbar)
-
+                tasks.append(self.download_track(mpd_content.video_track, "video"))
             if mpd_content.audio_track:
-                audio_pbar = tqdm(
-                    total=len(mpd_content.audio_track.segment_urls)
-                    + 1,  # +1 for init file
-                    desc="Audio track",
-                    unit="segment",
-                    position=1,
-                )
-                tasks.append(
-                    self.download_track(mpd_content.audio_track, "audio", audio_pbar)
-                )
-                progress_bars.append(audio_pbar)
+                tasks.append(self.download_track(mpd_content.audio_track, "audio"))
 
-            # Run downloads concurrently
             download_results = await asyncio.gather(*tasks)
 
-            # Close all progress bars
-            for pbar in progress_bars:
-                pbar.close()
-
-            # Merge tracks if downloads were successful
             merge_results = []
             if mpd_content.video_track and download_results[0]:
                 merge_results.append(self._merge_track("video"))
