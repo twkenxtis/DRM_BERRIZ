@@ -1,8 +1,8 @@
+import logging
 import re
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from lib.download import logger
-from lib.download import DateTimeFormatter
 
 class Video_folder:
     def __init__(self, json_data):
@@ -24,11 +24,11 @@ class Video_folder:
         return output_dir
 
     def parse_mediaid(self):
-        logger.info(f'mediaid: {self.json_data.get("media", {}).get("id", "")}')
+        logging.info(f'mediaid: {self.json_data.get("media", {}).get("id", "")}')
         return self.json_data.get("media", {}).get("id", "")
 
     def parse_title(self):
-        logger.info(f'title: {self.json_data.get("media", {}).get("title", "")}')
+        logging.info(f'title: {self.json_data.get("media", {}).get("title", "")}')
         return self.json_data.get("media", {}).get("title", "")
 
     def parse_published_at(self):
@@ -37,3 +37,17 @@ class Video_folder:
     def formact_time(self):
         time_str = DateTimeFormatter.format_published_at(self.published_at)
         return time_str
+
+
+class DateTimeFormatter:
+    """Formats datetime strings for folder naming."""
+
+    @staticmethod
+    def format_published_at(publishedAt: str) -> str:
+        """Convert UTC publishedAt time to KST and format as string."""
+        utc_time = datetime.strptime(publishedAt, "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc
+        )
+        kst_offset = timedelta(hours=9)  # KST is UTC+9
+        kst_time = utc_time + kst_offset
+        return kst_time.strftime("%y%m%d %H-%M")
