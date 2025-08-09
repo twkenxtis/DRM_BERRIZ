@@ -1,0 +1,36 @@
+from collections import deque
+from typing import List, Dict, Any, Optional
+
+
+class MediaQueue:
+    """A queue class for managing media IDs to be processed."""
+
+    def __init__(self):
+        self._queue = deque()
+        self._processed_items = set()  # To avoid duplicates
+
+    def enqueue(self, media_id: str, media_type: str) -> None:
+        """Add a media ID to the queue if it hasn't been processed yet."""
+        if media_id not in self._processed_items:
+            self._queue.append((media_id, media_type))
+            self._processed_items.add(media_id)
+
+    def enqueue_batch(self, media_items: List[Dict[str, Any]]) -> None:
+        """Add multiple media items to the queue."""
+        for item in media_items:
+            if "mediaId" in item and "mediaType" in item:
+                self.enqueue(item["mediaId"], item["mediaType"])
+
+    def dequeue(self) -> Optional[tuple[str, str]]:
+        """Remove and return the next media ID and type from the queue."""
+        if not self.is_empty():
+            return self._queue.popleft()
+        return None
+
+    def is_empty(self) -> bool:
+        """Check if the queue is empty."""
+        return len(self._queue) == 0
+
+    def size(self) -> int:
+        """Return the current size of the queue."""
+        return len(self._queue)
