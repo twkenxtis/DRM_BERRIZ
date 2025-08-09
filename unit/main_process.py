@@ -46,12 +46,13 @@ class MediaProcessor:
         return None
 
     async def _handle_choice(self, selected_media: dict, skip_media_id: str) -> None:
-        """Handle skipping media that already exists."""
-        for vod in selected_media.get("vods", []):
-            if vod["mediaId"] == skip_media_id:
-                title = vod["title"]
-                logger.info(f"{title} Already exists, skip download.")
-                return
+        """Handle skipping media from 'vods' and 'photos' that already exist."""
+        for media_type in ("vods", "photos"):
+            for item in selected_media.get(media_type, []):
+                if item.get("mediaId") == skip_media_id:
+                    title = item.get("title", "Unknown Title")
+                    logger.info(f"{title} Already exists, skip download.")
+                    return
 
     async def process_media_queue(
         self, media_queue: MediaQueue, selected_media: dict
