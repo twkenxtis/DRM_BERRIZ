@@ -5,12 +5,12 @@ import ffmpeg
 class VideoInfo:
     def __init__(self, path: str):
         if not os.path.exists(path):
-            raise FileNotFoundError(f"檔案未找到: {path}")
+            raise FileNotFoundError(f"File not found: {path}")
         self.path = path
         try:
             self._probe_data = ffmpeg.probe(self.path)
         except ffmpeg.Error as e:
-            raise RuntimeError(f"FFmpeg 探測錯誤: {e.stderr.decode('utf-8')}")
+            raise RuntimeError(f"FFmpeg issuse!: {e.stderr.decode('utf-8')}")
 
         self._format = self._probe_data["format"]
         self._streams = self._probe_data["streams"]
