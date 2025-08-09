@@ -1,4 +1,5 @@
 import asyncio
+import re
 import logging
 import os
 import shutil
@@ -57,8 +58,8 @@ class MediaDownloader:
         self.session = None
 
     def _create_output_dir(self) -> Path:
-        base_dir = Path("downloads")
-        folder_name = f"{self.media_id} {datetime.now().strftime('%y%m%d_%H%M%S')}"
+        base_dir = Path("downloads") / "videos"
+        folder_name = f"{datetime.now().strftime('%y%m%d_%H%M%S')} {self.media_id}"
         output_dir = base_dir / folder_name
         output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir
@@ -205,7 +206,11 @@ async def run_dl(mpd_uri, decryption_key, json_data):
             f"\nEncrypted content detected (KID: {mpd_content.drm_info['default_KID']})"
         )
 
-    foldername = json_data.get("media", {}).get("id", "")
+    foldername = re.sub(
+        r'[\\/:\*\?"<>|]',
+        "",
+        json_data.get("media", {}).get("id", "")
+    ).strip()
     downloader = MediaDownloader(f"{foldername}")
     success = await downloader.download_content(mpd_content)
     s = SUCCESS(downloader, json_data)
