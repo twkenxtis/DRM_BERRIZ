@@ -3,7 +3,7 @@ import re
 import logging
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
@@ -52,17 +52,10 @@ logger = setup_logging()
 
 
 class MediaDownloader:
-    def __init__(self, media_id: str):
+    def __init__(self, media_id: str, outout_dir: str):
         self.media_id = media_id
-        self.base_dir = self._create_output_dir()
+        self.base_dir = outout_dir
         self.session = None
-
-    def _create_output_dir(self) -> Path:
-        base_dir = Path("downloads") / "videos"
-        folder_name = f"{datetime.now().strftime('%y%m%d_%H%M%S')} {self.media_id}"
-        output_dir = base_dir / folder_name
-        output_dir.mkdir(parents=True, exist_ok=True)
-        return output_dir
 
     def _get_file_extension(self, mime_type: str) -> str:
         """Determine file extension based on MIME type for DASH streaming"""
@@ -153,7 +146,12 @@ class MediaDownloader:
             return False
 
         logger.info(f"Merge {track_type} tracks: {len(segments)} segments")
+        bool = MediaDownloader.binary_merge(output_file, init_files, segments, track_type)
+        return bool
 
+
+    @staticmethod
+    def binary_merge(output_file, init_files, segments, track_type):
         try:
             with open(output_file, "wb") as outfile:
                 with open(init_files[0], "rb") as infile:
@@ -193,6 +191,69 @@ class MediaDownloader:
                 await self.session.close()
 
 
+class Video_folder:
+    def __init__(self, json_data):
+        self.json_data = json_data
+        self.media_id = self.parse_mediaid()
+        self.title = self.parse_title()
+        self.published_at = self.parse_published_at()
+        self.time_str = self.formact_time()
+
+    def video_folder_handle(self):
+        base_dir = Path("downloads") / "videos"
+        folder_name = f"{self.time_str} {self.media_id}"
+        folder_name = re.sub(r'[\\/:\*\?"<>|]', "", folder_name).strip()
+        output_dir = base_dir / folder_name
+
+        if output_dir.exists() and output_dir.is_dir():
+            return None
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
+
+    def parse_mediaid(self):
+        logger.info(f'mediaid: {self.json_data.get("media", {}).get("id", "")}')
+        return self.json_data.get("media", {}).get("id", "")
+
+    def parse_title(self):
+        logger.info(f'title: {self.json_data.get("media", {}).get("title", "")}')
+        return self.json_data.get("media", {}).get("title", "")
+
+    def parse_published_at(self):
+        return self.json_data.get("media", {}).get("published_at", "")
+
+    def formact_time(self):
+        time_str = DateTimeFormatter.format_published_at(self.published_at)
+        return time_str
+
+
+class DateTimeFormatter:
+    """Formats datetime strings for folder naming."""
+
+    @staticmethod
+    def format_published_at(publishedAt: str) -> str:
+        """Convert UTC publishedAt time to KST and format as string."""
+        utc_time = datetime.strptime(publishedAt, "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc
+        )
+        kst_offset = timedelta(hours=9)  # KST is UTC+9
+        kst_time = utc_time + kst_offset
+        return kst_time.strftime("%y%m%d %H-%M")
+
+
+async def start_download_queue(decryption_key, json_data, mpd_content):
+    video_folder = Video_folder(json_data)
+    media_id = video_folder.media_id
+    output_dir = video_folder.video_folder_handle()
+    if output_dir is None:
+        title = video_folder.parse_title()
+        logging.warning(f"{title} already exits skip downloads")
+    elif output_dir is not None:
+        downloader = MediaDownloader(media_id, output_dir)
+        success = await downloader.download_content(mpd_content)
+        s = SUCCESS(downloader, json_data)
+        s.when_success(success, decryption_key)
+
+
 async def run_dl(mpd_uri, decryption_key, json_data):
     parser = MPDParser(mpd_uri)
     mpd_content = parser.get_highest_quality_content()
@@ -206,12 +267,4 @@ async def run_dl(mpd_uri, decryption_key, json_data):
             f"\nEncrypted content detected (KID: {mpd_content.drm_info['default_KID']})"
         )
 
-    foldername = re.sub(
-        r'[\\/:\*\?"<>|]',
-        "",
-        json_data.get("media", {}).get("id", "")
-    ).strip()
-    downloader = MediaDownloader(f"{foldername}")
-    success = await downloader.download_content(mpd_content)
-    s = SUCCESS(downloader, json_data)
-    s.when_success(success, decryption_key)
+    await start_download_queue(decryption_key, json_data, mpd_content)
