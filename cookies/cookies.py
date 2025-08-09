@@ -126,6 +126,7 @@ class NetscapeCookieReader:
     def load_cookies(self) -> None:
         """Load cookies from the Netscape cookie file."""
         if not self.file_path.exists():
+            os.makedirs("cookies/Berriz", exist_ok=True)
             raise FileNotFoundError(f"Cookie file not found: {self.file_path}")
 
         with open(self.file_path, "r", encoding="utf-8") as f:
