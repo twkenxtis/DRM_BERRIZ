@@ -2,8 +2,7 @@ from lib.media_queue import MediaQueue
 from unit.berriz_drm import logger
 from unit.GetMediaList import MediaFetcher, NumericSelector
 from unit.media_json_process import MediaJsonProcessor
-from unit.main_process import process_media_queue
-
+from unit.main_process import MediaProcessor
 
 async def handle_choice():
     community_id = 7
@@ -32,6 +31,6 @@ async def handle_choice():
     media_queue.enqueue_batch(processed_media["photos"])
 
     # Process all items in the queue
-    await process_media_queue(media_queue)
+    await MediaProcessor().process_media_queue(media_queue, selected_media)
 
     return selected_media
