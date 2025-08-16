@@ -1,13 +1,18 @@
 import logging
 import os
 import re
+import random
+import string
 from datetime import datetime, timedelta, timezone
-from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
-from typing import Any, Dict, List, Union
+
+from logging.handlers import TimedRotatingFileHandler
 
 import httpx
 
+from typing import Any, Dict, List, Union
+
+from static.color import Color
 from unit.http.request_berriz_api import Playback_info, Public_context
 from unit.image.parse_public_contexts import parse_public_contexts
 from unit.image.parse_playback_contexts import parse_playback_contexts
@@ -58,12 +63,13 @@ class FilenameSanitizer:
         return cleaned.strip()
 
 
+
 class DateTimeFormatter:
     """Formats datetime strings for folder naming."""
 
     @staticmethod
     def format_published_at(publishedAt: str) -> str:
-        """Convert UTC publishedAt time to KST and format as string."""
+        """Convert UTC publishedAt time to KST and format as string with 4-digit seconds."""
         utc_time = datetime.strptime(publishedAt, "%Y-%m-%dT%H:%M:%SZ").replace(
             tzinfo=timezone.utc
         )
@@ -79,15 +85,19 @@ class FolderManager:
         self.base_dir = base_dir
 
     def create_image_folder(self, title: str, publishedAt: str) -> str | None:
-        """Create a folder for images based on title and published time."""
+        """Create a folder for images. If exists, append random 4-letter suffix."""
         time_str = DateTimeFormatter.format_published_at(publishedAt)
         safe_title = FilenameSanitizer.sanitize_filename(title)
-        folder_path = self.base_dir / f"{time_str} IVE - {safe_title}"
+        base_folder_name = f"{time_str} IVE - {safe_title}"
+        folder_path = self.base_dir / base_folder_name
 
         try:
             self.base_dir.mkdir(parents=True, exist_ok=True)
-            if folder_path.exists():
-                return "Already exists"
+            
+            while folder_path.exists():
+                random_suffix = ''.join(random.choices(string.ascii_letters, k=5))
+                folder_path = self.base_dir / f"{base_folder_name} [{random_suffix}]"
+            
             folder_path.mkdir()
             return str(folder_path.resolve())
         except Exception as e:
@@ -114,7 +124,7 @@ class ImageDownloader:
                     with open(file_path, "wb") as f:
                         for chunk in resp.iter_bytes(65536):
                             f.write(chunk)
-            logger.info(f"Downloaded {file_path}")
+            logger.info(f"{Color.fg('light_gray')}Downloaded {Color.fg('black')}{file_path}{Color.reset()}")
         except httpx.HTTPStatusError as e:
             logger.error(f"{url} download failed with code {e.response.status_code}")
             raise
@@ -157,10 +167,7 @@ class MediaDownloadOrchestrator:
         images = parse_playback_contexts(playback_contexts)
 
         path = self.folder_manager.create_image_folder(title, publishedAt)
-        if path == "Already exists":
-            logger.info(f"[IMG] {title} Already exists skip download.")
-        elif path:
-            self.image_parser.parse_and_download(images, path)
+        self.image_parser.parse_and_download(images, path)
 
 
 async def run_image_dl(media_id: str):
