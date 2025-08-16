@@ -13,38 +13,42 @@ from key.local_vault import LocalKeyVault
 from static.PlaybackInfo import PlaybackInfo
 from static.PublicInfo import PublicInfo
 from unit.http.request_berriz_api import Playback_info, Public_context
+from static.color import Color
 
 
 def setup_logging() -> logging.Logger:
     """Set up logging with console and rotating file handlers."""
-    log_directory = "logs"
-    os.makedirs(log_directory, exist_ok=True)
+    os.makedirs("logs", exist_ok=True)
 
     log_format = logging.Formatter(
         "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
     )
-    log_level = logging.INFO
 
-    app_logger = logging.getLogger("berriz_drm")
-    app_logger.setLevel(log_level)
-    if app_logger.hasHandlers():
-        app_logger.handlers.clear()
+    logger = logging.getLogger("berriz_drm")
+    logger.setLevel(logging.INFO)
 
+    if logger.handlers:
+        logger.handlers.clear()
+
+    logger.propagate = False
+
+    # console handler
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(log_format)
+    logger.addHandler(console_handler)
 
-    app_file_handler = logging.handlers.TimedRotatingFileHandler(
-        filename=os.path.join(log_directory, "berriz_drm.py.log"),
+    # rotating file handler
+    app_file_handler = TimedRotatingFileHandler(
+        filename="logs/berriz_drm.py.log",
         when="midnight",
         interval=1,
         backupCount=30,
         encoding="utf-8",
     )
     app_file_handler.setFormatter(log_format)
+    logger.addHandler(app_file_handler)
 
-    app_logger.addHandler(console_handler)
-    app_logger.addHandler(app_file_handler)
-    return app_logger
+    return logger
 
 
 logger = setup_logging()
@@ -80,6 +84,7 @@ class Key_handle:
 
         for k in [self.wv_pssh, self.msprpro]:
             if vault.contains(k):
+                logger.info(f"{Color.fg('iceberg')}SUCCESS save key to local vault:{Color.reset()} {Color.fg('gold')}{key}{Color.reset()}")
                 pass
             else:
                 logger.error(f"Key verification FAILED for: {k}")
@@ -89,7 +94,7 @@ class Key_handle:
         wv_pssh_value = vault.retrieve(self.wv_pssh)
         msprpro_value = vault.retrieve(self.msprpro)
         if msprpro_value or wv_pssh_value is not None:
-            logger.info(f"Use local key vault keys: {msprpro_value}")
+            logger.info(f"{Color.fg('mint')}Use local key vault keys:{Color.reset()} {Color.fg('ruby')}{msprpro_value}{Color.reset()}")
             return wv_pssh_value, msprpro_value
         return (None, None)
 
@@ -127,12 +132,19 @@ class BerrizProcessor:
 
             # Handle DRM and obtain information needed for download
             key_handler = Key_handle(playback_info, self.media_id)
-            key, media_id_from_drm, dash_playback_url = key_handler.send_drm()
+            k = key_handler.send_drm()
+            if k is not None:
+                key, media_id_from_drm, dash_playback_url = k
+            else:
+                dash_playback_url = playback_info.dash_playback_url
+                key = None
+            await self.create_task(public_info, key, dash_playback_url)
 
-            task = asyncio.create_task(
-                start_download(public_info, key, dash_playback_url)
-            )
-            self._tasks.append(task)
+    async def create_task(self, public_info, key, dash_playback_url):
+        task = asyncio.create_task(
+            start_download(public_info, key, dash_playback_url)
+        )
+        self._tasks.append(task)
 
     async def execute_downloads(self):
         if not self._tasks:
