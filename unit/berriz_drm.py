@@ -131,13 +131,16 @@ class BerrizProcessor:
             self.all_playback_infos.append((playback_info, public_info))
 
             # Handle DRM and obtain information needed for download
-            key_handler = Key_handle(playback_info, self.media_id)
-            k = key_handler.send_drm()
-            if k is not None:
+            if playback_info.is_drm is True:
+                key_handler = Key_handle(playback_info, self.media_id)
+                k = key_handler.send_drm()
                 key, media_id_from_drm, dash_playback_url = k
-            else:
+            elif playback_info.is_drm is False:
                 dash_playback_url = playback_info.dash_playback_url
                 key = None
+            else:
+                logger.error(f"Invalid DRM status for media ID: {self.media_id}")
+                raise Exception(f"Check {playback_info.dash_playback_url} PSSH or DRM info !")
             await self.create_task(public_info, key, dash_playback_url)
 
     async def create_task(self, public_info, key, dash_playback_url):
