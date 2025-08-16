@@ -1,0 +1,9 @@
+{
+  "duplicate": {
+    "default": false,
+    "overrides": {
+      "image": true,
+      "video": false
+    }
+  }
+}
