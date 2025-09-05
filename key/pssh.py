@@ -5,6 +5,7 @@ import requests
 from lxml import etree
 
 from cookies.cookies import Refresh_JWT, Berriz_cookie
+from static.color import Color
 
 
 def extract_pssh(response: requests.Response) -> List[str]:
@@ -58,17 +59,12 @@ class GetMPD_wv:
         pssh_values = extract_pssh(response)
 
         if not pssh_values:
-            logging.error("No PSSH values found in the MPD file.")
+            logging.warning(f"{Color.bg('mint')}No WV PSSH values found in the MPD file.{Color.reset()}")
             return None
 
         for pssh in pssh_values:
             if len(pssh) == 76:
                 return pssh
 
-        logging.error("No PSSH value with exactly 76 characters found")
+        logging.error("No WV PSSH value with exactly 76 characters found")
         return None
-
-
-if __name__ == "__main__":
-    mpd_url = "https://statics.berriz.in/cdn/vod/716205766998417424/y82e2e2f/58fdc4923217c311/manifest.mpd"
-    GetMPD_wv.parse_pssh(mpd_url)

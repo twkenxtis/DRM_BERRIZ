@@ -5,6 +5,7 @@ import requests
 from lxml import etree
 
 from cookies.cookies import Refresh_JWT, Berriz_cookie
+from static.color import Color
 
 
 def extract_pssh(response: requests.Response) -> List[str]:
@@ -58,12 +59,12 @@ class GetMPD_prd:
         pssh_values = extract_pssh(response)
 
         if not pssh_values:
-            logging.error("No PSSH values found in the MPD file.")
+            logging.warning(f"{Color.bg('mint')}No MSPR:PRO PSSH values found in the MPD file.{Color.reset ()}")
             return None
 
         for pssh in pssh_values:
             if len(pssh) > 76:
                 return pssh
 
-        logging.error("No PSSH value with exactly 76 characters found")
+        logging.error("No MSPR:PRO PSSH value with exactly 76 characters found")
         return None
