@@ -2,7 +2,8 @@ from dataclasses import dataclass
 import requests
 import xml.etree.ElementTree as ET
 from urllib.parse import urljoin
-from typing import List, Dict, Optional
+
+from typing import Dict, List, Optional
 
 
 USER_AGENT = "Mozilla/5.0 (Linux; Android 10; SM-G960F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Mobile Safari/537.36"

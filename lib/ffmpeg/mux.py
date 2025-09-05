@@ -2,40 +2,47 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional
+
 from logging.handlers import TimedRotatingFileHandler
+
+from typing import Optional
+
+from static.color import Color
 
 
 def setup_logging() -> logging.Logger:
     """Set up logging with console and rotating file handlers."""
-    log_directory = "logs"
-    os.makedirs(log_directory, exist_ok=True)
+    os.makedirs("logs", exist_ok=True)
 
     log_format = logging.Formatter(
         "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
     )
-    log_level = logging.INFO
 
-    app_logger = logging.getLogger("mux")
-    app_logger.setLevel(log_level)
-    if app_logger.hasHandlers():
-        app_logger.handlers.clear()
+    logger = logging.getLogger("mux")
+    logger.setLevel(logging.INFO)
 
+    if logger.handlers:
+        logger.handlers.clear()
+
+    logger.propagate = False
+
+    # console handler
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(log_format)
+    logger.addHandler(console_handler)
 
-    app_file_handler = logging.handlers.TimedRotatingFileHandler(
-        filename=os.path.join(log_directory, "mux.py.log"),
+    # rotating file handler
+    app_file_handler = TimedRotatingFileHandler(
+        filename="logs/mux.py.log",
         when="midnight",
         interval=1,
         backupCount=30,
         encoding="utf-8",
     )
     app_file_handler.setFormatter(log_format)
+    logger.addHandler(app_file_handler)
 
-    app_logger.addHandler(console_handler)
-    app_logger.addHandler(app_file_handler)
-    return app_logger
+    return logger
 
 
 logger = setup_logging()
@@ -58,7 +65,7 @@ class FFmpegMuxer:
 
         if kid and self.decryption_key:
             logger.info(
-                f"Detected {track_type} track encryption (KID: {kid}), decrypting..."
+                f"{Color.fg('blue')}Detected{Color.reset()} {Color.fg('cyan')}{track_type} {Color.reset()}{Color.fg('blue')}track encryption (KID: {Color.reset()}{Color.fg('orange')}{kid}), {Color.reset()}{Color.fg('blue')}decrypting...{Color.reset()}"
             )
             decrypted_file = self.base_dir / f"{track_type}_decrypted.ts"
             if self._decrypt_file(input_file, decrypted_file, self.decryption_key, kid):
@@ -141,7 +148,7 @@ class FFmpegMuxer:
 
         output_file = self.base_dir / output_name
 
-        logger.info("Start using FFmpeg to mux video and audio...")
+        logger.info(F"{Color.fg('light_gray')}Start using FFmpeg to mux video and audio...{Color.reset()}")
 
         # Standard FFmpeg command without modification
         cmd = [
@@ -182,7 +189,7 @@ class FFmpegMuxer:
                 logger.error(f"FFmpeg multiplexing failed:\n{result.stderr}")
                 return False
 
-            logger.info(f"Mixed flow completed: {output_file}")
+            logger.info(f"{Color.fg('gray')}Mixed flow completed: {output_file}{Color.reset()}")
             return True
         except Exception as e:
             logger.error(f"FFmpeg mixing error: {str(e)}")

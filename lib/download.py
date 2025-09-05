@@ -1,16 +1,16 @@
 import asyncio
-import re
 import logging
 import os
 import shutil
-from datetime import datetime, timedelta, timezone
-from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
+
+from logging.handlers import TimedRotatingFileHandler
 
 import aiohttp
 
 from lib.ffmpeg.parse_mpd import MPDContent, MPDParser, MediaTrack
-from lib.tools.reName import SUCCESS
+from lib.video_folder import start_download_queue
+from static.color import Color
 
 
 USER_AGENT = "Mozilla/5.0 (Linux; Android 10; SM-G960F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Mobile Safari/537.36"
@@ -18,34 +18,37 @@ USER_AGENT = "Mozilla/5.0 (Linux; Android 10; SM-G960F) AppleWebKit/537.36 (KHTM
 
 def setup_logging() -> logging.Logger:
     """Set up logging with console and rotating file handlers."""
-    log_directory = "logs"
-    os.makedirs(log_directory, exist_ok=True)
+    os.makedirs("logs", exist_ok=True)
 
     log_format = logging.Formatter(
         "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
     )
-    log_level = logging.INFO
 
-    app_logger = logging.getLogger("download")
-    app_logger.setLevel(log_level)
-    if app_logger.hasHandlers():
-        app_logger.handlers.clear()
+    logger = logging.getLogger("download")
+    logger.setLevel(logging.INFO)
 
+    if logger.handlers:
+        logger.handlers.clear()
+
+    logger.propagate = False
+
+    # console handler
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(log_format)
+    logger.addHandler(console_handler)
 
-    app_file_handler = logging.handlers.TimedRotatingFileHandler(
-        filename=os.path.join(log_directory, "download.py.log"),
+    # rotating file handler
+    app_file_handler = TimedRotatingFileHandler(
+        filename="logs/download.py.log",
         when="midnight",
         interval=1,
         backupCount=30,
         encoding="utf-8",
     )
     app_file_handler.setFormatter(log_format)
+    logger.addHandler(app_file_handler)
 
-    app_logger.addHandler(console_handler)
-    app_logger.addHandler(app_file_handler)
-    return app_logger
+    return logger
 
 
 logger = setup_logging()
@@ -78,7 +81,7 @@ class MediaDownloader:
 
     async def _ensure_session(self):
         if self.session is None or self.session.closed:
-            connector = aiohttp.TCPConnector(limit_per_host=25)
+            connector = aiohttp.TCPConnector(limit_per_host=10)
             timeout = aiohttp.ClientTimeout(total=1200)
             self.session = aiohttp.ClientSession(
                 connector=connector, timeout=timeout, headers={"User-Agent": USER_AGENT}
@@ -103,7 +106,7 @@ class MediaDownloader:
         track_dir.mkdir(exist_ok=True)
 
         logger.info(
-            f"Start downloading {track_type} track: {track.id} [Bitrate: {track.bandwidth}]"
+            f"{Color.fg('light_gray')}Start downloading{Color.reset()} {Color.bg('cyan')}{track_type}{Color.reset()} track: {track.id} [Bitrate: {Color.fg('violet')}{track.bandwidth}{Color.reset()}]"
         )
 
         # Get appropriate extension for files
@@ -125,7 +128,7 @@ class MediaDownloader:
         success_count = sum(results)
 
         logger.info(
-            f"{track_type} Split download complete: Success {success_count}/{len(results)}"
+            f"{Color.fg('plum')}{track_type} Split download complete: Success {Color.fg('light_yellow')}{success_count}{Color.reset()}/{len(results)}{Color.reset()}"
         )
         return success_count == len(results)
 
@@ -145,7 +148,7 @@ class MediaDownloader:
             logger.warning(f"No {track_type} fragment files found")
             return False
 
-        logger.info(f"Merge {track_type} tracks: {len(segments)} segments")
+        logger.info(f"{Color.fg('light_gray')}Merge{Color.reset()} {Color.fg('light_gray')}{track_type} {Color.reset()}{Color.fg('light_gray')}tracks{Color.reset()}: {len(segments)} {Color.fg('yellow')}{Color.reset()}{Color.fg('light_gray')}segments{Color.reset()}")
         bool = MediaDownloader.binary_merge(output_file, init_files, segments, track_type)
         return bool
 
@@ -160,7 +163,7 @@ class MediaDownloader:
                     with open(seg, "rb") as infile:
                         shutil.copyfileobj(infile, outfile)
 
-            logger.info(f"{track_type} Merger completed: {output_file}")
+            logger.info(f"{Color.fg('light_gray')}{track_type} Merger completed: {output_file}{Color.reset()}")
             return True
         except Exception as e:
             logger.error(f"{track_type} Merger failed: {str(e)}")
@@ -189,69 +192,6 @@ class MediaDownloader:
         finally:
             if self.session:
                 await self.session.close()
-
-
-class Video_folder:
-    def __init__(self, json_data):
-        self.json_data = json_data
-        self.media_id = self.parse_mediaid()
-        self.title = self.parse_title()
-        self.published_at = self.parse_published_at()
-        self.time_str = self.formact_time()
-
-    def video_folder_handle(self):
-        base_dir = Path("downloads") / "videos"
-        folder_name = f"{self.time_str} {self.media_id}"
-        folder_name = re.sub(r'[\\/:\*\?"<>|]', "", folder_name).strip()
-        output_dir = base_dir / folder_name
-
-        if output_dir.exists() and output_dir.is_dir():
-            return None
-        output_dir.mkdir(parents=True, exist_ok=True)
-        return output_dir
-
-    def parse_mediaid(self):
-        logger.info(f'mediaid: {self.json_data.get("media", {}).get("id", "")}')
-        return self.json_data.get("media", {}).get("id", "")
-
-    def parse_title(self):
-        logger.info(f'title: {self.json_data.get("media", {}).get("title", "")}')
-        return self.json_data.get("media", {}).get("title", "")
-
-    def parse_published_at(self):
-        return self.json_data.get("media", {}).get("published_at", "")
-
-    def formact_time(self):
-        time_str = DateTimeFormatter.format_published_at(self.published_at)
-        return time_str
-
-
-class DateTimeFormatter:
-    """Formats datetime strings for folder naming."""
-
-    @staticmethod
-    def format_published_at(publishedAt: str) -> str:
-        """Convert UTC publishedAt time to KST and format as string."""
-        utc_time = datetime.strptime(publishedAt, "%Y-%m-%dT%H:%M:%SZ").replace(
-            tzinfo=timezone.utc
-        )
-        kst_offset = timedelta(hours=9)  # KST is UTC+9
-        kst_time = utc_time + kst_offset
-        return kst_time.strftime("%y%m%d %H-%M")
-
-
-async def start_download_queue(decryption_key, json_data, mpd_content):
-    video_folder = Video_folder(json_data)
-    media_id = video_folder.media_id
-    output_dir = video_folder.video_folder_handle()
-    if output_dir is None:
-        title = video_folder.parse_title()
-        logging.warning(f"{title} already exits skip downloads")
-    elif output_dir is not None:
-        downloader = MediaDownloader(media_id, output_dir)
-        success = await downloader.download_content(mpd_content)
-        s = SUCCESS(downloader, json_data)
-        s.when_success(success, decryption_key)
 
 
 async def run_dl(mpd_uri, decryption_key, json_data):

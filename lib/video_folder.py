@@ -1,43 +1,49 @@
-import re
-import os
 import logging
+import os
+import re
 from datetime import datetime, timedelta, timezone
-from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
+from logging.handlers import TimedRotatingFileHandler
+
+
 from lib.tools.reName import SUCCESS
+from static.color import Color
 
 
 def setup_logging() -> logging.Logger:
     """Set up logging with console and rotating file handlers."""
-    log_directory = "logs"
-    os.makedirs(log_directory, exist_ok=True)
+    os.makedirs("logs", exist_ok=True)
 
     log_format = logging.Formatter(
         "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
     )
-    log_level = logging.INFO
 
-    app_logger = logging.getLogger("video_folder")
-    app_logger.setLevel(log_level)
-    if app_logger.hasHandlers():
-        app_logger.handlers.clear()
+    logger = logging.getLogger("video_folder")
+    logger.setLevel(logging.INFO)
 
+    if logger.handlers:
+        logger.handlers.clear()
+
+    logger.propagate = False
+
+    # console handler
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(log_format)
+    logger.addHandler(console_handler)
 
-    app_file_handler = logging.handlers.TimedRotatingFileHandler(
-        filename=os.path.join(log_directory, "video_folder.py.log"),
+    # rotating file handler
+    app_file_handler = TimedRotatingFileHandler(
+        filename="logs/video_folder.py.log",
         when="midnight",
         interval=1,
         backupCount=30,
         encoding="utf-8",
     )
     app_file_handler.setFormatter(log_format)
+    logger.addHandler(app_file_handler)
 
-    app_logger.addHandler(console_handler)
-    app_logger.addHandler(app_file_handler)
-    return app_logger
+    return logger
 
 
 logger = setup_logging()
@@ -61,11 +67,17 @@ class Video_folder:
         return output_dir
 
     def parse_mediaid(self):
-        logging.info(f'mediaid: {self.json_data.get("media", {}).get("id", "")}')
+        logger.info(
+            f"{Color.fg('light_gray')}title:{Color.reset()} "
+            f"{Color.fg('bright_magenta')}{self.json_data.get('media', {}).get('title', '')}{Color.reset()}"
+        )
         return self.json_data.get("media", {}).get("id", "")
 
     def parse_title(self):
-        logging.info(f'title: {self.json_data.get("media", {}).get("title", "")}')
+        logger.info(
+            f"{Color.fg('light_gray')}title:{Color.reset()} "
+            f"{Color.fg('olive')}{self.json_data.get('media', {}).get('title', '')}{Color.reset()}"
+        )
         return self.json_data.get("media", {}).get("title", "")
 
     def parse_published_at(self):
@@ -94,7 +106,7 @@ class Video_folder:
 
             try:
                 full_path.rename(new_path)
-                logger.info(f"Renamed folder: From: {full_path}\nTo: {new_path}")
+                logger.info(f"{Color.fg('light_blue')}Renamed folder: From: {Color.reset()}{full_path}\nTo: {Color.fg('light_yellow')}{new_path}{Color.reset()}")
             except Exception as e:
                 logger.error(f"Failed to rename folder: {e}")
         else:
