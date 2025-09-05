@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 
 
-def parse_public_contexts(public_contexts: List[Dict[str, Any]]) -> str:
+async def parse_public_contexts(public_contexts: List[Dict[str, Any]]) -> str:
     if not public_contexts:
         raise ValueError("public_contexts is empty")
 

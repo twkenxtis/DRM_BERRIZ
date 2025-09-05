@@ -1,7 +1,7 @@
 from typing import Any, Dict
 
 
-def parse_playback_contexts(playback_contexts: Dict[str, Any]) -> None:
+async def parse_playback_contexts(playback_contexts: Dict[str, Any]) -> None:
     if not playback_contexts:
         raise ValueError("public_contexts is empty")
 

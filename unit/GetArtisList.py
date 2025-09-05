@@ -22,11 +22,11 @@ def setup_logging() -> logging.Logger:
     """Set up logging with console and rotating file handlers."""
     os.makedirs("logs", exist_ok=True)
 
-    log_format = logging.Formatter(
+    log_format = logging.Formatter( 
         "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
     )
 
-    logger = logging.getLogger("GetMediaList")
+    logger = logging.getLogger("GetArtisList")
     logger.setLevel(logging.INFO)
 
     if logger.handlers:
@@ -41,7 +41,7 @@ def setup_logging() -> logging.Logger:
 
     # rotating file handler
     app_file_handler = TimedRotatingFileHandler(
-        filename="logs/GetMediaList.py.log",
+        filename="logs/GetArtisList.py.log",
         when="midnight",
         interval=1,
         backupCount=30,
@@ -76,7 +76,7 @@ class ApiClient:
         delay: float = 0,
         max_connections: int = 10,
     ):
-        self.base_url = "https://svc-api.berriz.in/service/v1"
+        self.base_url = "https://svc-api.berriz.in/service/v2"
         self.headers = headers
         self.delay = delay
         self.session: Optional[aiohttp.ClientSession] = None
@@ -106,16 +106,16 @@ class ApiClient:
             await self.session.close()
         self.session = None
 
-    async def fetch_page(self, community_id: int, cursor: Optional[str]) -> Optional[Dict[str, Any]]:
-        url = self._build_url(community_id)
+    async def fetch_page(self, community_id: int, cursor: Optional[str], artis_id) -> Optional[Dict[str, Any]]:
+        url = self._build_url(community_id, artis_id)
         params = self._build_params(cursor)
         return await self._request_json(url, params)
 
-    def _build_url(self, community_id: int) -> str:
-        return f"{self.base_url}/community/{community_id}/medias/recent"
+    def _build_url(self, community_id: int, artis_id: int) -> str:
+        return f"{self.base_url}/community/{community_id}/artist/{artis_id}/archive"
 
     def _build_params(self, cursor: Optional[str]) -> Dict[str, Any]:
-        params = {"pageSize": 12000, "languageCode": "en"}
+        params = {"pageSize": 999, "languageCode": "en"}
         if cursor:
             params["next"] = cursor
         return params
@@ -149,10 +149,10 @@ class MediaParser:
             return [], [], None, False
 
         contents = MediaParser._get_contents(data)
-        vod_list, photo_list = MediaParser._extract_media_items(contents)
+        CMT_list, POST_list = MediaParser._extract_media_items(contents)
         cursor, has_next = MediaParser._extract_pagination(data)
 
-        return vod_list, photo_list, cursor, has_next
+        return CMT_list, POST_list, cursor, has_next
 
     @staticmethod
     def _is_valid_response(data: Dict[str, Any]) -> bool:
@@ -168,17 +168,14 @@ class MediaParser:
 
     @staticmethod
     def _extract_media_items(contents: List[Dict[str, Any]]) -> Tuple[List[Dict], List[Dict]]:
-        vod_list, photo_list = [], []
+        CMT_list, POST_list = [], []
         for item in contents:
-            media = item.get("media")
-            if not media:
-                continue
-            match media.get("mediaType"):
-                case "VOD":
-                    vod_list.append(media)
-                case "PHOTO":
-                    photo_list.append(media)
-        return vod_list, photo_list
+            match item.get("contentType"):
+                case "CMT":
+                    CMT_list.append(item)
+                case "POST":
+                    POST_list.append(item)
+        return CMT_list, POST_list
 
     @staticmethod
     def _extract_pagination(data: Dict[str, Any]) -> Tuple[Optional[str], bool]:
@@ -194,7 +191,6 @@ class MediaFetcher:
         self.headers = HeaderBuilder.build_headers()
         
     async def get_all_media_lists(self) -> Tuple[List[Dict], List[Dict]]:
-        vod_total, photo_total = [], []
         cursor = None
 
         async with ApiClient(self.headers) as client:
@@ -203,12 +199,10 @@ class MediaFetcher:
                 if not data:
                     break
 
-                vods, photos, cursor, has_next = MediaParser.parse(data)
-                vod_total.extend(vods)
-                photo_total.extend(photos)
+                CMT_list, POST_list, cursor, has_next = MediaParser.parse(data)
 
                 if not has_next:
                     break
                 await asyncio.sleep(client.delay)
 
-        return vod_total, photo_total
+        return CMT_list, POST_list

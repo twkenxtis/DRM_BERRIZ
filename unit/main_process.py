@@ -60,13 +60,13 @@ except Exception as e:
     logger.error(f"Error loading config.json: {e}")
     exit(1)
 
+
 class MediaProcessor:
     """A class to process media items from a queue, handling VOD and photo items."""
 
     def __init__(self):
         """Initialize the MediaProcessor with a UUIDSetStore."""
         self.store = UUIDSetStore()
-        # Define media processors dictionary
         self.media_processors = {
             "VOD": self._process_vod_items,
             "PHOTO": self._process_photo_items,
@@ -80,19 +80,20 @@ class MediaProcessor:
             await processor.run()
             if video_dup is False:
                 self.store.add(media_id)
-            self.store.add(media_id)
         except Exception as e:
             logger.error(f"Error processing VOD ID {media_id}: {e}")
 
-    async def _process_photo_items(self, media_id: str) -> None:
-        """Process photo items."""
+    async def _process_photo_items(self, media_ids: List[str]) -> None:
+        """Process a list of photo items concurrently."""
         try:
-            logger.info(f"{Color.fg('light_gray')}Processing Photo ID:{Color.reset()} {Color.fg('periwinkle')}{media_id}{Color.reset()}")
-            await run_image_dl(media_id)
+            logger.info(f"{Color.fg('light_gray')}Processing Photo IDs:{Color.reset()} {Color.fg('periwinkle')}{media_ids}{Color.reset()}")
+            # Assuming run_image_dl can handle a list of media_ids
+            await run_image_dl(media_ids)
             if image_dup is False:
-                self.store.add(media_id)
+                for media_id in media_ids:
+                    self.store.add(media_id)
         except Exception as e:
-            logger.error(f"Error processing Photo ID {media_id}: {e}")
+            logger.error(f"Error processing Photo IDs {media_ids}: {e}")
 
     def _check_download_pkl(self, media_id: str) -> str | None:
         """Check if media_id exists in the store."""
@@ -116,19 +117,41 @@ class MediaProcessor:
     async def process_media_queue(
         self, media_queue: MediaQueue, selected_media: dict
     ) -> None:
-        """Process all items in the media queue."""
+        """Process all items in the media queue, batching PHOTO items for concurrent processing."""
+        photo_ids = []  # Temporary list to collect PHOTO media IDs
+        tasks = []  # List to collect async tasks
+
         while not media_queue.is_empty():
             item = media_queue.dequeue()
             if item is None:
                 continue
-
             media_id, media_type = item
-            skip_media_id = self._check_download_pkl(media_id)
+            skip_media_id = self._check_download_pkl(media_id) if self.check_duplicate(media_type) else None
 
-            if skip_media_id is None:
+            if skip_media_id:
+                await self._handle_choice(selected_media, skip_media_id)
+                continue
+
+            if media_type == "PHOTO":
+                photo_ids.append(media_id)  # Collect PHOTO media IDs
+            else:
                 if processor := self.media_processors.get(media_type):
                     await processor(media_id)
                 else:
                     logger.warning(f"Unknown media type {media_type} for ID {media_id}")
-            else:
-                await self._handle_choice(selected_media, skip_media_id)
+
+        # Process all collected PHOTO media IDs concurrently
+        if photo_ids:
+            task = asyncio.create_task(self._process_photo_items(photo_ids))
+            tasks.append(task)
+
+        # Wait for all tasks to complete
+        if tasks:
+            await asyncio.gather(*tasks)
+
+    def check_duplicate(self, media_type: str) -> bool:
+        if image_dup is False and media_type == "PHOTO":
+            return True
+        if video_dup is False and media_type == "VOD":
+            return True
+        return False

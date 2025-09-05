@@ -1,7 +1,7 @@
 import os
 from typing import Dict, List, Union
 
-from unit.color import Color
+from static.color import Color
 
 MediaItem = Dict[str, Union[str, Dict, bool]]
 SelectedMedia = Dict[str, List[Dict]]
@@ -87,9 +87,20 @@ class NumericSelector:
     def _get_page_items(self) -> List[Dict]:
         start = self.current_page * self.page_size
         end = start + self.page_size
-        return self.all_items[start:end]
+        
+        page_items = []
+        for i in range(start, min(end, len(self.all_items))):
+            if (i > start and 
+                self.all_items[i-1]["type"] == "vod" and 
+                self.all_items[i]["type"] == "photo"):
+                page_items.append({"is_separator": True})
+            page_items.append(self.all_items[i])
+        
+        return page_items
 
     def _format_item(self, index: int, item: Dict) -> str:
+        if item.get("is_separator"):
+            return ""  # 空行作為分隔線
         marker = "[*]" if item["selected"] else "[ ]"
         title = item["data"].get("title", "Untitled")
         info = ""
@@ -99,13 +110,16 @@ class NumericSelector:
             info = f"({item['data']['photo'].get('imageCount', 'N/A')} images)"
         return f"{marker} {index + 1:>3}: {title} {info}"
 
+
     def _render_page(self):
-        #self._clear_screen()
         print(self.info())
-        for i, item in enumerate(
-            self._get_page_items(), start=self.current_page * self.page_size
-        ):
-            print(self._format_item(i, item))
+        display_index = self.current_page * self.page_size
+        for item in self._get_page_items():
+            if item.get("is_separator"):
+                print()  # 列印空行分隔線
+            else:
+                print(self._format_item(display_index, item))
+                display_index += 1
         print()
 
     def run(self) -> SelectedMedia:
