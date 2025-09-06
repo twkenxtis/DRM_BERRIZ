@@ -10,44 +10,11 @@ from lib.ffmpeg.parse_mpd import MPDParser, MediaTrack, MPDContent
 from lib.ffmpeg.videoinfo import VideoInfo
 from lib.ffmpeg.mux import FFmpegMuxer
 from static.color import Color
+from unit.handle_log import setup_logging
+from unit.parameter import paramstore
 
 
-def setup_logging() -> logging.Logger:
-    """Set up logging with console and rotating file handlers."""
-    os.makedirs("logs", exist_ok=True)
-
-    log_format = logging.Formatter(
-        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
-    )
-
-    logger = logging.getLogger("reName")
-    logger.setLevel(logging.INFO)
-
-    if logger.handlers:
-        logger.handlers.clear()
-
-    logger.propagate = False
-
-    # console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_format)
-    logger.addHandler(console_handler)
-
-    # rotating file handler
-    app_file_handler = TimedRotatingFileHandler(
-        filename="logs/reName.py.log",
-        when="midnight",
-        interval=1,
-        backupCount=30,
-        encoding="utf-8",
-    )
-    app_file_handler.setFormatter(log_format)
-    logger.addHandler(app_file_handler)
-
-    return logger
-
-
-logger = setup_logging()
+logger = setup_logging('reName', 'violet')
 
 
 class SUCCESS:
@@ -65,19 +32,28 @@ class SUCCESS:
         muxer = FFmpegMuxer(self.downloader.base_dir, decryption_key)
         if muxer.mux_to_mp4():
             SUCCESS.re_name(self)
-            SUCCESS.clean_file(self)
-        else:
-            logger.error("\nAn error occurred during loading.")
+            if paramstore.get('clean_dl') is not False:
+                SUCCESS.clean_file(self, decryption_key)
+            else:
+                logger.info(f"{Color.fg('yellow')}Skipping file cleaning, keep segments after done{Color.reset()}")
+        elif paramstore.get('skip_merge') is True: 
+            logger.info(f"{Color.fg('yellow')}Skipping file cleaning, keep segments after done{Color.reset()}")
 
-    def clean_file(self):
+    def clean_file(self, had_drm):
         base_dir = self.downloader.base_dir
         # Files to delete
-        file_paths = [
-            base_dir / "video_decrypted.ts",
-            base_dir / "video.ts",
-            base_dir / "audio_decrypted.ts",
-            base_dir / "audio.ts",
-        ]
+        if had_drm is None:
+            file_paths = [
+                base_dir / "video.ts",
+                base_dir / "audio.ts",
+            ]
+        else:
+            file_paths = [
+                base_dir / "video_decrypted.ts",
+                base_dir / "video.ts",
+                base_dir / "audio_decrypted.ts",
+                base_dir / "audio.ts",
+            ]
 
         # Remove files with try/except
         for fp in file_paths:

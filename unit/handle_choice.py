@@ -1,25 +1,31 @@
-import logging
 from lib.media_queue import MediaQueue
+from static.color import Color
 from unit.berriz_drm import logger
-from unit.GetMediaList import MediaFetcher, NumericSelector
+from unit.GetMediaList import MediaFetcher
+from unit.user_choice import InquirerPySelector
 from unit.media_json_process import MediaJsonProcessor
 from unit.main_process import MediaProcessor
 
-async def handle_choice(community_id):
+async def handle_choice(community_id: int):
     media_fetcher = MediaFetcher(community_id)
     vod_list, photo_list = await media_fetcher.get_all_media_lists()
 
     if not vod_list and not photo_list:
         logger.warning("No media items found")
         return None
-
-    selector = NumericSelector(vod_list, photo_list, page_size=60)
-    selected_media = selector.run()
+    
+    selector = InquirerPySelector(vod_list, photo_list)
+    selected_media = await selector.run()
 
     if len(selected_media['vods']) > 0:
-        logging.info(f"choese {len(selected_media['vods'])} VOD")
+        logger.info(f"{Color.fg('light_gray')}choese "
+            f"{Color.fg('indigo')}{len(selected_media['vods'])} "
+            f"{Color.fg('light_gray')}VOD{Color.reset()}")
+
     if len(selected_media['photos']) > 0:
-        logging.info(f"choese {len(selected_media['photos'])} PHOTO")
+        logger.info(f"{Color.fg('light_gray')}choese "
+                    f"{Color.fg('dark_magenta')}{len(selected_media['photos'])} "
+                    f"{Color.fg('light_gray')}PHOTO{Color.reset()}")
 
     # Process VOD items
     if selected_media['vods']:
@@ -36,3 +42,4 @@ async def handle_choice(community_id):
         await MediaProcessor().process_media_queue(photo_queue, selected_media)
 
     return selected_media
+

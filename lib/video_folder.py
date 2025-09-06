@@ -1,56 +1,22 @@
-import logging
-import os
 import re
 from datetime import datetime, timedelta, timezone
+import json
 from pathlib import Path
 
-from logging.handlers import TimedRotatingFileHandler
-
+import aiohttp
+import aiofiles
 
 from lib.tools.reName import SUCCESS
 from static.color import Color
+from unit.handle_log import setup_logging
 
 
-def setup_logging() -> logging.Logger:
-    """Set up logging with console and rotating file handlers."""
-    os.makedirs("logs", exist_ok=True)
-
-    log_format = logging.Formatter(
-        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
-    )
-
-    logger = logging.getLogger("video_folder")
-    logger.setLevel(logging.INFO)
-
-    if logger.handlers:
-        logger.handlers.clear()
-
-    logger.propagate = False
-
-    # console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_format)
-    logger.addHandler(console_handler)
-
-    # rotating file handler
-    app_file_handler = TimedRotatingFileHandler(
-        filename="logs/video_folder.py.log",
-        when="midnight",
-        interval=1,
-        backupCount=30,
-        encoding="utf-8",
-    )
-    app_file_handler.setFormatter(log_format)
-    logger.addHandler(app_file_handler)
-
-    return logger
-
-
-logger = setup_logging()
+logger = setup_logging('video_folder', 'chocolate')
 
 
 class Video_folder:
     def __init__(self, json_data):
+        self.mpd_url = None
         self.json_data = json_data
         self.media_id = self.parse_mediaid()
         self.title = self.parse_title()
@@ -106,7 +72,7 @@ class Video_folder:
 
             try:
                 full_path.rename(new_path)
-                logger.info(f"{Color.fg('light_blue')}Renamed folder: From: {Color.reset()}{full_path}\nTo: {Color.fg('light_yellow')}{new_path}{Color.reset()}")
+                logger.info(f"{Color.fg('light_blue')}Renamed folder: From: {Color.reset()}{full_path}\n⤷ {Color.fg('light_yellow')}{new_path}{Color.reset()}")
             except Exception as e:
                 logger.error(f"Failed to rename folder: {e}")
         else:
@@ -129,11 +95,52 @@ class DateTimeFormatter:
         return kst_time.strftime("%y%m%d %H-%M")
 
 
-async def start_download_queue(decryption_key, json_data, mpd_content):
+async def dl_mpd_to_folder(output_dir, mpd_uri):
+    output_path = Path(output_dir)
+    mpd_filename = Path(mpd_uri).name
+    save_path = output_path / mpd_filename
+    
+    try:
+        async with aiohttp.ClientSession(headers={'User-Agent': 'Mozilla/5.0'}) as session:
+            async with session.get(mpd_uri, ssl=False) as resp:
+                resp.raise_for_status()
+                
+                with open(save_path, 'wb') as f:
+                    while True:
+                        chunk = await resp.content.read(4096)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                
+        logger.info(f"{Color.fg('light_gray')}MPD: {Color.fg('dark_cyan')}{mpd_uri} {Color.reset()}")
+    except aiohttp.ClientError as e:
+        logger.error(f"Download mpd fail: {e}")
+
+
+async def save_json_to_folder(output_dir: str, json_data: dict):
+    output_path = Path(output_dir)
+    media_id = json_data.get("media", {}).get("id")
+    if not media_id:
+        return 'json_data'
+
+    save_path = output_path / f"{media_id}.json"
+
+    try:
+        async with aiofiles.open(save_path, mode='w', encoding='utf-8') as f:
+            await f.write(json.dumps(json_data, indent=5, ensure_ascii=False))
+    except Exception as e:
+        logger.error(f"Save JSON file error: {e}")
+
+    
+async def start_download_queue(decryption_key, json_data, mpd_content, mpd_uri):
     video_folder = Video_folder(json_data)
     media_id = video_folder.media_id
     output_dir = video_folder.video_folder_handle()
     if output_dir is not None:
+        
+        await dl_mpd_to_folder(output_dir, mpd_uri)
+        await save_json_to_folder(output_dir, json_data)
+        
         from lib.download import MediaDownloader
 
         downloader = MediaDownloader(media_id, output_dir)

@@ -1,37 +1,209 @@
 import os
-import pickle
+import sqlite3
+from typing import Dict, Any, Optional
+import json
 
-
-class LocalKeyVault:
-
-    VAULT_FILE = "key\\local_key_vault.pkl"
+class SQLiteKeyVault:
+    DB_FILE = "key\\local_key_vault.db"
 
     def __init__(self):
-        os.makedirs(os.path.dirname(self.VAULT_FILE), exist_ok=True)
-        if not os.path.exists(self.VAULT_FILE):
-            with open(self.VAULT_FILE, "wb") as f:
-                pickle.dump({}, f)
+        os.makedirs(os.path.dirname(self.DB_FILE), exist_ok=True)
+        self._init_db()
 
-    def _load_vault(self) -> dict:
-        try:
-            with open(self.VAULT_FILE, "rb") as f:
-                return pickle.load(f)
-        except (EOFError, pickle.UnpicklingError):
-            return {}
+    def _init_db(self):
+        """初始化數據庫和表結構"""
+        with sqlite3.connect(self.DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS key_vault (
+                    key TEXT PRIMARY KEY,
+                    value_type TEXT NOT NULL,
+                    value_data TEXT NOT NULL,
+                    drm_type TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # 創建更新時間的觸發器
+            cursor.execute('''
+                CREATE TRIGGER IF NOT EXISTS update_timestamp
+                AFTER UPDATE ON key_vault
+                FOR EACH ROW
+                BEGIN
+                    UPDATE key_vault SET updated_at = CURRENT_TIMESTAMP 
+                    WHERE key = OLD.key;
+                END
+            ''')
+            conn.commit()
 
-    def _save_vault(self, data: dict):
-        with open(self.VAULT_FILE, "wb") as f:
-            pickle.dump(data, f)
+    def _get_connection(self) -> sqlite3.Connection:
+        """獲取數據庫連接"""
+        return sqlite3.connect(self.DB_FILE)
 
-    def store(self, new_data: dict):
-        vault = self._load_vault()
-        vault.update(new_data)
-        self._save_vault(vault)
+    def _serialize_value(self, value: Any) -> tuple:
+        """序列化值並返回類型和序列化後的數據"""
+        if isinstance(value, (str, int, float, bool)):
+            # 對於基本類型，直接轉換為字符串
+            return (type(value).__name__, str(value))
+        else:
+            # 對於複雜對象，使用 JSON 序列化
+            return ('json', json.dumps(value))
 
-    def retrieve(self, key: str):
-        vault = self._load_vault()
-        return vault.get(key)
+    def _deserialize_value(self, value_type: str, value_data: str) -> Any:
+        """反序列化數據庫值"""
+        if value_type == 'str':
+            return value_data
+        elif value_type == 'int':
+            return int(value_data)
+        elif value_type == 'float':
+            return float(value_data)
+        elif value_type == 'bool':
+            return value_data.lower() == 'true'
+        elif value_type == 'json':
+            return json.loads(value_data)
+        else:
+            return value_data
+
+    def store(self, new_data: Dict[str, Any], drm_type: str = "unknown"):
+        """存儲多個鍵值對，並指定 DRM 類型"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            
+            for key, value in new_data.items():
+                value_type, value_data = self._serialize_value(value)
+                
+                cursor.execute('''
+                    INSERT OR REPLACE INTO key_vault 
+                    (key, value_type, value_data, drm_type)
+                    VALUES (?, ?, ?, ?)
+                ''', (key, value_type, value_data, drm_type))
+            
+            conn.commit()
+
+    def store_single(self, key: str, value: Any, drm_type: str = "unknown"):
+        """存儲單個鍵值對，並指定 DRM 類型"""
+        self.store({key: value}, drm_type)
+
+    def retrieve(self, key: str) -> Optional[Any]:
+        """檢索指定鍵的值"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT value_type, value_data 
+                FROM key_vault WHERE key = ?
+            ''', (key,))
+            
+            result = cursor.fetchone()
+            if result:
+                return self._deserialize_value(*result)
+            return None
+
+    def retrieve_with_drm_type(self, key: str) -> Optional[tuple]:
+        """檢索指定鍵的值和 DRM 類型"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT value_type, value_data, drm_type 
+                FROM key_vault WHERE key = ?
+            ''', (key,))
+            
+            result = cursor.fetchone()
+            if result:
+                value = self._deserialize_value(result[0], result[1])
+                return value, result[2]  # 返回值和 DRM 類型
+            return None
 
     def contains(self, key: str) -> bool:
-        vault = self._load_vault()
-        return key in vault
+        """檢查鍵是否存在"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT 1 FROM key_vault WHERE key = ?', (key,))
+            return cursor.fetchone() is not None
+
+    def delete(self, key: str) -> bool:
+        """刪除指定鍵"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM key_vault WHERE key = ?', (key,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_all(self) -> Dict[str, Any]:
+        """獲取所有鍵值對"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT key, value_type, value_data 
+                FROM key_vault
+            ''')
+            
+            results = {}
+            for row in cursor.fetchall():
+                key = row[0]
+                value = self._deserialize_value(row[1], row[2])
+                results[key] = value
+            
+            return results
+
+    def get_all_with_drm_type(self) -> Dict[str, tuple]:
+        """獲取所有鍵值對及其 DRM 類型"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT key, value_type, value_data, drm_type 
+                FROM key_vault
+            ''')
+            
+            results = {}
+            for row in cursor.fetchall():
+                key = row[0]
+                value = self._deserialize_value(row[1], row[2])
+                results[key] = (value, row[3])  # 存儲為 (值, DRM 類型)
+            
+            return results
+
+    def get_by_drm_type(self, drm_type: str) -> Dict[str, Any]:
+        """根據 DRM 類型獲取鍵值對"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT key, value_type, value_data 
+                FROM key_vault WHERE drm_type = ?
+            ''', (drm_type,))
+            
+            results = {}
+            for row in cursor.fetchall():
+                key = row[0]
+                value = self._deserialize_value(row[1], row[2])
+                results[key] = value
+            
+            return results
+
+    def clear(self):
+        """清空所有數據"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM key_vault')
+            conn.commit()
+
+    def keys(self) -> list:
+        """獲取所有鍵的列表"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT key FROM key_vault')
+            return [row[0] for row in cursor.fetchall()]
+
+    def count(self) -> int:
+        """獲取鍵值對數量"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM key_vault')
+            return cursor.fetchone()[0]
+
+    def count_by_drm_type(self, drm_type: str) -> int:
+        """根據 DRM 類型獲取鍵值對數量"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM key_vault WHERE drm_type = ?', (drm_type,))
+            return cursor.fetchone()[0]

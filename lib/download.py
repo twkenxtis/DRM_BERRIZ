@@ -1,57 +1,22 @@
 import asyncio
-import logging
-import os
 import shutil
 from pathlib import Path
-
-from logging.handlers import TimedRotatingFileHandler
-
+from concurrent.futures import ThreadPoolExecutor
+from typing import List, Dict, Any
 import aiohttp
+import aiofiles
 
 from lib.ffmpeg.parse_mpd import MPDContent, MPDParser, MediaTrack
 from lib.video_folder import start_download_queue
 from static.color import Color
+from unit.handle_log import setup_logging
+from unit.parameter import paramstore
 
 
 USER_AGENT = "Mozilla/5.0 (Linux; Android 10; SM-G960F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Mobile Safari/537.36"
 
 
-def setup_logging() -> logging.Logger:
-    """Set up logging with console and rotating file handlers."""
-    os.makedirs("logs", exist_ok=True)
-
-    log_format = logging.Formatter(
-        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
-    )
-
-    logger = logging.getLogger("download")
-    logger.setLevel(logging.INFO)
-
-    if logger.handlers:
-        logger.handlers.clear()
-
-    logger.propagate = False
-
-    # console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_format)
-    logger.addHandler(console_handler)
-
-    # rotating file handler
-    app_file_handler = TimedRotatingFileHandler(
-        filename="logs/download.py.log",
-        when="midnight",
-        interval=1,
-        backupCount=30,
-        encoding="utf-8",
-    )
-    app_file_handler.setFormatter(log_format)
-    logger.addHandler(app_file_handler)
-
-    return logger
-
-
-logger = setup_logging()
+logger = setup_logging('download', 'peach')
 
 
 class MediaDownloader:
@@ -87,18 +52,27 @@ class MediaDownloader:
                 connector=connector, timeout=timeout, headers={"User-Agent": USER_AGENT}
             )
 
-    async def _download_file(self, url: str, save_path: Path) -> bool:
+    async def _download_file(self, url: str, save_path: Path, 
+                                        chunk_size: int = 1024 * 1024) -> bool:
         await self._ensure_session()
         try:
             async with self.session.get(url) as response:
-                if response.status == 200:
-                    with open(save_path, "wb") as f:
-                        async for chunk in response.content.iter_chunked(10240 * 10240):
-                            f.write(chunk)
-                    return True
-                return False
+                if response.status not in (200, 206):
+                    return False
+                
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                async with aiofiles.open(save_path, "wb") as f:
+                    downloaded = 0
+                    async for chunk in response.content.iter_chunked(chunk_size):
+                        await f.write(chunk)
+                        downloaded += len(chunk)
+                return True
         except Exception as e:
             logger.error(f"Download failed {url}: {str(e)}")
+            # 刪除可能損壞的文件
+            if save_path.exists():
+                save_path.unlink()
             return False
 
     async def download_track(self, track: MediaTrack, track_type: str) -> bool:
@@ -106,7 +80,12 @@ class MediaDownloader:
         track_dir.mkdir(exist_ok=True)
 
         logger.info(
-            f"{Color.fg('light_gray')}Start downloading{Color.reset()} {Color.bg('cyan')}{track_type}{Color.reset()} track: {track.id} [Bitrate: {Color.fg('violet')}{track.bandwidth}{Color.reset()}]"
+            f"{Color.fg('light_gray')}Start downloading{Color.reset()} "
+            f"{Color.bg('cyan')}{track_type}{Color.reset()} track: {Color.fg('cyan')}{track.id}{Color.reset()} "
+            f"[Bitrate: {Color.fg('violet')}{track.bandwidth / 1000}k{Color.reset()}]"
+            f"[Codec: {Color.fg('light_green')}{track.codecs}{Color.reset()}]"
+            f"[Type: {Color.fg('light_yellow')}{track.mime_type}{Color.reset()}]"
+            f"[Resolution: {Color.fg('light_magenta')}{track.height} x {track.width}{Color.reset()}]"
         )
 
         # Get appropriate extension for files
@@ -121,18 +100,19 @@ class MediaDownloader:
         # Download media segments
         tasks = []
         for i, url in enumerate(track.segment_urls):
-            seg_path = track_dir / f"seg_{i:05d}{file_ext}"
+            seg_path = track_dir / f"seg_{i}{file_ext}"
             tasks.append(self._download_file(url, seg_path))
 
         results = await asyncio.gather(*tasks)
         success_count = sum(results)
 
         logger.info(
-            f"{Color.fg('plum')}{track_type} Split download complete: Success {Color.fg('light_yellow')}{success_count}{Color.reset()}/{len(results)}{Color.reset()}"
-        )
+            f"{Color.fg('plum')}{track_type} Split download complete: Success "
+            f"{Color.fg('light_yellow')}{success_count}{Color.reset()}/{len(results)}{Color.reset()}"
+            )
         return success_count == len(results)
 
-    def _merge_track(self, track_type: str) -> bool:
+    async def _merge_track(self, track_type: str) -> bool:
         track_dir = self.base_dir / track_type
         output_file = self.base_dir / f"{track_type}.ts"
 
@@ -148,25 +128,82 @@ class MediaDownloader:
             logger.warning(f"No {track_type} fragment files found")
             return False
 
-        logger.info(f"{Color.fg('light_gray')}Merge{Color.reset()} {Color.fg('light_gray')}{track_type} {Color.reset()}{Color.fg('light_gray')}tracks{Color.reset()}: {len(segments)} {Color.fg('yellow')}{Color.reset()}{Color.fg('light_gray')}segments{Color.reset()}")
-        bool = MediaDownloader.binary_merge(output_file, init_files, segments, track_type)
-        return bool
-
+        logger.info(f"{Color.fg('light_gray')}Merge{Color.reset()} {Color.fg('light_gray')}{track_type} "
+                    f"{Color.reset()}{Color.fg('light_gray')}tracks{Color.reset()}:{len(segments)} "
+                    f"{Color.fg('yellow')}{Color.reset()}{Color.fg('light_gray')}segments{Color.reset()}"
+                    )
+        result = await MediaDownloader.binary_merge(output_file, init_files, segments, track_type)
+        return result
 
     @staticmethod
-    def binary_merge(output_file, init_files, segments, track_type):
+    def _sync_process_chunk(segments: List[Path], temp_file: Path):
+        """同步處理文件塊到臨時文件"""
         try:
-            with open(output_file, "wb") as outfile:
-                with open(init_files[0], "rb") as infile:
-                    shutil.copyfileobj(infile, outfile)
+            with open(temp_file, "wb") as outfile:
                 for seg in segments:
                     with open(seg, "rb") as infile:
                         shutil.copyfileobj(infile, outfile)
-
-            logger.info(f"{Color.fg('light_gray')}{track_type} Merger completed: {output_file}{Color.reset()}")
             return True
         except Exception as e:
+            logger.error(f"Failed to process chunk {temp_file}: {str(e)}")
+            return e
+
+    @staticmethod
+    async def binary_merge(output_file: Path, init_files: List[Path], segments: List[Path], track_type: str) -> bool:
+        try:
+            # 創建臨時目錄
+            temp_dir = output_file.parent / f"temp_{track_type}"
+            temp_dir.mkdir(exist_ok=True)
+            
+            # 使用線程池執行阻塞的IO操作
+            loop = asyncio.get_event_loop()
+            with ThreadPoolExecutor() as pool:
+                # 複製初始化文件
+                await loop.run_in_executor(pool, shutil.copy2, init_files[0], output_file)
+                
+                # 分塊處理
+                chunk_size = 50
+                chunks = [segments[i:i + chunk_size] for i in range(0, len(segments), chunk_size)]
+                
+                # 並行處理每個塊到臨時文件
+                tasks = []
+                temp_files = []
+                
+                for i, chunk in enumerate(chunks):
+                    temp_file = temp_dir / f"chunk_{i}.tmp"
+                    temp_files.append(temp_file)
+                    tasks.append(loop.run_in_executor(
+                        pool, MediaDownloader._sync_process_chunk, chunk, temp_file
+                    ))
+                
+                # 等待所有任務完成
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # 檢查結果
+                for i, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        logger.error(f"Chunk {i} processing failed: {str(result)}")
+                        # 清理臨時文件
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+                        return False
+            
+            # 合併所有臨時文件到最終輸出文件
+            with open(output_file, "ab") as outfile:
+                for temp_file in temp_files:
+                    if temp_file.exists():
+                        with open(temp_file, "rb") as infile:
+                            shutil.copyfileobj(infile, outfile)
+            
+            # 清理臨時文件
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            
+            logger.info(f"{Color.fg('light_gray')}{track_type} Merger completed: {output_file}{Color.reset()}")
+            return True
+            
+        except Exception as e:
             logger.error(f"{track_type} Merger failed: {str(e)}")
+            # 清理臨時文件
+            shutil.rmtree(temp_dir, ignore_errors=True)
             return False
 
     async def download_content(self, mpd_content: MPDContent):
@@ -179,16 +216,19 @@ class MediaDownloader:
                 tasks.append(self.download_track(mpd_content.audio_track, "audio"))
 
             download_results = await asyncio.gather(*tasks)
+            
+            if paramstore.get('skip_merge') is not True:
+                merge_results = []
+                if mpd_content.video_track and download_results[0]:
+                    merge_results.append(await self._merge_track("video"))
+                if mpd_content.audio_track and (
+                    len(download_results) > 1 and download_results[1]
+                ):
+                    merge_results.append(await self._merge_track("audio"))
 
-            merge_results = []
-            if mpd_content.video_track and download_results[0]:
-                merge_results.append(self._merge_track("video"))
-            if mpd_content.audio_track and (
-                len(download_results) > 1 and download_results[1]
-            ):
-                merge_results.append(self._merge_track("audio"))
-
-            return all(merge_results)
+                return all(merge_results)
+            else:
+                logger.info(f"{Color.fg('light_gray')}Skip merge because --skip-merge is {Color.fg('cyan')}True{Color.reset()}")
         finally:
             if self.session:
                 await self.session.close()
@@ -207,4 +247,4 @@ async def run_dl(mpd_uri, decryption_key, json_data):
             f"\nEncrypted content detected (KID: {mpd_content.drm_info['default_KID']})"
         )
 
-    await start_download_queue(decryption_key, json_data, mpd_content)
+    await start_download_queue(decryption_key, json_data, mpd_content, mpd_uri)

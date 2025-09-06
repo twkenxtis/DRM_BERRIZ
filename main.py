@@ -1,47 +1,27 @@
+# v1.1.1
 import asyncio
-import logging
-import os
-from logging.handlers import TimedRotatingFileHandler
 
+from static.args import had_key, clean_dl, skip_merge
 from unit.handle_choice import handle_choice
+from unit.handle_log import setup_logging
+from unit.parameter import paramstore
 
+logger = setup_logging('main', 'orange')
 
-def setup_logging() -> logging.Logger:
-    log_directory = "logs"
-    os.makedirs(log_directory, exist_ok=True)
+parameter = {}
+community_id = 7
 
-    log_format = logging.Formatter(
-        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
-    )
-    log_level = logging.INFO
+if had_key():
+    paramstore._store["key"] = True
 
-    app_logger = logging.getLogger("main")
-    app_logger.setLevel(log_level)
-    if app_logger.hasHandlers():
-        app_logger.handlers.clear()
+if clean_dl() is False:
+    paramstore._store["clean_dl"] = False
 
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_format)
-
-    app_file_handler = TimedRotatingFileHandler(
-        filename=os.path.join(log_directory, "main.py.log"),
-        when="midnight",
-        interval=1,
-        backupCount=30,
-        encoding="utf-8",
-    )
-    app_file_handler.setFormatter(log_format)
-
-    app_logger.addHandler(console_handler)
-    app_logger.addHandler(app_file_handler)
-    return app_logger
-
-
-logger = setup_logging()
-
+if skip_merge() is True:
+    paramstore._store["skip_merge"] = True
 
 try:
-    final_selection = asyncio.run(handle_choice())
+    asyncio.run(handle_choice(community_id))
 except KeyboardInterrupt:
     pass
 except Exception as e:

@@ -1,59 +1,21 @@
 import asyncio
-import logging
-import os
 import aiohttp
 from typing import Dict, Optional
 from aiohttp import ClientTimeout
-from logging.handlers import TimedRotatingFileHandler
 
 import aiohttp
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-
-from unit.user_choice import NumericSelector
+from unit.handle_log import setup_logging
+from static.color import Color
 
 
 MediaItem = Dict[str, Union[str, Dict, bool]]
 SelectedMedia = Dict[str, List[Dict]]
 
 
-def setup_logging() -> logging.Logger:
-    """Set up logging with console and rotating file handlers."""
-    os.makedirs("logs", exist_ok=True)
-
-    log_format = logging.Formatter(
-        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
-    )
-
-    logger = logging.getLogger("GetMediaList")
-    logger.setLevel(logging.INFO)
-
-    if logger.handlers:
-        logger.handlers.clear()
-
-    logger.propagate = False
-
-    # console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_format)
-    logger.addHandler(console_handler)
-
-    # rotating file handler
-    app_file_handler = TimedRotatingFileHandler(
-        filename="logs/GetMediaList.py.log",
-        when="midnight",
-        interval=1,
-        backupCount=30,
-        encoding="utf-8",
-    )
-    app_file_handler.setFormatter(log_format)
-    logger.addHandler(app_file_handler)
-
-    return logger
-
-
-logger = setup_logging()
+logger = setup_logging('GetMediaList', 'turquoise')
 
 
 class HeaderBuilder:
@@ -124,7 +86,7 @@ class ApiClient:
         assert self.session is not None, "ClientSession not initialized. Use `async with`."
         try:
             async with self.session.get(url, params=params, timeout=3) as response:
-                logger.info(f"GET %s -> %s {response.request_info.real_url} \n {response.status}")
+                logger.info(f"{Color.fg('light_gray')}GET -> {response.request_info.real_url} - {response.status}{Color.reset()}")
                 response.raise_for_status()
                 return await response.json()
         except Exception as e:

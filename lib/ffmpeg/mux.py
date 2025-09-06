@@ -1,51 +1,14 @@
-import logging
-import os
 import subprocess
 from pathlib import Path
-
-from logging.handlers import TimedRotatingFileHandler
 
 from typing import Optional
 
 from static.color import Color
+from unit.handle_log import setup_logging
+from unit.parameter import paramstore
 
 
-def setup_logging() -> logging.Logger:
-    """Set up logging with console and rotating file handlers."""
-    os.makedirs("logs", exist_ok=True)
-
-    log_format = logging.Formatter(
-        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
-    )
-
-    logger = logging.getLogger("mux")
-    logger.setLevel(logging.INFO)
-
-    if logger.handlers:
-        logger.handlers.clear()
-
-    logger.propagate = False
-
-    # console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_format)
-    logger.addHandler(console_handler)
-
-    # rotating file handler
-    app_file_handler = TimedRotatingFileHandler(
-        filename="logs/mux.py.log",
-        when="midnight",
-        interval=1,
-        backupCount=30,
-        encoding="utf-8",
-    )
-    app_file_handler.setFormatter(log_format)
-    logger.addHandler(app_file_handler)
-
-    return logger
-
-
-logger = setup_logging()
+logger = setup_logging('mux', 'lavender')
 
 
 class FFmpegMuxer:
@@ -65,7 +28,8 @@ class FFmpegMuxer:
 
         if kid and self.decryption_key:
             logger.info(
-                f"{Color.fg('blue')}Detected{Color.reset()} {Color.fg('cyan')}{track_type} {Color.reset()}{Color.fg('blue')}track encryption (KID: {Color.reset()}{Color.fg('orange')}{kid}), {Color.reset()}{Color.fg('blue')}decrypting...{Color.reset()}"
+                f"{Color.fg('blue')}Detected{Color.reset()} {Color.fg('cyan')}{track_type} {Color.reset()}{Color.fg('blue')}"
+                f"{Color.reset()}{Color.fg('blue')}decrypting...{Color.reset()}"
             )
             decrypted_file = self.base_dir / f"{track_type}_decrypted.ts"
             if self._decrypt_file(input_file, decrypted_file, self.decryption_key, kid):
@@ -140,10 +104,12 @@ class FFmpegMuxer:
         video_file = self._prepare_track("video")
         audio_file = self._prepare_track("audio")
 
-        if not video_file or not audio_file:
+        if (not video_file or not audio_file) and paramstore.get('skip_merge') is not True:
             logger.warning(
                 "Error: Valid video and audio must exist simultaneously for multiplexing."
             )
+            return False
+        elif paramstore.get('skip_merge') is True:
             return False
 
         output_file = self.base_dir / output_name

@@ -1,4 +1,3 @@
-import logging
 from typing import List, Optional
 
 import requests
@@ -6,6 +5,12 @@ from lxml import etree
 
 from cookies.cookies import Refresh_JWT, Berriz_cookie
 from static.color import Color
+from unit.handle_log import setup_logging
+
+
+logger = setup_logging(
+    'msprpro', 'aquamarine'
+)
 
 
 def extract_pssh(response: requests.Response) -> List[str]:
@@ -18,10 +23,10 @@ def extract_pssh(response: requests.Response) -> List[str]:
         return [pssh.text.strip() for pssh in pssh_elements if pssh.text]
 
     except etree.XMLSyntaxError as e:
-        logging.error(f"XML parsing error: {e}")
+        logger.error(f"XML parsing error: {e}")
         return []
     except Exception as e:
-        logging.error(f"Error during PSSH extraction: {e}")
+        logger.error(f"Error during PSSH extraction: {e}")
         return []
 
 
@@ -46,25 +51,25 @@ class GetMPD_prd:
             response.raise_for_status()
             return response
         except requests.exceptions.RequestException as e:
-            logging.error(f"Error fetching MPD: {e}")
+            logger.error(f"Error fetching MPD: {e}")
             return None
 
     def parse_pssh(mpd_url):
         response = GetMPD_prd().send_request(mpd_url)
 
         if not response:
-            logging.error("Failed to retrieve the MPD file.")
+            logger.error("Failed to retrieve the MPD file.")
             return None
 
         pssh_values = extract_pssh(response)
 
         if not pssh_values:
-            logging.warning(f"{Color.bg('mint')}No MSPR:PRO PSSH values found in the MPD file.{Color.reset ()}")
+            logger.warning(f"{Color.bg('mint')}No MSPR:PRO PSSH values found in the MPD file.{Color.reset ()}")
             return None
 
         for pssh in pssh_values:
             if len(pssh) > 76:
                 return pssh
 
-        logging.error("No MSPR:PRO PSSH value with exactly 76 characters found")
+        logger.error("No MSPR:PRO PSSH value with exactly 76 characters found")
         return None

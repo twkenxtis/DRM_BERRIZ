@@ -1,64 +1,50 @@
-import logging
-
+import aiofiles
+import asyncio
 import json
+import os
+import sys
 
-from unit.berriz_drm import *
+from typing import List
+
+from cookies.cookies import Berriz_cookie
+from unit.berriz_drm import BerrizProcessor
 from unit.image.image import run_image_dl
 from lib.media_queue import MediaQueue
 from lock.donwnload_lock import UUIDSetStore
 from static.color import Color
+from unit.handle_log import setup_logging
+from unit.parameter import paramstore
 
 
-def setup_logging() -> logging.Logger:
-    """Set up logging with console and rotating file handlers."""
-    os.makedirs("logs", exist_ok=True)
+logger = setup_logging('main_process', 'navy')
 
-    log_format = logging.Formatter(
-        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
-    )
+image_dup: str = ""
+video_dup: str = ""
 
-    logger = logging.getLogger("main_process")
-    logger.setLevel(logging.INFO)
+async def load_config(path: str) -> dict:
+    async with aiofiles.open(path, mode='r', encoding='utf-8') as f:
+        content = await f.read()
+    return json.loads(content)
 
-    if logger.handlers:
-        logger.handlers.clear()
+async def init_config(path: str):
+    global image_dup, video_dup
 
-    logger.propagate = False
-
-    # console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_format)
-    logger.addHandler(console_handler)
-
-    # rotating file handler
-    app_file_handler = TimedRotatingFileHandler(
-        filename="logs/main_process.py.log",
-        when="midnight",
-        interval=1,
-        backupCount=30,
-        encoding="utf-8",
-    )
-    app_file_handler.setFormatter(log_format)
-    logger.addHandler(app_file_handler)
-
-    return logger
-
-
-logger = setup_logging()
-
-try:
-    if os.path.exists("setting.json"):
-        logger.info(f"{Color.fg('light_gray')}setting.json found{Color.reset()}")
+    if os.path.exists(path):
+        logger.info(f"{Color.fg('light_gray')} {path} found {Color.reset()}")
     else:
-        logger.error(f"{Color.bg('light_gray')}setting.json{Color.reset()} not found")
-        raise FileNotFoundError("setting.json, It is required.")
-    with open("setting.json", "r", encoding="utf-8") as f:
-        config = json.load(f)
-        image_dup = config['duplicate']['overrides']['image']
-        video_dup = config['duplicate']['overrides']['video']
-except Exception as e:
-    logger.error(f"Error loading config.json: {e}")
-    exit(1)
+        logger.error(f"{Color.bg('light_gray')} {path} {Color.reset()} not found")
+        sys.exit(1)
+
+    try:
+        config = await load_config(path)
+        overrides = config['duplicate']['overrides']
+        image_dup = overrides['image']
+        video_dup = overrides['video']
+        logger.info(f"Loaded duplicates → image: {image_dup}, video: {video_dup}")
+    except (KeyError, json.JSONDecodeError) as e:
+        logger.error(f"Error parsing {path}: {e}")
+        sys.exit(1)
+asyncio.run(init_config("setting.json"))
 
 
 class MediaProcessor:
@@ -74,11 +60,15 @@ class MediaProcessor:
 
     async def _process_vod_items(self, media_id: str) -> None:
         """Process VOD items using BerrizProcessor."""
+        if len(Berriz_cookie()._cookies) is 0:
+            logger.warning(f"{Color.fg('light_gray')}Cookies are required to download {Color.bg('crimson')}videos{Color.reset()}")
+            logger.info(f"{Color.fg('gold')}Skip {media_id} video download{Color.reset()}")
+            return
         try:
-            logger.info(f"{Color.fg('light_gray')}Processing VOD ID:{Color.reset()} {Color.fg('periwinkle')}{media_id}{Color.reset()}")
+            logger.info(f"{Color.fg('light_gray')}\nProcessing VOD ID:{Color.reset()} {Color.fg('periwinkle')}{media_id}{Color.reset()}")
             processor = BerrizProcessor(media_id)
             await processor.run()
-            if video_dup is False:
+            if video_dup is False and paramstore.get('key') is None:
                 self.store.add(media_id)
         except Exception as e:
             logger.error(f"Error processing VOD ID {media_id}: {e}")
@@ -111,7 +101,7 @@ class MediaProcessor:
             for item in selected_media.get(media_type, []):
                 if item.get("mediaId") == skip_media_id:
                     title = item.get("title", "Unknown Title")
-                    logging.info(f"{Color.bg('crimson')}Already exists{Color.reset()}{Color.fg('light_gray')}, skip download.{Color.reset()}{Color.bg('amber')} {title}{Color.reset()}")
+                    logger.info(f"{Color.bg('crimson')}Already exists{Color.reset()}{Color.fg('light_gray')}, skip download.{Color.reset()}{Color.bg('amber')} {title}{Color.reset()}")
                     return
 
     async def process_media_queue(
@@ -152,6 +142,6 @@ class MediaProcessor:
     def check_duplicate(self, media_type: str) -> bool:
         if image_dup is False and media_type == "PHOTO":
             return True
-        if video_dup is False and media_type == "VOD":
+        if video_dup is False and media_type == "VOD" and paramstore.get('key') is None:
             return True
         return False

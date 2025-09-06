@@ -2,56 +2,23 @@ import asyncio
 import os
 import json
 import logging
-from logging.handlers import TimedRotatingFileHandler
 from typing import Any, List, Tuple
 
 from lib.download import run_dl
 from key.msprpro import GetMPD_prd
 from key.pssh import GetMPD_wv
 from key.GetClearKey import get_clear_key
-from key.local_vault import LocalKeyVault
+from key.local_vault import SQLiteKeyVault
 from static.PlaybackInfo import PlaybackInfo
 from static.PublicInfo import PublicInfo
-from unit.http.request_berriz_api import Playback_info, Public_context
 from static.color import Color
+from static.api_error_handle import api_error_handle
+from unit.http.request_berriz_api import Playback_info, Public_context
+from unit.handle_log import setup_logging
+from unit.parameter import paramstore
 
 
-def setup_logging() -> logging.Logger:
-    """Set up logging with console and rotating file handlers."""
-    os.makedirs("logs", exist_ok=True)
-
-    log_format = logging.Formatter(
-        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
-    )
-
-    logger = logging.getLogger("berriz_drm")
-    logger.setLevel(logging.INFO)
-
-    if logger.handlers:
-        logger.handlers.clear()
-
-    logger.propagate = False
-
-    # console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_format)
-    logger.addHandler(console_handler)
-
-    # rotating file handler
-    app_file_handler = TimedRotatingFileHandler(
-        filename="logs/berriz_drm.py.log",
-        when="midnight",
-        interval=1,
-        backupCount=30,
-        encoding="utf-8",
-    )
-    app_file_handler.setFormatter(log_format)
-    logger.addHandler(app_file_handler)
-
-    return logger
-
-
-logger = setup_logging()
+logger = setup_logging('berriz_drm', 'tomato')
 
 
 class Key_handle:
@@ -71,6 +38,7 @@ class Key_handle:
         if hasattr(self.playback_info, "duration"):
             if self.playback_info.is_drm:
                 wv_pssh_value, msprpro_value = self.search_keys()
+
                 if msprpro_value is not None:
                     key = msprpro_value
                     return key, self.media_id, self.dash_playback_url
@@ -78,19 +46,22 @@ class Key_handle:
                 return key, self.media_id, self.dash_playback_url
 
     def save_key(self, key):
-        vault = LocalKeyVault()
-        data_to_store = {self.wv_pssh: key, self.msprpro: key}
-        vault.store(data_to_store)
+        vault = SQLiteKeyVault()
+        vault.store_single(self.wv_pssh, key, drm_type="wv")
+        vault.store_single(self.msprpro, key, drm_type="mspr")
 
         for k in [self.wv_pssh, self.msprpro]:
+            drm_type = 'wv' if len(k) > 76 else 'mspr'
             if vault.contains(k):
-                logger.info(f"{Color.fg('iceberg')}SUCCESS save key to local vault:{Color.reset()} {Color.fg('gold')}{key}{Color.reset()}")
-                pass
+                logger.info(f"{Color.fg('iceberg')}SUCCESS save key to local vault:{Color.reset()} "
+                            f"{Color.fg('gold')}{key}{Color.reset()} - {Color.fg('ruby')}{drm_type}{Color.reset()}"
+                            )
             else:
                 logger.error(f"Key verification FAILED for: {k}")
 
+
     def search_keys(self):
-        vault = LocalKeyVault()
+        vault = SQLiteKeyVault()
         wv_pssh_value = vault.retrieve(self.wv_pssh)
         msprpro_value = vault.retrieve(self.msprpro)
         if msprpro_value or wv_pssh_value is not None:
@@ -106,8 +77,17 @@ class Key_handle:
 
 async def start_download(public_info, key, dash_playback_url):
     if public_info.code == "0000":
-        json_data = public_info.to_json()
-    await run_dl(dash_playback_url, key, json.loads(json_data))
+        json_data = json.loads(public_info.to_json())
+
+    
+    if paramstore.get('key') is True:
+        logger.info(
+            f"{Color.fg('light_gray')}title:{Color.reset()} "
+            f"{Color.fg('olive')}{json_data.get('media', {}).get('title', '')}{Color.reset()}"
+        )
+        logger.info(f"{Color.fg('light_gray')}MPD: {Color.fg('dark_cyan')}{dash_playback_url} {Color.reset()}")
+    else:
+        await run_dl(dash_playback_url, key, json_data)
 
 
 class BerrizProcessor:
@@ -119,8 +99,8 @@ class BerrizProcessor:
         self._public_contexts: List[Any] = []
 
     async def fetch_contexts(self):
-        self._playback_contexts = Playback_info().get_playback_context(self.media_id)
-        self._public_contexts = Public_context().get_public_context(self.media_id)
+        self._playback_contexts = await Playback_info().get_playback_context(self.media_id)
+        self._public_contexts = await Public_context().get_public_context(self.media_id)
 
     async def prepare_download_tasks(self):
         for i, (playback_ctx, public_ctx) in enumerate(
@@ -129,10 +109,17 @@ class BerrizProcessor:
             playback_info = PlaybackInfo(playback_ctx)
             public_info = PublicInfo(public_ctx)
             self.all_playback_infos.append((playback_info, public_info))
-
+            
             # Handle DRM and obtain information needed for download
-            if playback_info.is_drm is True:
+            if playback_info.code != "0000":
+                logger.warning(f"{Color.bg('maroon')}{api_error_handle(playback_info.code)}{Color.reset()}")
+                return
+            elif playback_info.is_drm is True:
                 key_handler = Key_handle(playback_info, self.media_id)
+                
+                logger.info(f"{Color.fg('orange')}{key_handler.wv_pssh}{Color.reset()}")
+                logger.info(f"{Color.fg('yellow')}{key_handler.msprpro}{Color.reset()}")
+                
                 k = key_handler.send_drm()
                 key, media_id_from_drm, dash_playback_url = k
             elif playback_info.is_drm is False:
