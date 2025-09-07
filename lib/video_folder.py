@@ -9,6 +9,7 @@ import aiofiles
 from lib.tools.reName import SUCCESS
 from static.color import Color
 from unit.handle_log import setup_logging
+from unit.community import get_community, custom_dict
 
 
 logger = setup_logging('video_folder', 'chocolate')
@@ -22,14 +23,15 @@ class Video_folder:
         self.title = self.parse_title()
         self.published_at = self.parse_published_at()
         self.time_str = self.formact_time()
-        self.output_dir = self.video_folder_handle()
+        self.output_dir = None
 
-    def video_folder_handle(self):
-        base_dir = Path("downloads") / "videos"
+    async def video_folder_handle(self, community_name):
+        base_dir = Path("downloads") / community_name / "videos"
         folder_name = f"{self.time_str} {self.media_id}"
         folder_name = re.sub(r'[\\/:\*\?"<>|]', "", folder_name).strip()
         output_dir = base_dir / folder_name
         output_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir = str(output_dir.resolve())
         return output_dir
 
     def parse_mediaid(self):
@@ -135,7 +137,14 @@ async def save_json_to_folder(output_dir: str, json_data: dict):
 async def start_download_queue(decryption_key, json_data, mpd_content, mpd_uri):
     video_folder = Video_folder(json_data)
     media_id = video_folder.media_id
-    output_dir = video_folder.video_folder_handle()
+    community_name = await get_community_name(json_data)
+
+    if type(community_name) == str:
+        community_name = custom_dict(community_name)
+    if community_name is None:
+        community_name = await get_community_name(json_data)
+        
+    output_dir = await video_folder.video_folder_handle(community_name)
     if output_dir is not None:
         
         await dl_mpd_to_folder(output_dir, mpd_uri)
@@ -145,9 +154,16 @@ async def start_download_queue(decryption_key, json_data, mpd_content, mpd_uri):
 
         downloader = MediaDownloader(media_id, output_dir)
         success = await downloader.download_content(mpd_content)
-        s = SUCCESS(downloader, json_data)
+        s = SUCCESS(downloader, json_data, community_name)
         s.when_success(success, decryption_key)
         video_folder.re_name_folder()
     else:
         logger.error("Failed to create output directory.")
         raise ValueError
+
+            
+async def get_community_name(json_data):
+    community_id = json_data.get('media', {}).get('community_id')
+    n = await get_community(community_id)
+    n = f"{n}"
+    return n

@@ -12,15 +12,17 @@ from lib.ffmpeg.mux import FFmpegMuxer
 from static.color import Color
 from unit.handle_log import setup_logging
 from unit.parameter import paramstore
+from unit.community import get_community
 
 
 logger = setup_logging('reName', 'violet')
 
 
 class SUCCESS:
-    def __init__(self, downloader, json_data):
+    def __init__(self, downloader, json_data, community_name):
         self.downloader = downloader
         self.json_data = json_data
+        self.community_name = community_name
 
     def when_success(self, success, decryption_key):
         if success:
@@ -90,7 +92,7 @@ class SUCCESS:
             self.downloader.base_dir / "output.mp4"
         ).audio_codec
         filename = (
-            f"{t} IVE - "
+            f"{t} {self.community_name} - "
             + self.json_data.get("media", {}).get("title")
             + f" WEB-DL.{video_quality_label}.{video_codec}.{video_audio_codec}.mp4"
         )
@@ -113,3 +115,8 @@ class SUCCESS:
         else:
             logger.error(f"{response.status_code} {thumbnail_url}")
             logger.error("Thumbnail donwload fail")
+            
+    async def get_community_name(self, community_id:int):
+        n = await get_community(community_id)
+        n = f"{n}"
+        return n
