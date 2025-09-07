@@ -1,64 +1,28 @@
-import logging
 import os
 import time
 from datetime import datetime, timedelta
-from logging.handlers import TimedRotatingFileHandler
+from functools import cached_property
 from pathlib import Path
+from typing import List, Dict, Any
 
 import jwt
 import requests
 
 from static.color import Color
-
+from unit.handle_log import setup_logging
 
 DEFAULT_COOKIE = Path("cookies/Berriz/default.txt")
 REFRESH_FILE = Path("cookies/refresh_time.txt")
-BZ_A_PATH = Path("cookies/bz_a.txt")
+BZ_A_PATH = Path("cookies/bz_a.bin")
 
-
-def setup_logging() -> logging.Logger:
-    """Set up logging with console and rotating file handlers."""
-    os.makedirs("logs", exist_ok=True)
-
-    log_format = logging.Formatter(
-        f"{Color.fg('light_gray')}%(asctime)s [%(levelname)s] [%(name)s]: %(message)s {Color.reset()}"
-    )
-
-    logger = logging.getLogger(f"{Color.fg('firebrick')}cookies{Color.reset()}")
-    logger.setLevel(logging.INFO)
-
-    if logger.handlers:
-        logger.handlers.clear()
-
-    logger.propagate = False
-
-    # console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_format)
-    logger.addHandler(console_handler)
-
-    # rotating file handler
-    app_file_handler = TimedRotatingFileHandler(
-        filename="logs/cookies.py.log",
-        when="midnight",
-        interval=1,
-        backupCount=30,
-        encoding="utf-8",
-    )
-    app_file_handler.setFormatter(log_format)
-    logger.addHandler(app_file_handler)
-
-    return logger
-
-
-logger = setup_logging()
+logger = setup_logging('cookies', 'firebrick')
 
 
 class CookieUtils:
     """Static class for common cookie-related utilities."""
 
     BASE_URL = "https://berriz.in"
-    REQUIRED_COOKIES = ["_T_ANO", "pacode", "pcid", "__T_", "__T_SECURE"]
+    REQUIRED_COOKIES = ["pcid"]
 
     @staticmethod
     def _ensure_directory(file_path: str) -> None:
@@ -113,24 +77,24 @@ class CookieUtils:
         }
         return headers
 
-    @staticmethod
-    def load_bz_a() -> str:
-        """Load or initialize bz_a token from the specified file."""
-        CookieUtils._ensure_directory(BZ_A_PATH)
-        try:
-            with open(BZ_A_PATH, "r", encoding="utf-8") as f:
-                return f.read().strip()
-        except FileNotFoundError:
-            with open(BZ_A_PATH, "w", encoding="utf-8") as f:
-                f.write("")
-            return ""
-
+    
     @staticmethod
     def save_bz_a(token: str) -> None:
-        """Save bz_a token to the specified file."""
         CookieUtils._ensure_directory(BZ_A_PATH)
-        with open(BZ_A_PATH, "w", encoding="utf-8") as f:
-            f.write(token)
+        
+        with open(BZ_A_PATH, "wb") as f:
+            f.write(token.encode("utf-8"))
+
+    @staticmethod
+    def load_bz_a() -> str:
+        if not BZ_A_PATH.exists():
+            return ""
+            
+        try:
+            with open(BZ_A_PATH, "rb") as f:
+                return f.read().decode("utf-8").strip()
+        except Exception:
+            return ""
 
 
 class NetscapeCookieReader:
@@ -163,7 +127,7 @@ class NetscapeCookieReader:
 class Refresh_JWT:
     @staticmethod
     def refresh_token() -> str | None:
-        """Refresh the JWT token and save it to bz_a.txt."""
+        """Refresh the JWT token and save it to bz_a"""
         url = "https://account.berriz.in/auth/v1/token:refresh?languageCode=en"
         headers = CookieUtils.get_initial_headers()
         json_data = {"clientId": "e8faf56c-575a-42d2-933d-7b2e279ad827"}
@@ -191,7 +155,7 @@ class Refresh_JWT:
 
             CookieUtils.save_bz_a(access_token)
             logger.info(
-                f"{Color.fg('peach')}Access Token saved to bz_a.txt{Color.reset()}"
+                f"{Color.fg('peach')}Access Token saved to {BZ_A_PATH}{Color.reset()}"
             )
             return access_token
         except Exception as e:
@@ -221,7 +185,6 @@ class Refresh_JWT:
         """Refresh token and test cookie validity."""
         token = Refresh_JWT.refresh_token()
         if token:
-            time.sleep(1)
             Refresh_JWT.my_state_test()
         else:
             logger.error("Initial token refresh failed.")
@@ -270,26 +233,39 @@ class NetscapeCookieReader:
     """Class to read cookies from a Netscape format cookie file."""
     def __init__(self):
         self.file_path = Path(DEFAULT_COOKIE)
-        self.cookies = {}
-        self.load_cookies()
 
-    def load_cookies(self) -> None:
-        """Load cookies from the Netscape cookie file."""
+    @cached_property
+    def cookies(self) -> dict:
         if not self.file_path.exists():
-            os.makedirs("cookies/Berriz", exist_ok=True)
+            os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
             raise FileNotFoundError(f"Cookie file not found: {self.file_path}")
 
-        with open(self.file_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    parts = line.split("\t")
-                    if len(parts) >= 7:
-                        name = parts[5]
-                        value = parts[6]
-                        self.cookies[name] = value
-                    else:
-                        logger.warning(f"Skipping malformed cookie line: {line}")
+    @cached_property
+    def cookies(self) -> Dict[str, str]:
+        if not self.file_path.exists():
+            os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
+            return {}
+
+        try:
+            with open(self.file_path, "r", encoding="utf-8") as f:
+                lines = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+        except Exception as e:
+            logger.error(f"Failed to read cookie file: {e}")
+            return {}
+
+        cookies_dict = {}
+        for line in lines:
+            parts = line.split("\t")
+            if len(parts) >= 7:
+                try:
+                    name, value = parts[5], parts[6]
+                    cookies_dict[name] = value
+                except IndexError:
+                    logger.warning(f"Skipping malformed cookie line (invalid parts): {line}")
+            else:
+                logger.warning(f"Skipping malformed cookie line (too few parts): {line}")
+        
+        return cookies_dict
 
     def get_cookie(self, name: str) -> str:
         """Get a specific cookie value by name."""
