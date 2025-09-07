@@ -46,14 +46,45 @@ class NonBlockingFileHandler(TimedRotatingFileHandler):
         super().close()
 
 
+# 自定義控制台格式化器，根據等級使用不同顏色
+class ColoredConsoleFormatter(logging.Formatter):
+    def format(self, record):
+        # 根據等級選擇顏色
+        if record.levelname == "INFO":
+            level_color = Color.fg('light_gray')
+            message_color = Color.fg('light_gray')
+        elif record.levelname == "WARNING":
+            level_color = Color.fg('gold')
+            message_color = Color.fg('gold')
+        elif record.levelname in ["ERROR", "CRITICAL"]:
+            level_color = Color.bg('coral')
+            message_color = Color.fg('black')
+        else:  # DEBUG 和其他等級
+            level_color = ""
+            message_color = ""
+
+        # 構建格式化字符串
+        formatted = (f"{Color.fg('light_gray')}%(asctime)s "
+                    f"{level_color}[%(levelname)s] "
+                    f"{Color.fg('light_gray')}[%(name)s]: "
+                    f"{message_color}%(message)s"
+                    f"{Color.reset()}")
+
+        # 臨時設置格式
+        original_fmt = self._style._fmt
+        self._style._fmt = formatted
+        result = super().format(record)
+        self._style._fmt = original_fmt
+        
+        return result
+
+
 def setup_logging(name, log_color) -> logging.Logger:
     """Set up logging with console and rotating file handlers."""
     os.makedirs("logs", exist_ok=True)
 
-    # 控制台格式（包含顏色）
-    console_format = logging.Formatter(
-        f"{Color.fg('light_gray')}%(asctime)s [%(levelname)s] [%(name)s]: %(message)s {Color.reset()}"
-    )
+    # 控制台格式（根據等級使用不同顏色）
+    console_format = ColoredConsoleFormatter()
 
     # 文件格式（去除所有顏色代碼）
     class NoColorFormatter(logging.Formatter):
@@ -66,7 +97,7 @@ def setup_logging(name, log_color) -> logging.Logger:
         "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
     )
 
-    logger = logging.getLogger(f"{Color.fg(f'{log_color}')}{name}{Color.reset()}")
+    logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
 
     if logger.handlers:
@@ -74,7 +105,6 @@ def setup_logging(name, log_color) -> logging.Logger:
 
     logger.propagate = False
 
-    # 控制台處理器（帶顏色）
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(console_format)
     logger.addHandler(console_handler)

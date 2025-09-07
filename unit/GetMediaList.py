@@ -2,14 +2,21 @@ import asyncio
 import aiohttp
 from typing import Dict, Optional
 from aiohttp import ClientTimeout
+import json
 
 import aiohttp
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from unit.handle_log import setup_logging
+from cookies.cookies import Berriz_cookie
 from static.color import Color
-
+from mystate.fanclub import fanclub_main
+from unit.handle_log import setup_logging
+from unit.image.parse_public_contexts import parse_public_contexts
+from unit.parameter import paramstore
+from unit.community import get_community, get_community_print
+from unit.http.request_berriz_api import MediaList
+import random
 
 MediaItem = Dict[str, Union[str, Dict, bool]]
 SelectedMedia = Dict[str, List[Dict]]
@@ -18,103 +25,49 @@ SelectedMedia = Dict[str, List[Dict]]
 logger = setup_logging('GetMediaList', 'turquoise')
 
 
-class HeaderBuilder:
-    @staticmethod
-    def build_headers() -> Dict[str, str]:
-        return {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:141.0) Gecko/20100101 Firefox/141.0",
-            "Accept": "application/json",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
-            "Referer": "https://berriz.in/",
-            "Origin": "https://berriz.in",
-            "Alt-Used": "svc-api.berriz.in",
-        }
-
-
-class ApiClient:
-    def __init__(
-        self,
-        headers: Dict[str, str],
-        delay: float = 0,
-        max_connections: int = 10,
-    ):
-        self.base_url = "https://svc-api.berriz.in/service/v1"
-        self.headers = headers
-        self.delay = delay
-        self.session: Optional[aiohttp.ClientSession] = None
-        self.max_connections = max_connections
-
-    async def __aenter__(self):
-        connector = aiohttp.TCPConnector(
-            limit=self.max_connections,
-            force_close=False,
-            enable_cleanup_closed=True,
-            use_dns_cache=True,
-            keepalive_timeout=13,
-            ssl=True,
-        )
-
-        self.session = aiohttp.ClientSession(
-            headers=self.headers,
-            connector=connector,
-            timeout=ClientTimeout(total=11),
-            auto_decompress=True,
-            json_serialize=lambda x: x,
-        )
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session and not self.session.closed:
-            await self.session.close()
-        self.session = None
-
-    async def fetch_page(self, community_id: int, cursor: Optional[str]) -> Optional[Dict[str, Any]]:
-        url = self._build_url(community_id)
-        params = self._build_params(cursor)
-        return await self._request_json(url, params)
-
-    def _build_url(self, community_id: int) -> str:
-        return f"{self.base_url}/community/{community_id}/medias/recent"
-
-    def _build_params(self, cursor: Optional[str]) -> Dict[str, Any]:
-        params = {"pageSize": 12000, "languageCode": "en"}
-        if cursor:
-            params["next"] = cursor
-        return params
-
-    async def _request_json(self, url: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        assert self.session is not None, "ClientSession not initialized. Use `async with`."
-        try:
-            async with self.session.get(url, params=params, timeout=3) as response:
-                logger.info(f"{Color.fg('light_gray')}GET -> {response.request_info.real_url} - {response.status}{Color.reset()}")
-                response.raise_for_status()
-                return await response.json()
-        except Exception as e:
-            self._handle_request_error(e, url, params)
-            return None
-
-    def _handle_request_error(self, e: Exception, url: str, params: Dict[str, Any]) -> None:
-        if isinstance(e, asyncio.TimeoutError):
-            logger.error(f"Request timed out: {url} params={params}")
-        elif isinstance(e, aiohttp.ClientResponseError):
-            logger.error(f"HTTP {e.status} error on {url}: {e.message} params={params}")
-        elif isinstance(e, aiohttp.ClientError):
-            logger.error(f"Client error on {url}: {e} params={params}")
-        else:
-            logger.error(f"Unexpected error on {url}: {e}", exc_info=True)
+class FanClubFilter:
+    async def is_fanclub():
+        context = await fanclub_main()
+        """None - not fanclub"""
+        return context
 
 
 class MediaParser:
     @staticmethod
-    def parse(data: Dict[str, Any]) -> Tuple[List[Dict], List[Dict], Optional[str], bool]:
+    async def parse(data: Dict[str, Any]) -> Tuple[List[Dict], List[Dict], Optional[str], bool]:
         if not MediaParser._is_valid_response(data):
             return [], [], None, False
 
         contents = MediaParser._get_contents(data)
-        vod_list, photo_list = MediaParser._extract_media_items(contents)
         cursor, has_next = MediaParser._extract_pagination(data)
+        
+        vod_list, photo_list = MediaParser._extract_media_items(contents)
+        v_fanclub_list, v_not_fanclub_list = MediaParser.fanclub_items(vod_list)
+        fanclub_list, not_fanclub_list = MediaParser.fanclub_items(photo_list)
+        
+        if Berriz_cookie()._cookies == {}:
+            vod_list = ''
+            v_not_fanclub_list = ''
+            
+        t = await FanClubFilter.is_fanclub()
+        if t is not None:
+            id = await get_community(t)
+            p = await MediaParser.parse_fanclub_community(contents, id)
+            v_list, p_list = MediaParser._extract_media_items(p)
+            if paramstore.get('fanclub') is None:
+                return vod_list + v_list, photo_list + p_list, cursor, has_next
+            elif paramstore.get('fanclub') is False:
+                return v_not_fanclub_list, not_fanclub_list, cursor, has_next
+            return v_list, p_list, cursor, has_next
+        else:
+            return v_not_fanclub_list, not_fanclub_list, cursor, has_next
 
-        return vod_list, photo_list, cursor, has_next
+    async def parse_fanclub_community(contents: list[dict], target_id: int) -> list[dict]:
+        return [
+            item for item in contents
+            if item.get("media", {}).get("communityId") == target_id
+            and item["media"].get("isFanclubOnly") is True
+        ]
 
     @staticmethod
     def _is_valid_response(data: Dict[str, Any]) -> bool:
@@ -134,13 +87,26 @@ class MediaParser:
         for item in contents:
             media = item.get("media")
             if not media:
-                continue
+                raise
             match media.get("mediaType"):
                 case "VOD":
                     vod_list.append(media)
                 case "PHOTO":
                     photo_list.append(media)
         return vod_list, photo_list
+
+    @staticmethod
+    def fanclub_items(contents: List[Dict[str, Any]]) -> Tuple[List[Dict], List[Dict]]:
+        fanclub, not_fanclub = [], []
+        for item in contents:
+            match item.get("isFanclubOnly"):
+                case True:
+                    fanclub.append(item)
+                case False:
+                    not_fanclub.append(item)
+                case _:
+                    not_fanclub.append(item)
+        return fanclub, not_fanclub
 
     @staticmethod
     def _extract_pagination(data: Dict[str, Any]) -> Tuple[Optional[str], bool]:
@@ -153,24 +119,38 @@ class MediaParser:
 class MediaFetcher:
     def __init__(self, community_id: int):
         self.community_id = community_id
-        self.headers = HeaderBuilder.build_headers()
         
     async def get_all_media_lists(self) -> Tuple[List[Dict], List[Dict]]:
         vod_total, photo_total = [], []
-        cursor = None
+        self.community_id = await self.get_community_id(self.community_id)
+        params = await self._build_params(cursor=None)
+        while True:
+            data = await MediaList().media_list(self.community_id, params)
+            if not data:
+                break
 
-        async with ApiClient(self.headers) as client:
-            while True:
-                data = await client.fetch_page(self.community_id, cursor)
-                if not data:
-                    break
+            vods, photos, cursor, has_next = await MediaParser.parse(data)
+            
+            vod_total.extend(vods)
+            photo_total.extend(photos)
 
-                vods, photos, cursor, has_next = MediaParser.parse(data)
-                vod_total.extend(vods)
-                photo_total.extend(photos)
-
-                if not has_next:
-                    break
-                await asyncio.sleep(client.delay)
-
+            if not has_next:
+                break
         return vod_total, photo_total
+    
+    async def _build_params(self, cursor: Optional[str]) -> Dict[str, Any]:
+        pagesize = random.randint(25000, 30000)
+        params = {"pageSize": pagesize, "languageCode": "en"}
+        if cursor:
+            params["next"] = cursor
+        return params
+    
+    async def get_community_id(self, community_id: Union[str, int]) -> Optional[int]:
+        if type(community_id) == int:
+            return community_id
+        if type(community_id) == str:
+            community_id = await get_community(community_id)
+        if community_id is None:
+            logger.error(f"Community ID is {Color.fg('bright_red')}None{Color.reset()}")
+            logger.info(await get_community_print())
+            return None

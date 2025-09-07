@@ -1,4 +1,5 @@
 import asyncio
+import errno
 import re
 import random
 import string
@@ -16,11 +17,10 @@ from unit.handle_log import setup_logging
 from unit.http.request_berriz_api import Playback_info, Public_context
 from unit.image.parse_public_contexts import parse_public_contexts
 from unit.image.parse_playback_contexts import parse_playback_contexts
+from unit.community import get_community, custom_dict
 
 
-logger = setup_logging(
-    'image', 'mint'
-)
+logger = setup_logging('image', 'mint')
 
 
 class FilenameSanitizer:
@@ -49,35 +49,67 @@ class DateTimeFormatter:
 
 class FolderManager:
     """Manages folder creation for image downloads."""
+    def __init__(self):
+        pass
 
-    def __init__(self, base_dir: Path = Path.cwd() / "downloads" / "images"):
-        self.base_dir = base_dir
-
-    async def create_image_folder(self, title: str, publishedAt: str) -> str | None:
+    async def create_image_folder(self, title: str, publishedAt: str, community_id: int) -> str | None:
         """Create a folder for images. If exists, append random 5-letter suffix."""
         time_str = await DateTimeFormatter.format_published_at(publishedAt)
         safe_title = await FilenameSanitizer.sanitize_filename(title)
-        base_folder_name = f"{time_str} IVE - {safe_title}"
-        folder_path = self.base_dir / base_folder_name
+        
+        community_name = await self.get_community_name(community_id)
+        if type(community_name) == str:
+            community_name = custom_dict(community_name)
+        if community_name is None:
+            community_name = await self.get_community_name(community_id)
+        
+        base_dir: Path = Path.cwd() / "downloads" / community_name / "images"
+        base_folder_name = f"{time_str} {community_name} - {safe_title}"
+        folder_path = base_dir / base_folder_name
 
         try:
-            await asyncio.to_thread(self.base_dir.mkdir, parents=True, exist_ok=True)
+            await asyncio.to_thread(base_dir.mkdir, parents=True, exist_ok=True)
 
             while await asyncio.to_thread(folder_path.exists):
                 random_suffix = "".join(random.choices(string.ascii_letters, k=5))
-                folder_path = self.base_dir / f"{base_folder_name} [{random_suffix}]"
+                folder_path = base_dir / f"{base_folder_name} [{random_suffix}]"
 
             await asyncio.to_thread(folder_path.mkdir)
             return str(folder_path.resolve())
         except Exception as e:
-            logger.error(f"Failed to create folder: {folder_path!r}, reason: {e}")
-            return None
+            if isinstance(e, OSError) and e.winerror == 183:
+                logger.warning(f"Folder already exists, retrying with new suffix: {folder_path!r}")
+                try:
+                    # Retry with new suffix
+                    while await asyncio.to_thread(folder_path.exists):
+                        suffix = "".join(random.choices(string.ascii_lowercase, k=5))
+                        folder_path = base_dir / f"{base_folder_name} [{suffix}]"
+                    await asyncio.to_thread(folder_path.mkdir)
+                    return str(folder_path.resolve())
+                except Exception as retry_error:
+                    logger.error(f"Retry failed: {folder_path!r}, reason: {retry_error}")
+                    return None
+            else:
+                logger.error(f"Failed to create folder: {folder_path!r}, reason: {e}")
+                return 
+        
+    async def get_community_name(self, community_id:int):
+        n = await get_community(community_id)
+        n = f"{n}"
+        return n
 
 
 class ImageDownloader:
     """Handles downloading images from URLs."""
 
-    _headers = {"User-Agent": f"{UserAgent().random}"}
+    _headers = {
+        "User-Agent": UserAgent().random,
+        "Cache-Control": "no-cache",
+        "Accept-Encoding": "identity",
+        "Accept": "image/webp,image/png,image/jpeg,*/*",
+        "Connection": "keep-alive",
+        "Sec-Fetch-Dest": "image" 
+    }
     _timeout = httpx.Timeout(connect=5.0, read=30.0, write=30.0, pool=30.0)
     _limits = httpx.Limits(max_keepalive_connections=20, max_connections=50)
 
@@ -90,41 +122,43 @@ class ImageDownloader:
 
     @staticmethod
     async def download_image(url: str, file_path: Union[str, Path]) -> None:
-        try:
-            async with httpx.AsyncClient(
-                headers=ImageDownloader._headers,
-                timeout=ImageDownloader._timeout,
-                limits=ImageDownloader._limits,
-                http2=True,
-            ) as client:
-                async with client.stream("GET", url) as resp:
-                    resp.raise_for_status()
-
-                    write_task = asyncio.create_task(
-                        ImageDownloader._write_to_file(resp, file_path)
-                    )
-                    await write_task
-
-            logger.info(f"{Color.fg('periwinkle')}{file_path}{Color.reset()}")
-
-        except httpx.HTTPStatusError as e:
-            logger.error(f"{url} download failed with code {e.response.status_code}")
-            raise
-        except httpx.RequestError as e:
-            logger.error(f"Failed to download {url}: {e}")
-            raise
-        except asyncio.CancelledError:
-            logger.warning(f"File write cancelled for {Color.fg('light_gray')}{url}{Color.reset()}")
+        for attempt in range(1, 11):  # 最多重試 10 次
             try:
-                if Path(file_path).exists():
-                    Path(file_path).unlink()
-            except OSError:
-                pass
-            raise
+                async with httpx.AsyncClient(
+                    headers=ImageDownloader._headers,
+                    timeout=ImageDownloader._timeout,
+                    limits=ImageDownloader._limits,
+                    http2=True,
+                ) as client:
+                    async with client.stream("GET", url) as resp:
+                        resp.raise_for_status()
+
+                        write_task = asyncio.create_task(
+                            ImageDownloader._write_to_file(resp, file_path)
+                        )
+                        await write_task
+
+                logger.info(f"{Color.fg('periwinkle')}{file_path}{Color.reset()}")
+                return
+
+            except (httpx.RequestError, httpx.HTTPStatusError) as e:
+                logger.warning(f"[Attempt {attempt}/10] Failed to download {url}: {e}")
+                if attempt == 10:
+                    logger.error(f"{url} download failed after 10 attempts")
+                    raise
+
+            except asyncio.CancelledError:
+                logger.warning(f"File write cancelled for {Color.fg('light_gray')}{url}{Color.reset()}")
+                try:
+                    if Path(file_path).exists():
+                        Path(file_path).unlink()
+                except OSError:
+                    pass
+                raise
 
     @staticmethod
     async def download_images_batch(
-        tasks: List[Tuple[str, Union[str, Path]]], max_concurrency: int = 5
+        tasks: List[Tuple[str, Union[str, Path]]], max_concurrency: int = 25
     ) -> None:
         semaphore = asyncio.Semaphore(max_concurrency)
 
@@ -170,28 +204,7 @@ class ImageUrlParser:
             await self.downloader.download_image(url, file_path)
 
 
-class MediaDownloadOrchestrator:
-    def __init__(self, max_media_tasks: int = 10):
-        self.folder_manager = FolderManager()
-        self.image_parser = ImageUrlParser(ImageDownloader())
-        self._sem = asyncio.Semaphore(max_media_tasks)
-
-    async def _fetch_contexts(self, media_id: str):
-        pub_task = asyncio.create_task(Public_context().get_public_context(media_id))
-        play_task = asyncio.create_task(Playback_info().get_playback_context(media_id))
-        return await asyncio.gather(pub_task, play_task)
-
-    async def run_download(self, media_id: str) -> None:
-        async with self._sem:
-            public_ctxs, playback_ctxs = await self._fetch_contexts(media_id)
-            _, title, publishedAt = await parse_public_contexts(public_ctxs)
-            images = await parse_playback_contexts(playback_ctxs)
-
-            folder = await self.folder_manager.create_image_folder(title, publishedAt)
-            await self.image_parser.parse_and_download(images, folder)
-
-
-async def run_image_dl(media_ids: list, max_concurrent: int = 10):
+async def run_image_dl(media_ids: list, max_concurrent: int = 23):
     semaphore = asyncio.Semaphore(max_concurrent)
 
     async with httpx.AsyncClient(
@@ -222,11 +235,11 @@ async def run_image_dl(media_ids: list, max_concurrent: int = 10):
                         logger.error(f"Failed to fetch contexts for {media_id}")
                         return
 
-                    _, title, publishedAt = await parse_public_contexts(public_ctxs)
+                    _, title, publishedAt, community_id = await parse_public_contexts(public_ctxs)
                     images = await parse_playback_contexts(playback_ctxs)
 
                     folder = await folder_manager.create_image_folder(
-                        title, publishedAt
+                        title, publishedAt, community_id
                     )
                     await image_parser.parse_and_download(images, folder)
 
@@ -238,4 +251,4 @@ async def run_image_dl(media_ids: list, max_concurrent: int = 10):
         for chunk in chunks:
             tasks = [process_single_media(media_id) for media_id in chunk]
             await asyncio.gather(*tasks, return_exceptions=True)
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.1)

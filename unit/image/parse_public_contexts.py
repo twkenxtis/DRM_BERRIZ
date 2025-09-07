@@ -51,4 +51,4 @@ async def parse_public_contexts(public_contexts: List[Dict[str, Any]]) -> str:
     read_content_id = comment.get("readContentId")
     write_content_id = comment.get("writeContentId")
 
-    return media_id, title, published_at
+    return media_id, title, published_at, community_id

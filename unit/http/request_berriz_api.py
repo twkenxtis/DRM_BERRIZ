@@ -1,17 +1,21 @@
+import aiohttp
+import asyncio
 import concurrent.futures
+from aiohttp import ClientTimeout
 import logging
 import os
 import re
+import requests
 import threading
+import json
 from logging.handlers import TimedRotatingFileHandler
 from typing import Dict, List, Optional, Union
+from functools import lru_cache
 
 import httpx
 
 from cookies.cookies import Berriz_cookie
 from static.color import Color
-from static.PlaybackInfo import PlaybackInfo
-from static.PublicInfo import PublicInfo
 
 
 class NonBlockingFileHandler(TimedRotatingFileHandler):
@@ -125,29 +129,29 @@ UUID_REGEX = re.compile(
 
 
 class BerrizAPIClient:
-
     def __init__(self):
         self.cookies = Berriz_cookie()._cookies
         self.headers = self._build_headers()
 
+    @lru_cache(maxsize=1)
     def _build_headers(self) -> Dict[str, str]:
         return {
             "Host": "svc-api.berriz.in",
             "Referer": "https://berriz.in/",
+            "Origin": "https://berriz.in",
             "Accept": "application/json",
             'pragma': 'no-cache',
-            "Origin": "https://berriz.in",
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148; iPhone17.6.1; fanz-ios 1.1.4; iPhone12,3",
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148; iPhone17.6.1; iPhone12,3",
         }
 
-    async def _send_request(self, url: str, params: Optional[Dict] = None) -> Optional[Dict]:
+    async def _send_request(self, url: str, params: Optional[Dict] = None, headers: Optional[Dict] = None) -> Optional[Dict]:
         try:
-            async with httpx.AsyncClient(http2=True, timeout=4, verify=False) as client:
+            async with httpx.AsyncClient(http2=True, timeout=4, verify=True) as client:
                 response = await client.get(
                     url,
                     params=params,
                     cookies=self.cookies,
-                    headers=self.headers,
+                    headers=headers or self.headers,
                 )
                 response.raise_for_status()
                 return response.json()
@@ -168,29 +172,283 @@ class BerrizAPIClient:
             return None
         except Exception as e:
             logger.error(f"Unexpected error for {url}: {e}")
+       
+    async def _send_request_aiohttp(self, url: str, p: Optional[Dict] = None, h: Optional[Dict] = None, usecookie: bool=None) -> Optional[Dict]:
+        try:
+            if usecookie is not False:
+                c = self.cookies
+            elif usecookie is False:
+                logger.info(f"{Color.fg('pink')}Use empty cookie{Color.reset()}")
+                c = {}
+            async with self.session.get(url, params=p, headers=h, cookies=c) as response:
+                logger.info(f"{Color.fg('light_gray')}{response.request_info.real_url} - {response.status}{Color.reset()}")
+                response.raise_for_status()
+                return await response.json()
+        except aiohttp.ClientResponseError as e:
+            logger.error(f"HTTP status error for {url}: {e}")
+            return None
+        except aiohttp.ClientConnectionError as e:
+            logger.error(f"Connection error for {url}: {e}")
+            return None
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout error for {url}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error for {url}: {e}")
+            return None
+        
+    async def __aenter__(self):
+        connector = aiohttp.TCPConnector(
+            limit=7,
+            force_close=False,
+            enable_cleanup_closed=True,
+            use_dns_cache=True,
+            keepalive_timeout=7,
+            ssl=False,
+        )
+
+        self.session = aiohttp.ClientSession(
+            headers=self.headers,
+            connector=connector,
+            timeout=ClientTimeout(total=11),
+            auto_decompress=True,
+            json_serialize=lambda x: x,
+        )
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session and not self.session.closed:
+            await self.session.close()
+        self.session = None
+        
+    def get_request(self, url: str, p: Optional[Dict] = None, h: Optional[Dict] = None, usecookie: bool=None) -> Optional[Dict]:
+        try:
+            if usecookie is not False:
+                c = self.cookies
+            elif usecookie is False:
+                logger.info(f"{Color.fg('pink')}Use empty cookie{Color.reset()}")
+                c = {}
+            response = requests.get(url, params=p, headers=h or self.headers, cookies=c)
+            logger.info(f"{Color.fg('light_gray')}{url} - {response.status_code}{Color.reset()}")
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"An error occurred: {e}")
 
 
 class Playback_info(BerrizAPIClient):
-
     async def get_playback_context(self, media_ids: Union[str, List[str]]) -> List[str]:
         media_ids = [media_ids] if isinstance(media_ids, str) else media_ids
         results = []
         for media_id in media_ids:
             if isinstance(media_id, str) and UUID_REGEX.match(media_id):
+                params =  {"languageCode": 'en'}
                 url = f"https://svc-api.berriz.in/service/v1/medias/{media_id}/playback_info"
-                if data := await self._send_request(url):
+                if data := await self._send_request(url, params=params):
                     results.append(data)
+            else:
+                logger.warning(f"Invalid media ID format: {media_id}")
         return results
 
+    async def get_live_playback_info(self, media_ids: Union[str, List[str]]) -> List[Dict]:
+        """Fetch playback information for given media IDs."""
+        media_ids = [media_ids] if isinstance(media_ids, str) else media_ids
+        results = []
+        for media_id in media_ids:
+            if isinstance(media_id, str) and UUID_REGEX.match(media_id):
+                params =  {"languageCode": 'en'}
+                url = f"https://svc-api.berriz.in/service/v1/medias/live/{media_id}/playback_info"
+                if data := await self._send_request(url, params=params):
+                    results = data
+            else:
+                logger.warning(f"Invalid media ID format: {media_id}")
+        return results
 
 class Public_context(BerrizAPIClient):
-
     async def get_public_context(self, media_ids: Union[str, List[str]]) -> List[str]:
         media_ids = [media_ids] if isinstance(media_ids, str) else media_ids
         results = []
         for media_id in media_ids:
             if isinstance(media_id, str) and UUID_REGEX.match(media_id):
+                params =  {"languageCode": 'en'}
                 url = f"https://svc-api.berriz.in/service/v1/medias/{media_id}/public_context"
-                if data := await self._send_request(url):
+                if data := await self._send_request(url, params=params):
                     results.append(data)
+            else:
+                logger.warning(f"Invalid media ID format: {media_id}")
         return results
+    
+class Live(BerrizAPIClient):
+    async def request_live_playlist(self, playback_url: str, media_id: str) -> Optional[str]:
+        """Request m3u8 playlist."""
+        if not playback_url:
+            logger.error(f"{Color.fg('light_gray')}No playback URL provided for media_id{Color.reset()}:"
+                        f" {Color.fg('turquoise')}{media_id}{Color.reset()}"
+                        )
+            return None
+
+        headers = {
+            **self.headers,
+            "Accept": "application/x-mpegURL, application/vnd.apple.mpegurl, application/json, text/plain",
+            "Referer": "Berriz/20250704.1139 CFNetwork/1498.700.2 Darwin/23.6.0",
+        }
+
+        try:
+            if response := await self._send_request(playback_url, headers=headers):
+                return response
+        except httpx.HTTPError as e:
+            logger.error(f"{Color.fg('plum')}Failed to get m3u8 list for media_id{Color.reset()}"
+                        f" {Color.fg('turquoise')}{media_id}{Color.reset()}{Color.fg('plum')}: {e}{Color.reset()}"
+                        )
+            return None
+
+    async def fetch_statics(self) -> Optional[Dict]:
+        """Fetch static media information for the given media sequence."""
+        if self.media_seq is None:
+            logger.error("Cannot fetch statics: media_seq is not provided.")
+            return None
+        url = (
+            f"https://svc-api.berriz.in/service/v1/media/statics?"
+            f"languageCode=en&mediaSeq={self.media_seq}&t=1"
+        )
+        return await self._send_request(url)
+
+    async def fetch_chat(self, current_second: int) -> Optional[Dict]:
+        """Fetch chat data for the given media sequence and time."""
+        if self.media_seq is None:
+            logger.error("Cannot fetch chat: media_seq is not provided.")
+            return None
+        url = (
+            f"https://chat-api.berriz.in/chat/v1/sync?"
+            f"translateLanguageCode=en&mediaSeq={self.media_seq}&t={current_second}&languageCode=en"
+        )
+        headers = {
+            **self.headers,
+            "Host": "chat-api.berriz.in",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        }
+        return await self._send_request(url, headers=headers)
+
+    async def fetch_media_seq(self, media_url: str) -> Optional[int]:
+        """Fetch mediaSeq from a media URL."""
+        headers = {
+            **self.headers,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        }
+        try:
+            if response := await self._send_request(media_url, headers=headers):
+                data = response.json()
+            media_seq = data.get("data", {}).get("media", {}).get("mediaSeq")
+            if media_seq is None:
+                logger.error("mediaSeq not found in response.")
+            else:
+                self.media_seq = media_seq  # Update instance media_seq
+            return media_seq
+        except (httpx.HTTPError, json.JSONDecodeError, KeyError) as e:
+            logger.error(f"Failed to fetch mediaSeq from {media_url}: {e}")
+            return None
+
+class Notify(BerrizAPIClient):
+    async def fetch_notify(
+        self, community_id: str, page_size: str,
+        language_code: str, use_proxy: bool,
+    ) -> Optional[Dict]:
+        params = {"languageCode": language_code, "communityId": community_id, "pageSize": page_size,}
+
+        url = "https://svc-api.berriz.in/service/v1/notifications"
+
+        headers = {
+            **self.headers,
+            "Accept": "application/json",
+        }
+        if response := await self._send_request(url, params=params, headers=headers, use_proxy=use_proxy):
+            return response
+        logger.warning(f"{Color.fg('bright_red')}Failed to obtain notification information{Color.reset()}")
+        return None
+    
+class My(BerrizAPIClient):
+    async def fetch_location(self) -> Optional[Dict]:
+        params =  {"languageCode": 'en'}
+
+        url = "https://svc-api.berriz.in/service/v1/my/geo-location"
+
+        headers = {
+            **self.headers,
+            "Accept": "application/json",
+        }
+        return await self._send_request(url, params=params, headers=headers)
+    
+    async def fetch_home(self) -> Optional[Dict]:
+        params =  {"languageCode": 'en'}
+
+        url = "https://svc-api.berriz.in/service/v1/home"
+
+        headers = {
+            **self.headers,
+            "Accept": "application/json",
+        }
+        return await self._send_request(url, params=params, headers=headers)
+
+    async def fetch_my(self) -> Optional[Dict]:
+        params =  {"languageCode": 'en'}
+
+        url = "https://svc-api.berriz.in/service/v1/my"
+
+        headers = {
+            **self.headers,
+            "Accept": "application/json",
+        }
+        return await self._send_request(url, params=params, headers=headers)
+    
+    async def notifications(self) -> Optional[Dict]:
+        params =  {"languageCode": 'en'}
+
+        url = "https://svc-api.berriz.in/service/v1/notifications:new"
+
+        headers = {
+            **self.headers,
+            "Accept": "application/json",
+        }
+        return await self._send_request(url, params=params, headers=headers)
+    
+    async def fetch_me(self) -> Optional[Dict]:
+        params =  {"languageCode": 'en'}
+        url = "https://account.berriz.in/auth/v1/accounts"
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Alt-Used': 'account.berriz.in',
+        }
+        return await self._send_request(url, params=params, headers=headers)
+
+    async def fetch_fanclub(self) -> Optional[Dict]:
+        params =  {"languageCode": 'en'}
+
+        url = "https://svc-api.berriz.in/service/v1/fanclub/products/subscription"
+
+        headers = {
+            **self.headers,
+            "Accept": "application/json",
+        }
+        return await self._send_request(url, params=params, headers=headers)
+
+class Community(BerrizAPIClient):
+    async def community_keys(self) -> Optional[Dict]:
+        params =  {"languageCode": 'en'}
+
+        url = "https://svc-api.berriz.in/service/v1/community/keys"
+
+        headers = {
+            **self.headers,
+            "Accept": "application/json",
+        }
+        return await self._send_request(url, params=params, headers=headers)
+    
+class MediaList(BerrizAPIClient):
+    async def media_list(self, community_id, params) -> Optional[Dict]:
+        
+        url = f"https://svc-api.berriz.in/service/v1/community/{community_id}/medias/recent"
+        
+        return await self._send_request(url, params=params, headers=self.headers)
+
+    

@@ -40,7 +40,7 @@ async def init_config(path: str):
         overrides = config['duplicate']['overrides']
         image_dup = overrides['image']
         video_dup = overrides['video']
-        logger.info(f"Loaded duplicates → image: {image_dup}, video: {video_dup}")
+        logger.info(f"{Color.fg('light_gray')}Loaded duplicates → image: {image_dup}, video: {video_dup}{Color.reset()}")
     except (KeyError, json.JSONDecodeError) as e:
         logger.error(f"Error parsing {path}: {e}")
         sys.exit(1)
@@ -64,19 +64,19 @@ class MediaProcessor:
             logger.warning(f"{Color.fg('light_gray')}Cookies are required to download {Color.bg('crimson')}videos{Color.reset()}")
             logger.info(f"{Color.fg('gold')}Skip {media_id} video download{Color.reset()}")
             return
-        try:
-            logger.info(f"{Color.fg('light_gray')}\nProcessing VOD ID:{Color.reset()} {Color.fg('periwinkle')}{media_id}{Color.reset()}")
-            processor = BerrizProcessor(media_id)
-            await processor.run()
-            if video_dup is False and paramstore.get('key') is None:
-                self.store.add(media_id)
-        except Exception as e:
-            logger.error(f"Error processing VOD ID {media_id}: {e}")
+        logger.info(f"{Color.fg('light_gray')}\nProcessing VOD ID:{Color.reset()} {Color.fg('periwinkle')}{media_id}{Color.reset()}")
+        processor = BerrizProcessor(media_id)
+        await processor.run()
+        if video_dup is False and paramstore.get('key') is None:
+            self.store.add(media_id)
 
     async def _process_photo_items(self, media_ids: List[str]) -> None:
         """Process a list of photo items concurrently."""
         try:
-            logger.info(f"{Color.fg('light_gray')}Processing Photo IDs:{Color.reset()} {Color.fg('periwinkle')}{media_ids}{Color.reset()}")
+            if len(media_ids) < 14:
+                logger.info(f"{Color.fg('light_gray')}Processing Photo IDs:{Color.reset()} {Color.fg('periwinkle')}{media_ids}{Color.reset()}")
+            else:
+                logger.info(f"{Color.fg('light_gray')}Processing Photo IDs:{Color.reset()} {Color.fg('periwinkle')}{media_ids[-13:]} ...{Color.reset()}")
             # Assuming run_image_dl can handle a list of media_ids
             await run_image_dl(media_ids)
             if image_dup is False:
