@@ -44,6 +44,24 @@ def parse_args() -> argparse.Namespace:
         help="Show key and skip download"
     )
     parser.add_argument(
+        "--fanclub-only",
+        dest="fanclub",
+        action="store_true",
+        help="Show only fanclub only content"
+    )
+    parser.add_argument(
+        "--community",
+        dest="community",
+        action="store_true",
+        help="Show only fanclub only content"
+    )
+    parser.add_argument(
+        "--no-fanclub",
+        dest="nofanclub",
+        action="store_true",
+        help="Show only fanclub only content"
+    )
+    parser.add_argument(
         "--del-after-done",
         dest="clean_dl",
         type=str_to_bool,
@@ -56,6 +74,12 @@ def parse_args() -> argparse.Namespace:
         type=str_to_bool,
         required=False,
         help="Whether to delete after completion (true/false)"
+    )
+    parser.add_argument(
+        "--a", "--artis",
+        dest="artis",
+        required=False,
+        help="Artis"
     )
     return parser.parse_args(normalized_argv[1:])
 
@@ -70,3 +94,19 @@ def clean_dl() -> bool:
 def skip_merge() -> bool:
     args = parse_args()
     return args.skip_merge if args.skip_merge is not None else False
+
+def fanclub() -> bool:
+    args = parse_args()
+    return args.fanclub
+
+def nofanclub() -> bool:
+    args = parse_args()
+    return args.nofanclub
+
+def community() -> bool:
+    args = parse_args()
+    return args.community
+
+def _artis() -> str:
+    args = parse_args()
+    return args.artis if args.artis is not None else 'ive'
