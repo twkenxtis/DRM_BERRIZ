@@ -21,13 +21,12 @@ async def handle_choice(community_id: int, time_a, time_b):
                     f"{Color.fg('sand')}{time_b}{Color.reset()}"
                     )
 
-    vod_list, photo_list = await asyncio.create_task(MediaFetcher(community_id).get_all_media_lists(time_a, time_b))
-
+    vod_list, photo_list, live_list = await asyncio.create_task(MediaFetcher(community_id).get_all_media_lists(time_a, time_b))
     if not vod_list and not photo_list:
         logger.warning("No media items found")
         return None
     
-    selector = InquirerPySelector(vod_list, photo_list)
+    selector = InquirerPySelector(vod_list, photo_list, live_list)
     selected_media = await selector.run()
 
     if len(selected_media['vods']) > 0:
@@ -36,6 +35,11 @@ async def handle_choice(community_id: int, time_a, time_b):
             f"{Color.fg('light_gray')}VOD{Color.reset()}")
 
     if len(selected_media['photos']) > 0:
+        logger.info(f"{Color.fg('light_gray')}choese "
+                    f"{Color.fg('dark_magenta')}{len(selected_media['photos'])} "
+                    f"{Color.fg('light_gray')}PHOTO{Color.reset()}")
+
+    if len(selected_media['live']) > 0:
         logger.info(f"{Color.fg('light_gray')}choese "
                     f"{Color.fg('dark_magenta')}{len(selected_media['photos'])} "
                     f"{Color.fg('light_gray')}PHOTO{Color.reset()}")

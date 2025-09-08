@@ -11,7 +11,7 @@ from mystate.fanclub import fanclub_main
 from unit.handle_log import setup_logging
 from unit.parameter import paramstore
 from unit.community import get_community, get_community_print
-from unit.http.request_berriz_api import MediaList
+from unit.http.request_berriz_api import MediaList, Live
 import random
 
 MediaItem = Dict[str, Union[str, Dict, bool]]
@@ -30,33 +30,57 @@ class FanClubFilter:
 
 class MediaParser:
     @staticmethod
-    async def parse(data: Dict[str, Any], time_a, time_b) -> Tuple[List[Dict], List[Dict], Optional[str], bool]:
-        if not MediaParser._is_valid_response(data):
-            return [], [], None, False
+    async def parse(
+        data: Dict[str, Any], time_a, time_b
+    ) -> Tuple[List[Dict], List[Dict], List[Dict], Optional[str], bool]:
+        # Chunk 1: extract core
+        contents, cursor, has_next = await MediaParser._extract_core(data)
+        if contents is None:
+            return [], [], [], cursor, has_next
 
-        contents = MediaParser._get_contents(data)
-        cursor, has_next = MediaParser._extract_pagination(data)
-        
-        vod_list, photo_list = MediaParser._extract_media_items(contents, time_a, time_b)
-        v_fanclub_list, v_not_fanclub_list = MediaParser.fanclub_items(vod_list)
-        fanclub_list, not_fanclub_list = MediaParser.fanclub_items(photo_list)
-        
-        if Berriz_cookie()._cookies == {}:
-            vod_list = ''
-            v_not_fanclub_list = ''
-            
+        # Chunk 2: parse three raw lists
+        vods, photos, lives = MediaParser._extract_media_items(contents, time_a, time_b)
+
+        # Chunk 3: concurrently split fanclub vs non-fanclub
+        (v_fc, v_nfc), (p_fc, p_nfc), (l_fc, l_nfc) = await asyncio.gather(
+            asyncio.to_thread(MediaParser.fanclub_items, vods),
+            asyncio.to_thread(MediaParser.fanclub_items, photos),
+            asyncio.to_thread(MediaParser.fanclub_items, lives),
+        )
+
+        # Cookie 檢查：沒 cookie 則清空付費列表
+        if not Berriz_cookie()._cookies:
+            v_fc = p_fc = l_fc = []
+
+        # Fanclub 身份檢查
         t = await FanClubFilter.is_fanclub()
-        if t is not None:
-            id = await get_community(t)
-            p = await MediaParser.parse_fanclub_community(contents, id)
-            v_list, p_list = MediaParser._extract_media_items(p, time_a, time_b)
-            if paramstore.get('fanclub') is None:
-                return vod_list, photo_list, cursor, has_next
-            elif paramstore.get('fanclub') is False:
-                return v_not_fanclub_list, not_fanclub_list, cursor, has_next
-            return v_list, p_list, cursor, has_next
-        else:
-            return v_not_fanclub_list, not_fanclub_list, cursor, has_next
+        if t is None:
+            # 非會員 → 回傳非付費
+            return v_nfc, p_nfc, l_nfc, cursor, has_next
+
+        # 會員：取社羣專屬內容並解析一次
+        cid = await get_community(t)
+        p_contents = await MediaParser.parse_fanclub_community(contents, cid)
+        v2, p2, l2 = MediaParser._extract_media_items(p_contents, time_a, time_b)
+
+        pref = paramstore.get("fanclub")
+        if pref is None:
+            return vods, photos, lives, cursor, has_next
+        if pref is False:
+            return v_nfc, p_nfc, l_nfc, cursor, has_next
+        return v2, p2, l2, cursor, has_next
+
+    @staticmethod
+    async def _extract_core(
+        data: Dict[str, Any]
+    ) -> Tuple[Optional[List[Dict]], Optional[str], bool]:
+        if not MediaParser._is_valid_response(data):
+            return None, None, False
+        contents, (cursor, has_next) = await asyncio.gather(
+            MediaParser._get_contents(data),
+            MediaParser._extract_pagination(data)
+        )
+        return contents, cursor, has_next
 
     async def parse_fanclub_community(contents: list[dict], target_id: int) -> list[dict]:
         return [
@@ -74,7 +98,7 @@ class MediaParser:
         return True
 
     @staticmethod
-    def _get_contents(data: Dict[str, Any]) -> List[Dict]:
+    async def _get_contents(data: Dict[str, Any]) -> List[Dict]:
         return data.get("data", {}).get("contents", [])
 
     @staticmethod
@@ -83,7 +107,7 @@ class MediaParser:
         time_a: Optional[datetime] = None,
         time_b: Optional[datetime] = None
     ) -> Tuple[List[Dict], List[Dict]]:
-        vod_list, photo_list = [], []
+        vod_list, photo_list, live_list = [], [], []
         
         # 檢查是否需要進行時間篩選 -> bool
         should_filter_by_time = (isinstance(time_a, datetime) and isinstance(time_b, datetime))
@@ -109,14 +133,15 @@ class MediaParser:
                         continue
                 except (ValueError, TypeError):
                     continue
-
             match media.get("mediaType"):
                 case "VOD":
                     vod_list.append(media)
                 case "PHOTO":
                     photo_list.append(media)
+                case "LIVE":
+                    live_list.append(media)
 
-        return vod_list, photo_list
+        return vod_list, photo_list, live_list
     
     @staticmethod
     def fanclub_items(contents: List[Dict[str, Any]]) -> Tuple[List[Dict], List[Dict]]:
@@ -132,7 +157,7 @@ class MediaParser:
         return fanclub, not_fanclub
 
     @staticmethod
-    def _extract_pagination(data: Dict[str, Any]) -> Tuple[Optional[str], bool]:
+    async def _extract_pagination(data: Dict[str, Any]) -> Tuple[Optional[str], bool]:
         pagination = data.get("data", {})
         cursor = pagination.get("cursor", {}).get("next")
         has_next = pagination.get("hasNext", False)
@@ -142,23 +167,74 @@ class MediaParser:
 class MediaFetcher:
     def __init__(self, community_id: int):
         self.community_id = community_id
-        
-    async def get_all_media_lists(self, time_a, time_b) -> Tuple[List[Dict], List[Dict]]:
-        vod_total, photo_total = [], []
-        self.community_id = await asyncio.create_task(self.get_community_id(self.community_id))
-        params = await asyncio.create_task(self._build_params(cursor=None))
-        while True:
-            data = await asyncio.create_task(MediaList().media_list(self.community_id, params))
-            if not data:
-                break
-            vods, photos, cursor, has_next = await asyncio.create_task(MediaParser.parse(data, time_a, time_b))
-            
-            vod_total.extend(vods)
-            photo_total.extend(photos)
 
-            if not has_next:
+    async def get_all_media_lists(self, time_a, time_b):
+        vod_total, photo_total, live_total = [], [], []
+        self.community_id = await self.get_community_id(self.community_id)
+        params = await self._build_params(cursor=None)
+
+        while True:
+            # 並行拉 raw data
+            media_data, live_data = await asyncio.gather(
+                MediaList().media_list(self.community_id, params),
+                Live().fetch_live_replay(self.community_id, params),
+            )
+            if not (media_data or live_data):
                 break
-        return vod_total, photo_total
+
+            # 並行解析 + build params
+            (vods, photos, params_media, has_next_media), \
+            (lives, params_live, has_next_live) = await asyncio.gather(
+                self._process_media_chunk(media_data, time_a, time_b),
+                self._process_live_chunk(live_data,   time_a, time_b),
+            )
+
+            vod_total  .extend(vods)
+            photo_total.extend(photos)
+            live_total .extend(lives)
+
+            if not (has_next_media or has_next_live):
+                break
+
+            # 合併下一輪要用的 params
+            params = {
+                "media": params_media,
+                "live":  params_live,
+            }
+
+        return vod_total, photo_total, live_total
+
+
+    async def _init_state(self) -> Tuple[str, dict]:
+        cid    = await self.get_community_id(self.community_id)
+        params = await self._build_params(cursor=None)
+        return cid, params
+
+    async def _fetch_data(
+        self, community_id: str, params: dict
+    ) -> Tuple[dict, dict]:
+        return await asyncio.gather(
+            MediaList().media_list(community_id, params),
+            Live().fetch_live_replay(community_id, params),
+        )
+
+    async def _process_media_chunk(
+        self, media_data: dict, time_a, time_b
+    ) -> Tuple[List[dict], List[dict], dict, bool]:
+        vods, photos, _, cursor, has_next = await MediaParser.parse(
+            media_data, time_a, time_b
+        )
+        next_params = await self._build_params(cursor)
+        return vods, photos, next_params, has_next
+
+    async def _process_live_chunk(
+        self, live_data: dict, time_a, time_b
+    ) -> Tuple[List[dict], dict, bool]:
+        _, _, lives, cursor, has_next = await MediaParser.parse(
+            live_data, time_a, time_b
+        )
+        next_params = await self._build_params(cursor)
+        return lives, next_params, has_next
     
     async def _build_params(self, cursor: Optional[str]) -> Dict[str, Any]:
         pagesize = random.randint(25000, 30000)

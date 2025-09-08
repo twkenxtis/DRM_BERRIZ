@@ -69,7 +69,6 @@ def search_community(contents, query):
 
     return None
 
-
 def custom_dict(input_str):
     mapping = {
         'jsh': 'Jung Seung Hwan',
@@ -97,9 +96,10 @@ async def get_community(query: str | int | None = None):
     # 先查本地預設資料
     result = search_community(PRELOADED_COMMUNITIES, query)
     if isinstance(result, str):
+        name = custom_dict(result) or result
         logger.info(
             f"{Color.fg('spring_green')}Community: "
-            f"{Color.reset()}［{Color.fg('turquoise')}{result}{Color.reset()}］"
+            f"{Color.reset()}［{Color.fg('turquoise')}{name}{Color.reset()}］"
                     )
         return result.strip()
     if result is not None:
