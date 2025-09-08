@@ -23,10 +23,11 @@ class InquirerPySelector:
         self.live_items = live_list
 
     async def run(self) -> dict:
-        display_map: Dict[int, Tuple[str,int]] = {}
+        display_map: Dict[int, Tuple[str, int]] = {}
         item_choices: List[Choice] = []
-        entries: List[Tuple[str,int,dict]] = []
+        entries: List[Tuple[str, int, dict]] = []
 
+        # Populate entries concurrently
         await asyncio.gather(
             asyncio.to_thread(lambda: [entries.append(("vod", idx, item)) for idx, item in enumerate(self.vod_items)]),
             asyncio.to_thread(lambda: [entries.append(("photo", idx, item)) for idx, item in enumerate(self.photo_items)]),
@@ -36,9 +37,10 @@ class InquirerPySelector:
 
         # Create quick command choices (not numbered, not in checkbox)
         quick_commands = [
-            Choice("all", name="all VOD & Photos "),
-            Choice("vall", name="all VOD          "),
-            Choice("pall", name="all Photos       "),
+            Choice("all", name="all VOD, Photos & Live "),
+            Choice("vall", name="all VOD            "),
+            Choice("pall", name="all Photos         "),
+            Choice("lall", name="all Live           "),
             Choice("range", name="range — custom ranges/manual"),
         ]
 
@@ -74,14 +76,24 @@ class InquirerPySelector:
             picks = {n for n, (t, _) in display_map.items() if t == "vod"}
         elif cmd == "pall":
             picks = {n for n, (t, _) in display_map.items() if t == "photo"}
+        elif cmd == "lall":
+            picks = {n for n, (t, _) in display_map.items() if t == "live"}
         elif cmd == "range":
             # Print all numbered items for reference
             print()
             for n, (t, i) in display_map.items():
-                itm = self.vod_items[i] if t == "vod" else self.photo_items[i]
-                core = format_core(item, t)
-                label = "🎬 VOD" if t == "vod" else "📷 Photo"
-                print(f"  {n:2d}. {label:<6}: {itm['title']} ({core})")
+                itm = (
+                    self.vod_items[i] if t == "vod" else
+                    self.photo_items[i] if t == "photo" else
+                    self.live_items[i]
+                )
+                core = format_core(itm, t)
+                label = (
+                    "🎬 VOD" if t == "vod" else
+                    "📷 Photo" if t == "photo" else
+                    "📡 Live"
+                )
+                print(f"  {n:2d}. {label:<8}: {itm['title']} ({core})")
             print()
 
             text = await inquirer.text(
@@ -91,23 +103,15 @@ class InquirerPySelector:
 
         if cmd == "range":
             # Prepare choices for checkbox (only item choices, not quick commands)
-            adjust_choices: List[Choice] = []
-            for c in item_choices:
-                adjust_choices.append(
-                    Choice(
-                        value=c.value,
-                        name=c.name,
-                        enabled=(c.value in picks)
-                    )
-                )
+            adjust_choices = self._build_media_choices(picks, display_map)
 
-            final = await inquirer.fuzzy(  # Use fuzzy prompt for checkbox
+            final = await inquirer.fuzzy(
                 message="Finalize your selection (→ all, ← none, type to filter):",
                 choices=adjust_choices,
                 cycle=False,
                 height=30,
                 border=True,
-                multiselect=True,  # Enable multiple selections
+                multiselect=True,
                 validate=lambda res: len(res) > 0 or "",
                 keybindings={
                     "toggle-all-true": [{"key": "right"}],
@@ -118,6 +122,9 @@ class InquirerPySelector:
             ).execute_async()
             picks = set(final)
 
+        return self._collect(picks, display_map)
+
+    def _collect(self, picks: Set[int], display_map: Dict[int, Tuple[str, int]]) -> dict:
         vods = [
             self.vod_items[idx]
             for n in picks
@@ -130,46 +137,47 @@ class InquirerPySelector:
             if (t := display_map[n])[0] == "photo"
             for idx in [t[1]]
         ]
-        return {"vods": vods, "photos": photos}
-    
-    def _collect(self, picks: Set[int], display_map: Dict[int, Tuple[str,int]]) -> dict:
-        vods = [
-            self.vod_items[idx]
+        lives = [
+            self.live_items[idx]
             for n in picks
-            if (t := display_map[n])[0] == "vod"
+            if (t := display_map[n])[0] == "live"
             for idx in [t[1]]
         ]
-        photos = [
-            self.photo_items[idx]
-            for n in picks
-            if (t := display_map[n])[0] == "photo"
-            for idx in [t[1]]
-        ]
-        return {"vods": vods, "photos": photos}
+        return {"vods": vods, "photos": photos, "lives": lives}
+
     def _build_media_choices(
         self,
         preselected: Set[int],
-        display_map: Dict[int, Tuple[str,int]]
+        display_map: Dict[int, Tuple[str, int]]
     ) -> List[Choice]:
         choices: List[Choice] = []
-        # VOD 區塊
-        choices.append(Separator("━━ 🎬 VODs ━━"))
+        # VOD section
+        choices.append(Choice(value=None, name="━━ 🎬 VODs ━━", enabled=False))
         for disp_no, (t, idx) in display_map.items():
             if t != "vod":
                 continue
             item = self.vod_items[idx]
-            name = f"<{disp_no:2d}> {item['title']}"
+            name = f" {disp_no:2d} {item['title']}"
             choices.append(
                 Choice(value=disp_no, name=name, enabled=(disp_no in preselected))
             )
-        # Photo 區塊
-        choices.append(Separator(" "))
-        choices.append(Separator("━━ 📷 Photos ━━"))
+        # Photo section
+        choices.append(Choice(value=None, name="━━ 📷 Photos ━━", enabled=False))
         for disp_no, (t, idx) in display_map.items():
             if t != "photo":
                 continue
             item = self.photo_items[idx]
-            name = f"<{disp_no:2d}> {item['title']}"
+            name = f" {disp_no:2d} {item['title']}"
+            choices.append(
+                Choice(value=disp_no, name=name, enabled=(disp_no in preselected))
+            )
+        # Live section
+        choices.append(Choice(value=None, name="━━ 📡 Live ━━", enabled=False))
+        for disp_no, (t, idx) in display_map.items():
+            if t != "live":
+                continue
+            item = self.live_items[idx]
+            name = f" {disp_no:2d} {item['title']}"
             choices.append(
                 Choice(value=disp_no, name=name, enabled=(disp_no in preselected))
             )
