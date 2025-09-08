@@ -37,10 +37,10 @@ class InquirerPySelector:
 
         # Create quick command choices (not numbered, not in checkbox)
         quick_commands = [
-            Choice("all", name="all VOD, Photos & Live "),
-            Choice("vall", name="all VOD            "),
-            Choice("pall", name="all Photos         "),
-            Choice("lall", name="all Live           "),
+            Choice("all", name="(all VOD, Photos & Live )"),
+            Choice("vall", name="(all VOD            )"),
+            Choice("pall", name="(all Photos         )"),
+            Choice("lall", name="(all Live           )"),
             Choice("range", name="range — custom ranges/manual"),
         ]
 
@@ -65,7 +65,7 @@ class InquirerPySelector:
             message="Select items or quick command:",
             choices=all_choices,
             default="",
-            cycle=False,
+            cycle=True,
             border=True,
         ).execute_async()
 
@@ -100,6 +100,9 @@ class InquirerPySelector:
                 message="Enter numbers/ranges (e.g. 1-5,11_15,16 20):"
             ).execute_async()
             picks = parse_range_input(text, display_map)
+        else:
+            # for choese only one
+            picks = {cmd}
 
         if cmd == "range":
             # Prepare choices for checkbox (only item choices, not quick commands)
@@ -108,7 +111,7 @@ class InquirerPySelector:
             final = await inquirer.fuzzy(
                 message="Finalize your selection (→ all, ← none, type to filter):",
                 choices=adjust_choices,
-                cycle=False,
+                cycle=True,
                 height=30,
                 border=True,
                 multiselect=True,
