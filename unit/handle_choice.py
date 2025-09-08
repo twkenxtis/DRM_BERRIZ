@@ -38,10 +38,10 @@ async def handle_choice(community_id: int, time_a, time_b):
         logger.info(f"{Color.fg('light_gray')}choese "
                     f"{Color.fg('dark_magenta')}{len(selected_media['photos'])} "
                     f"{Color.fg('light_gray')}PHOTO{Color.reset()}")
-
-    if len(selected_media['live']) > 0:
+        
+    if len(selected_media['lives']) > 0:
         logger.info(f"{Color.fg('light_gray')}choese "
-                    f"{Color.fg('dark_magenta')}{len(selected_media['photos'])} "
+                    f"{Color.fg('dark_magenta')}{len(selected_media['lives'])} "
                     f"{Color.fg('light_gray')}PHOTO{Color.reset()}")
 
     # Process VOD items
@@ -50,6 +50,13 @@ async def handle_choice(community_id: int, time_a, time_b):
         processed_media = MediaJsonProcessor.process_selection(selected_media)
         vod_queue.enqueue_batch(processed_media["vods"])
         await MediaProcessor().process_media_queue(vod_queue, selected_media)
+        
+    # Process Live-replay items
+    if selected_media['lives']:
+        live_replay_queue = MediaQueue()
+        processed_media = MediaJsonProcessor.process_selection(selected_media)
+        live_replay_queue.enqueue_batch(processed_media["lives"])
+        await MediaProcessor().process_media_queue(live_replay_queue, selected_media)
 
     # Process PHOTO items
     if selected_media['photos']:

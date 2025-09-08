@@ -18,6 +18,14 @@ class MediaJsonProcessor:
                 for item in selected_media["vods"]
                 if "mediaId" in item and "mediaType" in item
             ]
+            
+        # Process Live-replays
+        if "lives" in selected_media and selected_media["lives"]:
+            processed["lives"] = [
+                item
+                for item in selected_media["lives"]
+                if "mediaId" in item and "mediaType" in item
+            ]
 
         # Process Photos
         if "photos" in selected_media and selected_media["photos"]:
