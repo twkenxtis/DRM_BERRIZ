@@ -1,10 +1,11 @@
+import asyncio
 import re
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 
-import aiohttp
 import aiofiles
+import xml.etree.ElementTree as ET
 
 from lib.tools.reName import SUCCESS
 from static.color import Color
@@ -97,36 +98,19 @@ class DateTimeFormatter:
         return kst_time.strftime("%y%m%d %H-%M")
 
 
-async def dl_mpd_to_folder(output_dir, mpd_uri):
+async def mpd_to_folder(output_dir: str, raw_mpd: object):
     output_path = Path(output_dir)
-    mpd_filename = Path(mpd_uri).name
-    save_path = output_path / mpd_filename
-    
-    try:
-        async with aiohttp.ClientSession(headers={'User-Agent': 'Mozilla/5.0'}) as session:
-            async with session.get(mpd_uri, ssl=False) as resp:
-                resp.raise_for_status()
-                
-                with open(save_path, 'wb') as f:
-                    while True:
-                        chunk = await resp.content.read(4096)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-                
-        logger.info(f"{Color.fg('light_gray')}MPD: {Color.fg('dark_cyan')}{mpd_uri} {Color.reset()}")
-    except aiohttp.ClientError as e:
-        logger.error(f"Download mpd fail: {e}")
-
+    output_path.mkdir(parents=True, exist_ok=True)
+    save_path = output_path / 'manifest.mpd'
+    async with aiofiles.open(save_path, 'w') as f:
+        await f.write(raw_mpd.text)
 
 async def save_json_to_folder(output_dir: str, json_data: dict):
     output_path = Path(output_dir)
     media_id = json_data.get("media", {}).get("id")
     if not media_id:
         return 'json_data'
-
     save_path = output_path / f"{media_id}.json"
-
     try:
         async with aiofiles.open(save_path, mode='w', encoding='utf-8') as f:
             await f.write(json.dumps(json_data, indent=5, ensure_ascii=False))
@@ -134,7 +118,7 @@ async def save_json_to_folder(output_dir: str, json_data: dict):
         logger.error(f"Save JSON file error: {e}")
 
     
-async def start_download_queue(decryption_key, json_data, mpd_content, mpd_uri):
+async def start_download_queue(decryption_key, json_data, mpd_content, raw_mpd):
     video_folder = Video_folder(json_data)
     media_id = video_folder.media_id
     community_name = await get_community_name(json_data)
@@ -147,9 +131,10 @@ async def start_download_queue(decryption_key, json_data, mpd_content, mpd_uri):
     output_dir = await video_folder.video_folder_handle(community_name)
     if output_dir is not None:
         
-        await dl_mpd_to_folder(output_dir, mpd_uri)
-        await save_json_to_folder(output_dir, json_data)
-        
+        await asyncio.gather(
+            asyncio.create_task(mpd_to_folder(output_dir, raw_mpd)),
+            asyncio.create_task(save_json_to_folder(output_dir, json_data))
+        )
         from lib.download import MediaDownloader
 
         downloader = MediaDownloader(media_id, output_dir)

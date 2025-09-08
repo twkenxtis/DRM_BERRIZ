@@ -81,11 +81,11 @@ class SQLiteKeyVault:
             
             conn.commit()
 
-    def store_single(self, key: str, value: Any, drm_type: str = "unknown"):
+    async def store_single(self, key: str, value: Any, drm_type: str = "unknown"):
         """存儲單個鍵值對，並指定 DRM 類型"""
         self.store({key: value}, drm_type)
 
-    def retrieve(self, key: str) -> Optional[Any]:
+    async def retrieve(self, key: str) -> Optional[Any]:
         """檢索指定鍵的值"""
         with self._get_connection() as conn:
             cursor = conn.cursor()

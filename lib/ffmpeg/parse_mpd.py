@@ -1,12 +1,8 @@
 from dataclasses import dataclass
-import requests
 import xml.etree.ElementTree as ET
 from urllib.parse import urljoin
 
 from typing import Dict, List, Optional
-
-
-USER_AGENT = "Mozilla/5.0 (Linux; Android 10; SM-G960F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Mobile Safari/537.36"
 
 
 @dataclass
@@ -40,20 +36,17 @@ class MPDContent:
 
 
 class MPDParser:
-    def __init__(self, mpd_url: str):
+    def __init__(self, raw_mpd: ET, mpd_url: str):
         self.mpd_url = mpd_url
+        self.root = self.str_to_lxml(raw_mpd.text)
         self.namespaces = {
             "": "urn:mpeg:dash:schema:mpd:2011",
             "cenc": "urn:mpeg:cenc:2013",
             "mspr": "urn:microsoft:playready",
         }
-        self.root = self._load_mpd()
-
-    def _load_mpd(self) -> ET.Element:
-        headers = {"User-Agent": USER_AGENT}
-        response = requests.get(self.mpd_url, headers=headers)
-        response.raise_for_status()
-        return ET.fromstring(response.text)
+        
+    def str_to_lxml(self, obj):
+        return ET.fromstring(obj)
 
     def _parse_drm_info(self) -> Dict:
         drm_info = {}

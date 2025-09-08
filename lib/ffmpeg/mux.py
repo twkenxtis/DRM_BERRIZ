@@ -1,7 +1,7 @@
 import subprocess
 from pathlib import Path
 
-from typing import Optional
+from typing import Optional, List
 
 from static.color import Color
 from unit.handle_log import setup_logging
@@ -12,7 +12,7 @@ logger = setup_logging('mux', 'lavender')
 
 
 class FFmpegMuxer:
-    def __init__(self, base_dir: Path, decryption_key: Optional[str] = None):
+    def __init__(self, base_dir: Path, decryption_key: Optional[List] = None):
         self.base_dir = base_dir
         self.decryption_key = decryption_key
 
@@ -31,8 +31,9 @@ class FFmpegMuxer:
                 f"{Color.fg('blue')}Detected{Color.reset()} {Color.fg('cyan')}{track_type} {Color.reset()}{Color.fg('blue')}"
                 f"{Color.reset()}{Color.fg('blue')}decrypting...{Color.reset()}"
             )
+            decryption_key = self.process_decryption_key()
             decrypted_file = self.base_dir / f"{track_type}_decrypted.ts"
-            if self._decrypt_file(input_file, decrypted_file, self.decryption_key, kid):
+            if self._decrypt_file(input_file, decrypted_file, decryption_key):
                 return decrypted_file
             return None
         elif kid:
@@ -44,6 +45,13 @@ class FFmpegMuxer:
         # No encryption, use original file
         return input_file
 
+    def process_decryption_key(self):
+        if type(self.decryption_key) is list:
+            key = ' '.join([str(sublist).replace('[', '').replace(']', '') for sublist in self.decryption_key])
+            return key
+        elif type(self.decryption_key) is str:
+            return self.decryption_key
+
     def _check_encryption(self, file_path: Path) -> Optional[str]:
         """Check if file is encrypted using mp4info and return KID if found"""
         try:
@@ -52,11 +60,7 @@ class FFmpegMuxer:
             )
 
             if "encrypted" in result.stdout.lower():
-                # Extract KID from output
-                for line in result.stdout.splitlines():
-                    if "default_KID" in line:
-                        return line.split("=")[1].strip().strip("{}")
-                return "encrypted_unknown_kid"
+                return "encrypted"
             return None
         except Exception as e:
             logger.error(f"Encryption check failed {file_path}: {str(e)}")
@@ -67,7 +71,6 @@ class FFmpegMuxer:
         input_path: Path,
         output_path: Path,
         key: str,
-        kid: str,
     ) -> bool:
         current_dir = Path(__file__).parent
         parent_tools_dir = current_dir.parent / "tools"

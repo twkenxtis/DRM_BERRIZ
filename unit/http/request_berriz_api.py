@@ -132,6 +132,8 @@ class BerrizAPIClient:
     def __init__(self):
         self.cookies = Berriz_cookie()._cookies
         self.headers = self._build_headers()
+        self.session = None
+        self.connector = None
 
     @lru_cache(maxsize=1)
     def _build_headers(self) -> Dict[str, str]:
@@ -172,67 +174,39 @@ class BerrizAPIClient:
             return None
         except Exception as e:
             logger.error(f"Unexpected error for {url}: {e}")
-       
-    async def _send_request_aiohttp(self, url: str, p: Optional[Dict] = None, h: Optional[Dict] = None, usecookie: bool=None) -> Optional[Dict]:
+
+    async def _send_request_http1(self, url: str, params: Optional[Dict] = None, headers: Optional[Dict] = None, usecookie = False) -> Optional[Dict]:
+        if usecookie is False:
+            c = {}
+        else:
+            c = self.cookies
         try:
-            if usecookie is not False:
-                c = self.cookies
-            elif usecookie is False:
-                logger.info(f"{Color.fg('pink')}Use empty cookie{Color.reset()}")
-                c = {}
-            async with self.session.get(url, params=p, headers=h, cookies=c) as response:
-                logger.info(f"{Color.fg('light_gray')}{response.request_info.real_url} - {response.status}{Color.reset()}")
+            async with httpx.AsyncClient(http2=False, timeout=4, verify=True) as client:
+                response = await client.get(
+                    url,
+                    params=params,
+                    cookies=c,
+                    headers=headers or self.headers,
+                )
                 response.raise_for_status()
-                return await response.json()
-        except aiohttp.ClientResponseError as e:
-            logger.error(f"HTTP status error for {url}: {e}")
+                return response
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error for {url}: {e}")
             return None
-        except aiohttp.ClientConnectionError as e:
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error for {url}: {e}")
+            return None
+        except httpx.ConnectError as e:
             logger.error(f"Connection error for {url}: {e}")
             return None
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout error for {url}")
+        except httpx.TimeoutException as e:
+            logger.error(f"Timeout error for {url}: {e}")
+            return None
+        except httpx.RequestError as e:
+            logger.error(f"Unexpected request error for {url}: {e}")
             return None
         except Exception as e:
             logger.error(f"Unexpected error for {url}: {e}")
-            return None
-        
-    async def __aenter__(self):
-        connector = aiohttp.TCPConnector(
-            limit=7,
-            force_close=False,
-            enable_cleanup_closed=True,
-            use_dns_cache=True,
-            keepalive_timeout=7,
-            ssl=False,
-        )
-
-        self.session = aiohttp.ClientSession(
-            headers=self.headers,
-            connector=connector,
-            timeout=ClientTimeout(total=11),
-            auto_decompress=True,
-            json_serialize=lambda x: x,
-        )
-        return self
-    
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session and not self.session.closed:
-            await self.session.close()
-        self.session = None
-        
-    def get_request(self, url: str, p: Optional[Dict] = None, h: Optional[Dict] = None, usecookie: bool=None) -> Optional[Dict]:
-        try:
-            if usecookie is not False:
-                c = self.cookies
-            elif usecookie is False:
-                logger.info(f"{Color.fg('pink')}Use empty cookie{Color.reset()}")
-                c = {}
-            response = requests.get(url, params=p, headers=h or self.headers, cookies=c)
-            logger.info(f"{Color.fg('light_gray')}{url} - {response.status_code}{Color.reset()}")
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"An error occurred: {e}")
 
 
 class Playback_info(BerrizAPIClient):
@@ -300,6 +274,16 @@ class Live(BerrizAPIClient):
                         f" {Color.fg('turquoise')}{media_id}{Color.reset()}{Color.fg('plum')}: {e}{Color.reset()}"
                         )
             return None
+        
+    async def fetch_mpd(self, url):
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_3_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148; iPhone18.3.2; iPhone14,8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Alt-Used': 'statics.berriz.in',
+            'Accept-Encoding': 'identity',
+            'Cache-Control': 'no-cache',
+        }
+        return await self._send_request_http1(url, headers=headers, usecookie=False)
 
     async def fetch_statics(self) -> Optional[Dict]:
         """Fetch static media information for the given media sequence."""
@@ -415,7 +399,7 @@ class My(BerrizAPIClient):
         url = "https://account.berriz.in/auth/v1/accounts"
 
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_3_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148; iPhone18.3.2; iPhone14,8',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Alt-Used': 'account.berriz.in',
         }

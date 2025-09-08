@@ -2,9 +2,11 @@ import asyncio
 import shutil
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Callable
 import aiohttp
 import aiofiles
+
+from tqdm.asyncio import tqdm_asyncio
 
 from lib.ffmpeg.parse_mpd import MPDContent, MPDParser, MediaTrack
 from lib.video_folder import start_download_queue
@@ -46,34 +48,56 @@ class MediaDownloader:
 
     async def _ensure_session(self):
         if self.session is None or self.session.closed:
-            connector = aiohttp.TCPConnector(limit_per_host=10)
-            timeout = aiohttp.ClientTimeout(total=1200)
+            connector = aiohttp.TCPConnector(limit_per_host=27)
+            timeout = aiohttp.ClientTimeout(total=600)
             self.session = aiohttp.ClientSession(
                 connector=connector, timeout=timeout, headers={"User-Agent": USER_AGENT}
             )
 
     async def _download_file(self, url: str, save_path: Path, 
-                                        chunk_size: int = 1024 * 1024) -> bool:
-        await self._ensure_session()
-        try:
-            async with self.session.get(url) as response:
-                if response.status not in (200, 206):
+                            chunk_size: int = 128 * 1024, 
+                            max_retries: int = 2,
+                            progress_callback: Optional[Callable] = None) -> bool:
+        retries = 0
+        while retries <= max_retries:
+            await self._ensure_session()
+            try:
+                async with self.session.get(url) as response:
+                    if response.status not in (200, 206):
+                        logger.warning(f"Request failed with status {response.status}, retrying...")
+                        retries += 1
+                        await asyncio.sleep(1 ** retries)
+                        continue
+                    
+                    save_path.parent.mkdir(parents=True, exist_ok=True)
+                    total_size = int(response.headers.get('content-length', 0))
+                    
+                    async with aiofiles.open(save_path, "wb") as f:
+                        downloaded = 0
+                        async for chunk in response.content.iter_chunked(chunk_size):
+                            await f.write(chunk)
+                            downloaded += len(chunk)
+                            if progress_callback:
+                                progress_callback(len(chunk))
+                    return True
+                    
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                logger.warning(f"Download attempt {retries + 1} failed: {str(e)}")
+                retries += 1
+                if retries <= max_retries:
+                    await asyncio.sleep(2 ** retries)
+                else:
+                    logger.error(f"Download failed after {max_retries} retries: {url}")
+                    if save_path.exists():
+                        save_path.unlink()
                     return False
-                
-                save_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                async with aiofiles.open(save_path, "wb") as f:
-                    downloaded = 0
-                    async for chunk in response.content.iter_chunked(chunk_size):
-                        await f.write(chunk)
-                        downloaded += len(chunk)
-                return True
-        except Exception as e:
-            logger.error(f"Download failed {url}: {str(e)}")
-            # 刪除可能損壞的文件
-            if save_path.exists():
-                save_path.unlink()
-            return False
+            except Exception as e:
+                logger.error(f"Unexpected error: {str(e)}")
+                if save_path.exists():
+                    save_path.unlink()
+                return False
+        
+        return False
 
     async def download_track(self, track: MediaTrack, track_type: str) -> bool:
         track_dir = self.base_dir / track_type
@@ -97,19 +121,29 @@ class MediaDownloader:
             logger.error(f"{track_type} Initialization file download failed")
             return False
 
-        # Download media segments
+        # Download media segments with progress bar
         tasks = []
         for i, url in enumerate(track.segment_urls):
             seg_path = track_dir / f"seg_{i}{file_ext}"
             tasks.append(self._download_file(url, seg_path))
-
-        results = await asyncio.gather(*tasks)
+        
+        # 使用 tqdm 包裝 gather
+        results = await tqdm_asyncio.gather(
+            *tasks,
+            ascii="-#",
+            desc=f"{track_type} process",
+            unit="file",
+            bar_format="{desc:6}: {percentage:1.0f} %  |{bar:150}| {n_fmt:>2}/{total_fmt:<2} files",
+            ncols=150,
+            colour='MAGENTA'
+        )
+        
         success_count = sum(results)
-
+        
         logger.info(
             f"{Color.fg('plum')}{track_type} Split download complete: Success "
             f"{Color.fg('light_yellow')}{success_count}{Color.reset()}/{len(results)}{Color.reset()}"
-            )
+        )
         return success_count == len(results)
 
     async def _merge_track(self, track_type: str) -> bool:
@@ -210,10 +244,10 @@ class MediaDownloader:
         try:
             tasks = []
 
-            if mpd_content.video_track:
-                tasks.append(self.download_track(mpd_content.video_track, "video"))
             if mpd_content.audio_track:
                 tasks.append(self.download_track(mpd_content.audio_track, "audio"))
+            if mpd_content.video_track and mpd_content.audio_track:
+                tasks.append(self.download_track(mpd_content.video_track, "video"))
 
             download_results = await asyncio.gather(*tasks)
             
@@ -234,8 +268,8 @@ class MediaDownloader:
                 await self.session.close()
 
 
-async def run_dl(mpd_uri, decryption_key, json_data):
-    parser = MPDParser(mpd_uri)
+async def run_dl(mpd_uri, decryption_key, json_data, raw_mpd):
+    parser = MPDParser(raw_mpd, mpd_uri)
     mpd_content = parser.get_highest_quality_content()
 
     if not mpd_content.video_track and not mpd_content.audio_track:
@@ -247,4 +281,4 @@ async def run_dl(mpd_uri, decryption_key, json_data):
             f"\nEncrypted content detected (KID: {mpd_content.drm_info['default_KID']})"
         )
 
-    await start_download_queue(decryption_key, json_data, mpd_content, mpd_uri)
+    await start_download_queue(decryption_key, json_data, mpd_content, raw_mpd)

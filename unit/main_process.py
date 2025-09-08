@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import sys
+from functools import lru_cache
 
 from typing import List
 
@@ -18,33 +19,46 @@ from unit.parameter import paramstore
 
 logger = setup_logging('main_process', 'navy')
 
-image_dup: str = ""
-video_dup: str = ""
 
-async def load_config(path: str) -> dict:
-    async with aiofiles.open(path, mode='r', encoding='utf-8') as f:
-        content = await f.read()
-    return json.loads(content)
+class DuplicateConfig:
+    @classmethod
+    @lru_cache(maxsize=1)
+    def load(cls, path: str) -> tuple[str, str]:
+        return asyncio.run(cls._read_config(path))
 
-async def init_config(path: str):
-    global image_dup, video_dup
+    @staticmethod
+    async def _read_config(path: str) -> tuple[str, str]:
+        if not os.path.exists(path):
+            logger.error(f"Config not found: {path}")
+            sys.exit(1)
 
-    if os.path.exists(path):
-        logger.info(f"{Color.fg('light_gray')} {path} found {Color.reset()}")
-    else:
-        logger.error(f"{Color.bg('light_gray')} {path} {Color.reset()} not found")
-        sys.exit(1)
+        async with aiofiles.open(path, 'r', encoding='utf-8') as f:
+            raw = await f.read()
 
-    try:
-        config = await load_config(path)
-        overrides = config['duplicate']['overrides']
-        image_dup = overrides['image']
-        video_dup = overrides['video']
-        logger.info(f"{Color.fg('light_gray')}Loaded duplicates → image: {image_dup}, video: {video_dup}{Color.reset()}")
-    except (KeyError, json.JSONDecodeError) as e:
-        logger.error(f"Error parsing {path}: {e}")
-        sys.exit(1)
-asyncio.run(init_config("setting.json"))
+        try:
+            cfg = json.loads(raw)
+            overrides = cfg['duplicate']['overrides']
+            image_dup = overrides['image']
+            video_dup = overrides['video']
+            return image_dup, video_dup
+        except (KeyError, json.JSONDecodeError) as e:
+            logger.error(f"Error parsing {path}: {e}")
+            sys.exit(1)
+
+    @classmethod
+    def get_image_dup(cls, path: str = "setting.json") -> str:
+        """Return the cached image duplicate override."""
+        return cls.load(path)[0]
+
+    @classmethod
+    def get_video_dup(cls, path: str = "setting.json") -> str:
+        """Return the cached video duplicate override."""
+        return cls.load(path)[1]
+
+
+image_dup = DuplicateConfig.get_image_dup("setting.json")
+video_dup = DuplicateConfig.get_video_dup("setting.json")
+logger.info(f"Loaded duplicates → image: {image_dup}, video: {video_dup}")
 
 
 class MediaProcessor:
@@ -60,7 +74,7 @@ class MediaProcessor:
 
     async def _process_vod_items(self, media_id: str) -> None:
         """Process VOD items using BerrizProcessor."""
-        if len(Berriz_cookie()._cookies) is 0:
+        if len(Berriz_cookie()._cookies) == 0:
             logger.warning(f"{Color.fg('light_gray')}Cookies are required to download {Color.bg('crimson')}videos{Color.reset()}")
             logger.info(f"{Color.fg('gold')}Skip {media_id} video download{Color.reset()}")
             return
@@ -85,7 +99,7 @@ class MediaProcessor:
         except Exception as e:
             logger.error(f"Error processing Photo IDs {media_ids}: {e}")
 
-    def _check_download_pkl(self, media_id: str) -> str | None:
+    async def _check_download_pkl(self, media_id: str) -> str | None:
         """Check if media_id exists in the store."""
         if image_dup is False:
             if self.store.exists(media_id):
@@ -116,7 +130,7 @@ class MediaProcessor:
             if item is None:
                 continue
             media_id, media_type = item
-            skip_media_id = self._check_download_pkl(media_id) if self.check_duplicate(media_type) else None
+            skip_media_id = await self._check_download_pkl(media_id) if await self.check_duplicate(media_type) else None
 
             if skip_media_id:
                 await self._handle_choice(selected_media, skip_media_id)
@@ -139,7 +153,7 @@ class MediaProcessor:
         if tasks:
             await asyncio.gather(*tasks)
 
-    def check_duplicate(self, media_type: str) -> bool:
+    async def check_duplicate(self, media_type: str) -> bool:
         if image_dup is False and media_type == "PHOTO":
             return True
         if video_dup is False and media_type == "VOD" and paramstore.get('key') is None:

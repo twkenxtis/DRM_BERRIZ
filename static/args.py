@@ -50,6 +50,12 @@ def parse_args() -> argparse.Namespace:
         help="Show only fanclub only content"
     )
     parser.add_argument(
+        "--t", "--time",
+        dest="time_date",
+        action="store_true",
+        help="Filter content by date&time"
+    )
+    parser.add_argument(
         "--community",
         dest="community",
         action="store_true",
@@ -59,7 +65,7 @@ def parse_args() -> argparse.Namespace:
         "--no-fanclub",
         dest="nofanclub",
         action="store_true",
-        help="Show only fanclub only content"
+        help="Show only none fanclub only content"
     )
     parser.add_argument(
         "--del-after-done",
@@ -76,10 +82,10 @@ def parse_args() -> argparse.Namespace:
         help="Whether to delete after completion (true/false)"
     )
     parser.add_argument(
-        "--a", "--artis",
+        "--g", "--group",
         dest="artis",
         required=False,
-        help="Artis"
+        help="group"
     )
     return parser.parse_args(normalized_argv[1:])
 
@@ -110,3 +116,7 @@ def community() -> bool:
 def _artis() -> str:
     args = parse_args()
     return args.artis if args.artis is not None else 'ive'
+
+def time_date() -> bool:
+    args = parse_args()
+    return args.time_date

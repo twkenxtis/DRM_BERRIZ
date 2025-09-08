@@ -1,49 +1,13 @@
 import atexit
-import logging
-import os
 import pickle
+import os
 import queue
 import threading
 
-from logging.handlers import TimedRotatingFileHandler
+from unit.handle_log import setup_logging
 
 
-def setup_logging() -> logging.Logger:
-    """Set up logging with console and rotating file handlers."""
-    os.makedirs("logs", exist_ok=True)
-
-    log_format = logging.Formatter(
-        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
-    )
-
-    logger = logging.getLogger("download_lock")
-    logger.setLevel(logging.INFO)
-
-    if logger.handlers:
-        logger.handlers.clear()
-
-    logger.propagate = False
-
-    # console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_format)
-    logger.addHandler(console_handler)
-
-    # rotating file handler
-    app_file_handler = TimedRotatingFileHandler(
-        filename="logs/download_lock.py.log",
-        when="midnight",
-        interval=1,
-        backupCount=30,
-        encoding="utf-8",
-    )
-    app_file_handler.setFormatter(log_format)
-    logger.addHandler(app_file_handler)
-
-    return logger
-
-
-logger = setup_logging()
+logger = setup_logging('download_lock', 'forest_green')
 
 
 class PKLErrorHandler:
