@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 from datetime import datetime, timedelta
@@ -273,26 +274,33 @@ class NetscapeCookieReader:
 
 
 class Berriz_cookie:
-    
+    _instance = None
     show_no_cookie_log = True
-    
+
+    def __new__(cls):
+        if cls._instance is None:
+            # 如果不存在，創建一個新的實例
+            cls._instance = super(Berriz_cookie, cls).__new__(cls)
+            cls._instance.load_cookies()
+        return cls._instance
+
     def __init__(self):
-        self._cookies = {}
-        self.load_cookies()
+        pass
 
     def load_cookies(self) -> None:
-        """Load cookies using utility methods, refreshing token if needed."""
-        # Trigger token refresh if needed using Refresh_JWT.main()  
-        Refresh_JWT.main()
-
-        # Load cookies using CookieUtils
+        """Load cookies from disk."""
+        self._cookies = {}
         try:
+            # 觸發 token 重新整理
+            Refresh_JWT.main()
+            # 載入 cookies
             self._cookies = CookieUtils.get_default_cookies()
             self._cookies["bz_a"] = CookieUtils.load_bz_a()
             self._cookies["bz_r"] = CookieUtils.get_bz_r()
-            logger.debug(f"{Color.fg('chartreuse')}Cookies loaded: {list(self._cookies.keys())}{Color.reset()}")
+            
+            logger.info(f"{Color.fg('chartreuse')}Cookies loaded: {Color.fg('dark_gray')}{list(self._cookies.values())}{Color.reset()}")
         except Exception as e:
-            if Berriz_cookie.show_no_cookie_log is True:
+            if Berriz_cookie.show_no_cookie_log:
                 logger.warning(f"{Color.fg('light_gray')}No cookie found, {Color.fg('pink')}request without cookies{Color.reset()}")
                 Berriz_cookie.show_no_cookie_log = False
             self._cookies = {}
