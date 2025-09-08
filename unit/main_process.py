@@ -69,17 +69,18 @@ class MediaProcessor:
         self.store = UUIDSetStore()
         self.media_processors = {
             "VOD": self._process_vod_items,
+            "LIVE": self._process_vod_items,
             "PHOTO": self._process_photo_items,
         }
 
-    async def _process_vod_items(self, media_id: str) -> None:
+    async def _process_vod_items(self, media_id: str, media_type) -> None:
         """Process VOD items using BerrizProcessor."""
         if len(Berriz_cookie()._cookies) == 0:
             logger.warning(f"{Color.fg('light_gray')}Cookies are required to download {Color.bg('crimson')}videos{Color.reset()}")
             logger.info(f"{Color.fg('gold')}Skip {media_id} video download{Color.reset()}")
             return
-        logger.info(f"{Color.fg('light_gray')}\nProcessing VOD ID:{Color.reset()} {Color.fg('periwinkle')}{media_id}{Color.reset()}")
-        processor = BerrizProcessor(media_id)
+        logger.info(f"{Color.fg('light_gray')}Processing VOD ID:{Color.reset()} {Color.fg('periwinkle')}{media_id}{Color.reset()}")
+        processor = BerrizProcessor(media_id, media_type)
         await processor.run()
         if video_dup is False and paramstore.get('key') is None:
             self.store.add(media_id)
@@ -111,7 +112,7 @@ class MediaProcessor:
 
     async def _handle_choice(self, selected_media: dict, skip_media_id: str) -> None:
         """Handle skipping media from 'vods' and 'photos' that already exist."""
-        for media_type in ("vods", "photos"):
+        for media_type in ("vods", "photos", 'lives'):
             for item in selected_media.get(media_type, []):
                 if item.get("mediaId") == skip_media_id:
                     title = item.get("title", "Unknown Title")
@@ -140,7 +141,7 @@ class MediaProcessor:
                 photo_ids.append(media_id)  # Collect PHOTO media IDs
             else:
                 if processor := self.media_processors.get(media_type):
-                    await processor(media_id)
+                    await processor(media_id, media_type)
                 else:
                     logger.warning(f"Unknown media type {media_type} for ID {media_id}")
 

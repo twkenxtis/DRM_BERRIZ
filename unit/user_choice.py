@@ -37,11 +37,11 @@ class InquirerPySelector:
 
         # Create quick command choices (not numbered, not in checkbox)
         quick_commands = [
-            Choice("all", name="(all VOD, Photos & Live )"),
-            Choice("vall", name="(all VOD            )"),
-            Choice("pall", name="(all Photos         )"),
-            Choice("lall", name="(all Live           )"),
-            Choice("range", name="range — custom ranges/manual"),
+            Choice("all", name="(All VOD | Photos | Live)"),
+            Choice("vall", name="(All VOD)"),
+            Choice("pall", name="(All Photos)"),
+            Choice("lall", name="(All Live)"),
+            Choice("range", name="[Custom — ranges/manual select]"),
         ]
 
         # Create item choices with numbering
@@ -121,7 +121,7 @@ class InquirerPySelector:
                     "toggle-all-false": [{"key": "left"}],
                 },
                 instruction="→ select all, ← deselect all",
-                transformer=lambda res: f"✅ {len(res)} selected"
+                transformer=lambda res: f"{len(res)} ✅ selected"
             ).execute_async()
             picks = set(final)
 
