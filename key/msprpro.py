@@ -3,7 +3,6 @@ from typing import List, Optional
 import requests
 from lxml import etree
 
-from cookies.cookies import Refresh_JWT, Berriz_cookie
 from static.color import Color
 from unit.handle_log import setup_logging
 
