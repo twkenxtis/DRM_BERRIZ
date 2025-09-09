@@ -15,22 +15,22 @@ class PlaybackInfo:
             self.is_drm = vod_data.get("isDrm")
 
             # DRM info
-            drm_info = vod_data.get("drmInfo", {})
-            if drm_info and drm_info.get("assertion"):
-                self.assertion = drm_info["assertion"]
+            self.drm_info = vod_data.get("drmInfo", {})
+            if self.drm_info and self.drm_info.get("assertion"):
+                self.assertion = self.drm_info["assertion"]
 
-                if "widevine" in drm_info:
-                    self.widevine_license = drm_info["widevine"].get("licenseUrl")
+                if "widevine" in self.drm_info:
+                    self.widevine_license = self.drm_info["widevine"].get("licenseUrl")
                 else:
                     self.widevine_license = None
 
-                if "playready" in drm_info:
-                    self.playready_license = drm_info["playready"].get("licenseUrl")
+                if "playready" in self.drm_info:
+                    self.playready_license = self.drm_info["playready"].get("licenseUrl")
                 else:
                     self.playready_license = None
 
-                if "fairplay" in drm_info:
-                    self.fairplay_data = drm_info.get("fairplay")
+                if "fairplay" in self.drm_info:
+                    self.fairplay_data = self.drm_info.get("fairplay")
                     self.fairplay_license = self.fairplay_data.get("licenseUrl")
                     self.fairplay_cert = self.fairplay_data.get("certUrl")
                 else:
@@ -98,6 +98,37 @@ class LivePlaybackInfo:
         self.is_drm = replay.get("isDrm")
         self.drm_info = replay.get("drmInfo")
 
+        # DASH playback
+        dash = replay.get("dash", {})
+        self.dash_playback_url = dash.get("playbackUrl")
+
+        if self.drm_info and self.drm_info.get("assertion"):
+            self.assertion = self.drm_info["assertion"]
+
+            if "widevine" in self.drm_info:
+                self.widevine_license = self.drm_info["widevine"].get("licenseUrl")
+            else:
+                self.widevine_license = None
+
+            if "playready" in self.drm_info:
+                self.playready_license = self.drm_info["playready"].get("licenseUrl")
+            else:
+                self.playready_license = None
+
+            if "fairplay" in self.drm_info:
+                self.fairplay_data = self.drm_info.get("fairplay")
+                self.fairplay_license = self.fairplay_data.get("licenseUrl")
+                self.fairplay_cert = self.fairplay_data.get("certUrl")
+            else:
+                self.fairplay_license = None
+                self.fairplay_cert = None
+        else:
+            self.assertion = None
+            self.widevine_license = None
+            self.playready_license = None
+            self.fairplay_license = None
+            self.fairplay_cert = None
+        
         # HLS playback
         hls = replay.get("hls", {})
         self.hls_playback_url = hls.get("playbackUrl")
@@ -109,9 +140,7 @@ class LivePlaybackInfo:
                 "playback_url": stream.get("playbackUrl")
             })
 
-        # DASH playback
-        dash = replay.get("dash", {})
-        self.dash_playback_url = dash.get("playbackUrl")
+
 
         # Artist info
         artists = data.get("communityArtists", [])
