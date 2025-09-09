@@ -66,3 +66,73 @@ class PlaybackInfo:
         # Settlement info
         settlement_data = data.get("settlement", {})
         self.settlement_token = settlement_data.get("mediaSettlementToken")
+        
+        
+class LivePlaybackInfo:
+    def __init__(self, playback_context):
+        # Top-level info
+        self.code = playback_context.get("code")
+        self.status = playback_context.get("message")
+
+        # Access data from the 'data' key
+        data = playback_context.get("data", {})
+
+        # Media info
+        media = data.get("media", {})
+        self.media_seq = media.get("mediaSeq")
+        self.media_id = media.get("mediaId")
+        self.media_type = media.get("mediaType")
+        self.title = media.get("title")
+        self.thumbnail_url = media.get("thumbnailUrl")
+        self.published_at = media.get("publishedAt")
+        self.community_id = media.get("communityId")
+        self.is_fanclub_only = media.get("isFanclubOnly")
+
+        # Live replay info
+        live = media.get("live", {})
+        self.live_status = live.get("liveStatus")
+
+        replay = live.get("replay", {})
+        self.duration = replay.get("duration")
+        self.orientation = replay.get("orientation")
+        self.is_drm = replay.get("isDrm")
+        self.drm_info = replay.get("drmInfo")
+
+        # HLS playback
+        hls = replay.get("hls", {})
+        self.hls_playback_url = hls.get("playbackUrl")
+        self.hls_adaptation_set = []
+        for stream in hls.get("adaptationSet", []):
+            self.hls_adaptation_set.append({
+                "width": stream.get("width"),
+                "height": stream.get("height"),
+                "playback_url": stream.get("playbackUrl")
+            })
+
+        # DASH playback
+        dash = replay.get("dash", {})
+        self.dash_playback_url = dash.get("playbackUrl")
+
+        # Artist info
+        artists = data.get("communityArtists", [])
+        self.community_artists = []
+        for artist in artists:
+            self.community_artists.append({
+                "id": artist.get("communityArtistId"),
+                "name": artist.get("name"),
+                "image_url": artist.get("imageUrl")
+            })
+
+        # Tracking
+        tracking = data.get("tracking", {})
+        self.tracking_interval_sec = tracking.get("trackingPlaybackPollingIntervalSec")
+
+        # Settlement
+        settlement = data.get("settlement", {})
+        self.settlement_token = settlement.get("mediaSettlementToken")
+
+        # External link
+        self.link = data.get("link")
+
+        # Optional rating assessment
+        self.video_rating_assessment = data.get("videoRatingAssessment")
