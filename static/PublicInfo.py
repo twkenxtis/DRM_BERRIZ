@@ -1,4 +1,4 @@
-import json
+import orjson
 
 
 class PublicInfo:
@@ -100,4 +100,4 @@ class PublicInfo:
 
     def to_json(self, indent=2):
         """Convert to JSON string with pretty formatting"""
-        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+        return orjson.dumps(self.to_dict(), option=orjson.OPT_INDENT_2).decode("utf-8")

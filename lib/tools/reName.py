@@ -1,10 +1,11 @@
-import logging
+import asyncio
+import aiofiles.os as aios
+import aiofiles
 import os
 import shutil
 
-from logging.handlers import TimedRotatingFileHandler
-
-import requests
+import httpx
+from pathlib import Path
 
 from lib.ffmpeg.parse_mpd import MPDParser, MediaTrack, MPDContent
 from lib.ffmpeg.videoinfo import VideoInfo
@@ -23,100 +24,128 @@ class SUCCESS:
         self.downloader = downloader
         self.json_data = json_data
         self.community_name = community_name
+        self.base_dir = self.downloader.base_dir
+        self.tempname = "temp_output_DO_NOT_DEL.mp4"
+        self.path = Path(self.base_dir / self.tempname)
 
-    def when_success(self, success, decryption_key):
+    async def when_success(self, success, decryption_key, merge_type):
         if success:
-            logger.info(f"{Color.fg('light_gray')}Video file: {self.downloader.base_dir / 'video.ts'}{Color.reset()}")
-            logger.info(f"{Color.fg('light_gray')}Audio file: {self.downloader.base_dir / 'audio.ts'}{Color.reset()}")
-            SUCCESS.dl_thumbnail(self)
-
+            logger.info(f"{Color.fg('light_gray')}Video file: {self.base_dir / 'video.ts'}{Color.reset()}")
+            logger.info(f"{Color.fg('light_gray')}Audio file: {self.base_dir / 'audio.ts'}{Color.reset()}")
+            await self.dl_thumbnail()
+        
         # Mux video and audio with FFmpeg
-        muxer = FFmpegMuxer(self.downloader.base_dir, decryption_key)
-        if muxer.mux_to_mp4():
-            SUCCESS.re_name(self)
+        muxer = FFmpegMuxer(self.base_dir, decryption_key)
+        
+        if await muxer.mux_to_mp4(merge_type, self.tempname):
+            await SUCCESS.re_name(self)
             if paramstore.get('clean_dl') is not False:
-                SUCCESS.clean_file(self, decryption_key)
+                await SUCCESS.clean_file(self, decryption_key, merge_type)
             else:
                 logger.info(f"{Color.fg('yellow')}Skipping file cleaning, keep segments after done{Color.reset()}")
         elif paramstore.get('skip_merge') is True: 
             logger.info(f"{Color.fg('yellow')}Skipping file cleaning, keep segments after done{Color.reset()}")
 
-    def clean_file(self, had_drm):
-        base_dir = self.downloader.base_dir
-        # Files to delete
-        if had_drm is None:
-            file_paths = [
-                base_dir / "video.ts",
-                base_dir / "audio.ts",
-            ]
-        else:
-            file_paths = [
-                base_dir / "video_decrypted.ts",
-                base_dir / "video.ts",
-                base_dir / "audio_decrypted.ts",
-                base_dir / "audio.ts",
-            ]
+    async def clean_file(self, had_drm, merge_type):
+        base_dir = self.base_dir
+        if os.path.exists(base_dir / "audio.ts"):
+            hls_need_del_audio_ts = True
 
-        # Remove files with try/except
-        for fp in file_paths:
-            try:
-                fp.unlink()
-                logger.info(f"{Color.fg('light_gray')}Removed file: {fp}{Color.reset()}")
-            except FileNotFoundError:
-                logger.warning(f"File not found, skipping: {fp}")
-            except Exception as e:
-                logger.error(f"Error removing file {fp}: {e}")
+            # Files to delete
+            if had_drm is None:
+                file_paths = [
+                    base_dir / "video.ts",
+                    base_dir / "audio.ts",
+                ]
+            elif merge_type == 'mpd':
+                file_paths = [
+                    base_dir / "video_decrypted.ts",
+                    base_dir / "video.ts",
+                    base_dir / "audio_decrypted.ts",
+                    base_dir / "audio.ts",
+                ]
+            elif merge_type == 'hls' and hls_need_del_audio_ts is True:
+                file_paths = [
+                    base_dir / "video.ts",
+                    base_dir / "audio.ts",
+                ]
+            elif merge_type == 'hls' and hls_need_del_audio_ts is False:
+                file_paths = [
+                    base_dir / "video.ts",
+                ]
 
-        # Force-remove non-empty directories
-        for subfolder in ["audio", "video"]:
-            dir_path = base_dir / subfolder
-            try:
-                shutil.rmtree(dir_path)
-                logger.info(f"{Color.fg('light_gray')}Force-removed directory: {dir_path}{Color.reset()}")
-            except FileNotFoundError:
-                logger.warning(f"Directory not found, skipping: {dir_path}")
-            except Exception as e:
-                logger.error(f"Error force-removing directory {dir_path}: {e}")
+            for fp in file_paths:
+                try:
+                    await asyncio.to_thread(fp.unlink)
+                    logger.info(f"{Color.fg('light_gray')}Removed file: {fp}{Color.reset()}")
+                except FileNotFoundError:
+                    logger.warning(f"File not found, skipping: {fp}")
+                except Exception as e:
+                    logger.error(f"Error removing file {fp}: {e}")
 
-    def re_name(self):
+            for subfolder in ["audio", "video"]:
+                dir_path = base_dir / subfolder
+                try:
+                    await asyncio.to_thread(shutil.rmtree, dir_path)
+                    logger.info(f"{Color.fg('light_gray')}Force-removed directory: {dir_path}{Color.reset()}")
+                except FileNotFoundError:
+                    logger.warning(f"Directory not found, skipping: {dir_path}")
+                except Exception as e:
+                    logger.error(f"Error force-removing directory {dir_path}: {e}")
+
+    async def re_name(self):
         t = (
             self.json_data.get("media", {})
             .get("formatted_published_at", "")[2:-6]
             .replace("-", "")
         )
-        video_codec = VideoInfo(self.downloader.base_dir / "output.mp4").codec
-        video_quality_label = VideoInfo(
-            self.downloader.base_dir / "output.mp4"
-        ).quality_label
-        video_audio_codec = VideoInfo(
-            self.downloader.base_dir / "output.mp4"
-        ).audio_codec
+        video_codec, video_quality_label, video_audio_codec = await self.extract_video_info()
         filename = (
             f"{t} {self.community_name} - "
             + self.json_data.get("media", {}).get("title")
             + f" WEB-DL.{video_quality_label}.{video_codec}.{video_audio_codec}.mp4"
         )
-        os.rename(
-            self.downloader.base_dir / "output.mp4", self.downloader.base_dir / filename
-        )
-        logger.info(f"{Color.fg('yellow')}Final output file: {Color.reset()}{Color.fg('aquamarine')}{self.downloader.base_dir / filename}{Color.reset()}")
+        await aios.rename(self.path, self.base_dir / filename)
+        logger.info(f"{Color.fg('yellow')}Final output file: {Color.reset()}{Color.fg('aquamarine')}{self.base_dir / filename}{Color.reset()}")
+        
+    async def extract_video_info(self):
+        vv = VideoInfo(self.path)
+        async with asyncio.TaskGroup() as tg:
+            codec_task = tg.create_task(asyncio.to_thread(lambda: vv.codec))
+            quality_task = tg.create_task(asyncio.to_thread(lambda: vv.quality_label))
+            audio_task = tg.create_task(asyncio.to_thread(lambda: vv.audio_codec))
 
-    def dl_thumbnail(self):
+        video_codec = codec_task.result()
+        video_quality_label = quality_task.result()
+        video_audio_codec = audio_task.result()
+
+        return video_codec, video_quality_label, video_audio_codec
+
+
+    async def dl_thumbnail(self):
         thumbnail_url = self.json_data.get("media", {}).get("thumbnail_url", "")
+        if not thumbnail_url:
+            logger.warning("No thumbnail URL found")
+            return
+
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:141.0) Gecko/20100101 Firefox/141.0",
             "Accept-Encoding": "gzip, deflate, br, zstd",
         }
-        response = requests.get(thumbnail_url, headers=headers)
+
+        async with httpx.AsyncClient(http2=True, verify=False) as client:
+            try:
+                response = await client.get(thumbnail_url, headers=headers)
+            except httpx.RequestError as e:
+                logger.error(f"Request failed: {e}")
+                return
+
         thumbnail_name = os.path.basename(thumbnail_url)
-        save_path = self.downloader.base_dir / thumbnail_name
+        save_path = self.base_dir / thumbnail_name
+
         if response.status_code == 200:
-            save_path.write_bytes(response.content)
+            async with aiofiles.open(save_path, "wb") as f:
+                await f.write(response.content)
         else:
             logger.error(f"{response.status_code} {thumbnail_url}")
-            logger.error("Thumbnail donwload fail")
-            
-    async def get_community_name(self, community_id:int):
-        n = await get_community(community_id)
-        n = f"{n}"
-        return n
+            logger.error("Thumbnail download failed")

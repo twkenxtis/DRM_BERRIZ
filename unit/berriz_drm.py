@@ -12,6 +12,7 @@ from static.PlaybackInfo import PlaybackInfo, LivePlaybackInfo
 from static.PublicInfo import PublicInfo
 from static.color import Color
 from static.api_error_handle import api_error_handle
+from lib.ffmpeg.parse_m3u8 import rebuild_master_playlist
 from unit.http.request_berriz_api import Playback_info, Public_context, Live
 from unit.handle_log import setup_logging
 from unit.parameter import paramstore
@@ -29,7 +30,7 @@ class Key_handle:
         self._wv_pssh = None
         self.media_id = media_id
         self.raw_mpd = raw_mpd
-        self.drm_type = 'mspr'
+        self.drm_type = 'wv'
 
     @property
     def msprpro(self):
@@ -54,9 +55,9 @@ class Key_handle:
 
                 if msprpro_value is not None:
                     key = msprpro_value
-                    return key, self.media_id, self.dash_playback_url
+                    return key, self.media_id
                 key = await self.request_keys()
-                return list(key), self.media_id, self.dash_playback_url
+                return list(key), self.media_id
             
     async def drm_choese(self):
         if self.drm_type == 'mspr':
@@ -119,7 +120,7 @@ class Key_handle:
             return None
 
 
-async def start_download(public_info, key, dash_playback_url):
+async def start_download(public_info, key, raw_mpd, dash_playback_url, hls_playback_url, raw_hls):
     if public_info.code == "0000":
         json_data = json.loads(public_info.to_json())
     
@@ -128,10 +129,12 @@ async def start_download(public_info, key, dash_playback_url):
             f"{Color.fg('light_gray')}title:{Color.reset()} "
             f"{Color.fg('olive')}{json_data.get('media', {}).get('title', '')}{Color.reset()}"
         )
-        logger.info(f"{Color.fg('light_gray')}MPD: {Color.fg('dark_cyan')}{dash_playback_url} {Color.reset()}")
+        logger.info(f"{Color.fg('khaki')}MPD: {Color.fg('dark_cyan')}{dash_playback_url} {Color.reset()}")
+        logger.info(f"{Color.fg('sky_blue')}HLS: {Color.fg('dark_cyan')}{hls_playback_url} {Color.reset()}")
     else:
-        raw_mpd = await Live().fetch_mpd(dash_playback_url)
-        await asyncio.create_task(run_dl(dash_playback_url, key, json_data, raw_mpd))
+        logger.info(f"{Color.fg('khaki')}MPD: {Color.fg('dark_cyan')}{dash_playback_url} {Color.reset()}")
+        logger.info(f"{Color.fg('sky_blue')}HLS: {Color.fg('dark_cyan')}{hls_playback_url} {Color.reset()}")
+        await asyncio.create_task(run_dl(dash_playback_url, key, json_data, raw_mpd, hls_playback_url, raw_hls))
 
 
 class BerrizProcessor:
@@ -162,6 +165,7 @@ class BerrizProcessor:
         for playback_ctx, public_ctx in zip(
             self._playback_contexts, self._public_contexts
         ):  
+            
             if self.media_type == 'VOD':
                 playback_info, public_info = await asyncio.gather(
                     asyncio.to_thread(PlaybackInfo, playback_ctx),
@@ -174,29 +178,40 @@ class BerrizProcessor:
                 )
             self.all_playback_infos.append((playback_info, public_info))
             
-            # Handle DRM and obtain information needed for download
-            if playback_info.code != "0000":
-                logger.warning(f"{Color.bg('maroon')}{api_error_handle(playback_info.code)}{Color.reset()}")
-                return
-            elif playback_info.is_drm is True:
-                raw_mpd = await Live().fetch_mpd(playback_info.dash_playback_url)
-                key_handler = Key_handle(playback_info, self.media_id, raw_mpd)
-                logger.info(f"{Color.fg('orange')}{key_handler.wv_pssh}{Color.reset()}")
-                logger.info(f"{Color.fg('yellow')}{key_handler.msprpro}{Color.reset()}")
-                
-                k = await key_handler.send_drm()
-                key, media_id_from_drm, dash_playback_url = k
-            elif playback_info.is_drm is False:
-                dash_playback_url = playback_info.dash_playback_url
-                key = None
-            else:
-                logger.error(f"Invalid DRM status for media ID: {self.media_id}")
-                raise Exception(f"Check {playback_info.dash_playback_url} PSSH or DRM info !")
-            await self.create_task(public_info, key, dash_playback_url)
+            key, dash_playback_url, raw_mpd, hls_playback_url, raw_hls = await asyncio.create_task(self.drm_handle(playback_info))
+            await self.create_task(public_info, key, raw_mpd, dash_playback_url, hls_playback_url, raw_hls)
 
-    async def create_task(self, public_info, key, dash_playback_url):
+    async def drm_handle(self, playback_info):
+        # Handle DRM and obtain information needed for download
+        if playback_info.code != "0000":
+            logger.warning(f"{Color.bg('maroon')}{api_error_handle(playback_info.code)}{Color.reset()}")
+            return
+
+        if playback_info.dash_playback_url:
+            raw_mpd = await Live().fetch_mpd(playback_info.dash_playback_url)
+        if playback_info.hls_playback_url:
+            response_hls = await Live().fetch_mpd(playback_info.hls_playback_url)
+            raw_hls = await rebuild_master_playlist(response_hls, playback_info.hls_playback_url)
+        if playback_info.is_drm is True:
+            key_handler = Key_handle(playback_info, self.media_id, raw_mpd)
+            logger.info(f"{Color.fg('orange')}{key_handler.wv_pssh}{Color.reset()}")
+            logger.info(f"{Color.fg('yellow')}{key_handler.msprpro}{Color.reset()}")
+            
+            k = await key_handler.send_drm()
+            key, media_id_from_drm = k
+        elif playback_info.is_drm is False:
+            key = None
+        else:
+            logger.error(f"Invalid DRM status for media ID: {self.media_id}")
+            raise Exception(f"Check {playback_info.dash_playback_url} PSSH or DRM info !")
+        
+        dash_playback_url = playback_info.dash_playback_url
+        hls_playback_url = playback_info.hls_playback_url
+        return key, dash_playback_url, raw_mpd, hls_playback_url, raw_hls
+
+    async def create_task(self, public_info, key, raw_mpd, dash_playback_url, hls_playback_url, raw_hls):
         task = asyncio.create_task(
-            start_download(public_info, key, dash_playback_url)
+            start_download(public_info, key, raw_mpd, dash_playback_url, hls_playback_url, raw_hls)
         )
         self._tasks.append(task)
 

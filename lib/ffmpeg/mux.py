@@ -6,6 +6,7 @@ from typing import Optional, List
 from static.color import Color
 from unit.handle_log import setup_logging
 from unit.parameter import paramstore
+import asyncio
 
 
 logger = setup_logging('mux', 'lavender')
@@ -16,7 +17,7 @@ class FFmpegMuxer:
         self.base_dir = base_dir
         self.decryption_key = decryption_key
 
-    def _prepare_track(self, track_type: str) -> Optional[Path]:
+    async def _prepare_track(self, track_type: str) -> Optional[Path]:
         """Handle decryption if needed and return final file path"""
         input_file = self.base_dir / f"{track_type}.ts"
 
@@ -24,16 +25,16 @@ class FFmpegMuxer:
             return None
 
         # Check for encryption
-        kid = self._check_encryption(input_file)
+        kid = await self._check_encryption(input_file)
 
         if kid and self.decryption_key:
             logger.info(
                 f"{Color.fg('blue')}Detected{Color.reset()} {Color.fg('cyan')}{track_type} {Color.reset()}{Color.fg('blue')}"
                 f"{Color.reset()}{Color.fg('blue')}decrypting...{Color.reset()}"
             )
-            decryption_key = self.process_decryption_key()
+            decryption_key = await self.process_decryption_key()
             decrypted_file = self.base_dir / f"{track_type}_decrypted.ts"
-            if self._decrypt_file(input_file, decrypted_file, decryption_key):
+            if await self._decrypt_file(input_file, decrypted_file, decryption_key):
                 return decrypted_file
             return None
         elif kid:
@@ -45,14 +46,14 @@ class FFmpegMuxer:
         # No encryption, use original file
         return input_file
 
-    def process_decryption_key(self):
+    async def process_decryption_key(self):
         if type(self.decryption_key) is list:
             key = ' '.join([str(sublist).replace('[', '').replace(']', '') for sublist in self.decryption_key])
             return key
         elif type(self.decryption_key) is str:
             return self.decryption_key
 
-    def _check_encryption(self, file_path: Path) -> Optional[str]:
+    async def _check_encryption(self, file_path: Path) -> Optional[str]:
         """Check if file is encrypted using mp4info and return KID if found"""
         try:
             result = subprocess.run(
@@ -66,7 +67,7 @@ class FFmpegMuxer:
             logger.error(f"Encryption check failed {file_path}: {str(e)}")
             return None
 
-    def _decrypt_file(
+    async def _decrypt_file(
         self,
         input_path: Path,
         output_path: Path,
@@ -102,50 +103,34 @@ class FFmpegMuxer:
             logger.error(f"Unexpected error decrypting {input_path}: {str(e)}")
             return False
 
-    def mux_to_mp4(self, output_name: str = "output.mp4") -> bool:
+    async def mux_to_mp4(self, merge_type: str, tempfile_name) -> bool:
         # Prepare video and audio tracks
-        video_file = self._prepare_track("video")
-        audio_file = self._prepare_track("audio")
+        async with asyncio.TaskGroup() as tg:
+            video_task = tg.create_task(self._prepare_track("video"))
+            audio_task = tg.create_task(self._prepare_track("audio"))
 
-        if (not video_file or not audio_file) and paramstore.get('skip_merge') is not True:
-            logger.warning(
+        video_file = video_task.result()
+        audio_file = audio_task.result()
+        if merge_type == 'mpd' and (not video_file or not audio_file) and paramstore.get('skip_merge') is not True:
+            logger.error(
+                "Error: Valid video and audio must exist simultaneously for multiplexing."
+            )
+            return False
+        elif merge_type == 'hls' and not video_file and paramstore.get('skip_merge') is not True:
+            logger.error(
                 "Error: Valid video and audio must exist simultaneously for multiplexing."
             )
             return False
         elif paramstore.get('skip_merge') is True:
             return False
 
-        output_file = self.base_dir / output_name
 
         logger.info(F"{Color.fg('light_gray')}Start using FFmpeg to mux video and audio...{Color.reset()}")
 
         # Standard FFmpeg command without modification
-        cmd = [
-            "ffmpeg",
-            "-i",
-            str(video_file),
-            "-i",
-            str(audio_file),
-            "-c",
-            "copy",
-            "-map_metadata",
-            "-1",
-            "-map_chapters",
-            "-1",
-            "-metadata",
-            "title=",
-            "-metadata",
-            "comment=",
-            "-f",
-            "mp4",
-            "-movflags",
-            "+faststart+frag_keyframe+empty_moov+default_base_moof",
-            "-fflags",
-            "+genpts",
-            "-y",
-            str(output_file),
-        ]
-
+        temp_file_path = Path(self.base_dir / tempfile_name)
+        cmd = await self.build_ffmpeg_command(video_file, audio_file, temp_file_path)
+        
         try:
             result = subprocess.run(
                 cmd,
@@ -157,9 +142,65 @@ class FFmpegMuxer:
             if result.returncode != 0:
                 logger.error(f"FFmpeg multiplexing failed:\n{result.stderr}")
                 return False
-
-            logger.info(f"{Color.fg('gray')}Mixed flow completed: {output_file}{Color.reset()}")
+            logger.info(f"{Color.fg('gray')}Mixed flow completed: {temp_file_path}{Color.reset()}")
             return True
         except Exception as e:
             logger.error(f"FFmpeg mixing error: {str(e)}")
             return False
+    
+    async def build_ffmpeg_command(
+        self, video_file: str, audio_file: str, temp_file_path: Path
+                                   ) -> List[str]:
+        if audio_file is not None:
+            return [
+                "ffmpeg",
+                "-i",
+                str(video_file),
+                "-i",
+                str(audio_file),
+                "-c",
+                "copy",
+                "-map_metadata",
+                "-1",
+                "-map_chapters",
+                "-1",
+                "-metadata",
+                "title=",
+                "-metadata",
+                "comment=",
+                "-f",
+                "mp4",
+                "-movflags",
+                "+faststart+frag_keyframe+empty_moov+default_base_moof",
+                "-fflags",
+                "+genpts",
+                "-y",
+                str(temp_file_path),
+            ]
+        if audio_file is None:
+            return [
+                "ffmpeg",
+                "-i",
+                str(video_file),
+                "-c",
+                "copy",
+                "-map_metadata",
+                "-1",
+                "-map_chapters",
+                "-1",
+                "-metadata",
+                "title=",
+                "-metadata",
+                "comment=",
+                "-f",
+                "mp4",
+                "-movflags",
+                "+faststart+frag_keyframe+empty_moov+default_base_moof",
+                "-fflags",
+                "+genpts",
+                "-y",
+                str(temp_file_path),
+            ]
+            
+            
+        

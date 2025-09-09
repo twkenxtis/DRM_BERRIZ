@@ -170,10 +170,14 @@ class MediaFetcher:
 
     async def get_all_media_lists(self, time_a, time_b):
         vod_total, photo_total, live_total = [], [], []
-        self.community_id = await self.get_community_id(self.community_id)
+        await self.handle_community_input()
         params = await self._build_params(cursor=None)
 
         while True:
+            if self.community_id is None:
+                logger.error(f"{Color.fg('ruby')}Community ID is None{Color.reset()}")
+                return False
+
             # 並行拉 raw data
             media_data, live_data = await asyncio.gather(
                 MediaList().media_list(self.community_id, params),
@@ -204,6 +208,13 @@ class MediaFetcher:
 
         return vod_total, photo_total, live_total
 
+    async def handle_community_input(self):
+        if type(self.community_id) == int:
+            return self.community_id
+        elif type(self.community_id) == str:
+            self.community_id = await get_community(self.community_id)
+            await self.get_community_id(self.community_id)
+            return self.community_id
 
     async def _init_state(self) -> Tuple[str, dict]:
         cid    = await self.get_community_id(self.community_id)

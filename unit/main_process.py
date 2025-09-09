@@ -1,6 +1,6 @@
 import aiofiles
 import asyncio
-import json
+import orjson
 import os
 import sys
 from functools import lru_cache
@@ -36,12 +36,12 @@ class DuplicateConfig:
             raw = await f.read()
 
         try:
-            cfg = json.loads(raw)
+            cfg = orjson.loads(raw)
             overrides = cfg['duplicate']['overrides']
             image_dup = overrides['image']
             video_dup = overrides['video']
             return image_dup, video_dup
-        except (KeyError, json.JSONDecodeError) as e:
+        except (KeyError, orjson.JSONDecodeError) as e:
             logger.error(f"Error parsing {path}: {e}")
             sys.exit(1)
 

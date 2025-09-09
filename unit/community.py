@@ -1,4 +1,3 @@
-import json
 import functools
 
 from static.color import Color

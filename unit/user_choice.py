@@ -2,7 +2,6 @@ import asyncio
 import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
-import logging
 
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice

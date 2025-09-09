@@ -1,13 +1,8 @@
-import aiohttp
-import asyncio
 import concurrent.futures
-from aiohttp import ClientTimeout
 import logging
 import os
 import re
-import requests
 import threading
-import json
 from logging.handlers import TimedRotatingFileHandler
 from typing import Dict, List, Optional, Union
 from functools import lru_cache
@@ -230,9 +225,9 @@ class Playback_info(BerrizAPIClient):
         for media_id in media_ids:
             if isinstance(media_id, str) and UUID_REGEX.match(media_id):
                 params =  {"languageCode": 'en'}
-                url = f"https://svc-api.berriz.in/service/v1/medias/live/{media_id}/playback_info"
+                url = f"https://svc-api.berriz.in/service/v1/medias/live/replay/{media_id}/playback_area_context"
                 if data := await self._send_request(url, params=params):
-                    results = data
+                    results.append(data)
             else:
                 logger.warning(f"Invalid media ID format: {media_id}")
         return results
@@ -327,9 +322,13 @@ class Live(BerrizAPIClient):
             else:
                 self.media_seq = media_seq  # Update instance media_seq
             return media_seq
-        except (httpx.HTTPError, json.JSONDecodeError, KeyError) as e:
+        except (httpx.HTTPError, KeyError) as e:
             logger.error(f"Failed to fetch mediaSeq from {media_url}: {e}")
             return None
+
+    async def fetch_live_replay(self, community_id, params) -> Optional[Dict]:
+        url = f"https://svc-api.berriz.in/service/v1/community/{community_id}/medias/live/end"
+        return await self._send_request(url, params=params, headers=self.headers)
 
 class Notify(BerrizAPIClient):
     async def fetch_notify(
@@ -435,4 +434,12 @@ class MediaList(BerrizAPIClient):
         
         return await self._send_request(url, params=params, headers=self.headers)
 
-    
+class GetRequest(BerrizAPIClient):
+    async def get_request(self, url) -> Optional[Dict]:
+        headers = {
+            'User-Agent': 'Amazon CloudFront',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Cache-Control': 'no-cache',
+        }
+        return await self._send_request_http1(url, headers=headers, usecookie=False)

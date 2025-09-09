@@ -1,7 +1,9 @@
 import asyncio
 import re
 from datetime import datetime, timedelta, timezone
-import json
+import orjson
+import sys
+import time
 from pathlib import Path
 
 import aiofiles
@@ -69,19 +71,39 @@ class Video_folder:
         original_name = full_path.name
         parent_dir = full_path.parent
 
-        if self.media_id in original_name:
-            base_name = original_name.replace(self.media_id, self.title)
-            new_path = self.get_unique_folder_name(base_name, parent_dir)
-
-            try:
-                full_path.rename(new_path)
-                logger.info(f"{Color.fg('light_blue')}Renamed folder: From: {Color.reset()}{full_path}\n⤷ {Color.fg('light_yellow')}{new_path}{Color.reset()}")
-            except Exception as e:
-                logger.error(f"Failed to rename folder: {e}")
-        else:
+        if self.media_id not in original_name:
             logger.warning(
                 f"UUID '{self.media_id}' not found in folder name: {original_name}"
             )
+            return
+
+        base_name = original_name.replace(self.media_id, self.title)
+        new_path = self.get_unique_folder_name(base_name, parent_dir)
+
+        max_retries = 6
+        delay_seconds = 6
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                full_path.rename(new_path)
+                logger.info(
+                    f"{Color.fg('light_blue')}Renamed folder From: {Color.reset()}"
+                    f"{Color.fg('light_gray')}{full_path}\n⤷ "
+                    f"{Color.fg('light_yellow')}{new_path}{Color.reset()}"
+                )
+                break
+
+            except Exception as e:
+                if attempt == max_retries:
+                    logger.error(
+                        f"All {max_retries} retries failed. Last error: {e}"
+                    )
+                else:
+                    logger.warning(
+                        f"Attempt {attempt} failed: {e}. "
+                        f"Retrying in {delay_seconds}s..."
+                    )
+                    time.sleep(delay_seconds)
 
 
 class DateTimeFormatter:
@@ -97,13 +119,21 @@ class DateTimeFormatter:
         kst_time = utc_time + kst_offset
         return kst_time.strftime("%y%m%d %H-%M")
 
+async def mpd_to_folder(output_dir: object, raw_mpd: object):
+    if raw_mpd is not None:
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        save_path = output_path / 'manifest.mpd'
+        async with aiofiles.open(save_path, 'w') as f:
+            await f.write(raw_mpd.text)
 
-async def mpd_to_folder(output_dir: str, raw_mpd: object):
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-    save_path = output_path / 'manifest.mpd'
-    async with aiofiles.open(save_path, 'w') as f:
-        await f.write(raw_mpd.text)
+async def hls_to_folder(output_dir: str, raw_hls: object):
+    if raw_hls is not None:
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        save_path = output_path / 'manifest.m3u8'
+        async with aiofiles.open(save_path, 'w') as f:
+            await f.write(raw_hls)
 
 async def save_json_to_folder(output_dir: str, json_data: dict):
     output_path = Path(output_dir)
@@ -112,13 +142,19 @@ async def save_json_to_folder(output_dir: str, json_data: dict):
         return 'json_data'
     save_path = output_path / f"{media_id}.json"
     try:
+        serialized = orjson.dumps(
+            json_data,
+            option=orjson.OPT_INDENT_2 | orjson.OPT_NON_STR_KEYS
+        ).decode('utf-8')
+
         async with aiofiles.open(save_path, mode='w', encoding='utf-8') as f:
-            await f.write(json.dumps(json_data, indent=5, ensure_ascii=False))
+            await f.write(serialized)
+
     except Exception as e:
         logger.error(f"Save JSON file error: {e}")
+        sys.exit(1)
 
-    
-async def start_download_queue(decryption_key, json_data, mpd_content, raw_mpd):
+async def start_download_queue(decryption_key, json_data, mpd_content, raw_mpd, hls_playback_url, raw_hls):
     video_folder = Video_folder(json_data)
     media_id = video_folder.media_id
     community_name = await get_community_name(json_data)
@@ -133,19 +169,19 @@ async def start_download_queue(decryption_key, json_data, mpd_content, raw_mpd):
         
         await asyncio.gather(
             asyncio.create_task(mpd_to_folder(output_dir, raw_mpd)),
+            asyncio.create_task(hls_to_folder(output_dir, raw_hls)),
             asyncio.create_task(save_json_to_folder(output_dir, json_data))
         )
         from lib.download import MediaDownloader
 
         downloader = MediaDownloader(media_id, output_dir)
-        success = await downloader.download_content(mpd_content)
+        success, merge_type = await downloader.download_content(mpd_content)
         s = SUCCESS(downloader, json_data, community_name)
-        s.when_success(success, decryption_key)
+        await s.when_success(success, decryption_key, merge_type)
         video_folder.re_name_folder()
     else:
         logger.error("Failed to create output directory.")
         raise ValueError
-
             
 async def get_community_name(json_data):
     community_id = json_data.get('media', {}).get('community_id')

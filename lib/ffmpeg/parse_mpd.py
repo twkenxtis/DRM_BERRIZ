@@ -135,7 +135,7 @@ class MPDParser:
             ),
         )
 
-    def get_highest_quality_content(self) -> MPDContent:
+    def get_highest_mpd_content(self) -> MPDContent:
         base_url = self.mpd_url.rsplit("/", 1)[0] + "/"
         period = self.root.find("./Period", self.namespaces)
 
