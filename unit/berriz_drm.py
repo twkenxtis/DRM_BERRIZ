@@ -8,7 +8,7 @@ from key.msprpro import GetMPD_prd
 from key.pssh import GetMPD_wv
 from key.GetClearKey import get_clear_key
 from key.local_vault import SQLiteKeyVault
-from static.PlaybackInfo import PlaybackInfo
+from static.PlaybackInfo import PlaybackInfo, LivePlaybackInfo
 from static.PublicInfo import PublicInfo
 from static.color import Color
 from static.api_error_handle import api_error_handle
@@ -135,29 +135,43 @@ async def start_download(public_info, key, dash_playback_url):
 
 
 class BerrizProcessor:
-    def __init__(self, media_id: str):
+    def __init__(self, media_id: str, media_type:str):
         self.media_id = media_id
+        self.media_type = media_type
         self.all_playback_infos: List[Tuple[PlaybackInfo, PublicInfo]] = []
         self._tasks: List[asyncio.Task] = []
         self._playback_contexts: List[Any] = []
         self._public_contexts: List[Any] = []
 
     async def fetch_contexts(self):
-        playback, public = await asyncio.gather(
-            Playback_info().get_playback_context(self.media_id),
-            Public_context().get_public_context(self.media_id),
-        )
+        # Live-replay and VOD different
+        if self.media_type == 'VOD':
+            playback, public = await asyncio.gather(
+                Playback_info().get_playback_context(self.media_id),
+                Public_context().get_public_context(self.media_id),
+            )
+        elif self.media_type == 'LIVE':
+            playback, public = await asyncio.gather(
+                Playback_info().get_live_playback_info(self.media_id),
+                Public_context().get_public_context(self.media_id),
+            )
         self._playback_contexts = playback
         self._public_contexts = public
 
     async def prepare_download_tasks(self):
         for playback_ctx, public_ctx in zip(
             self._playback_contexts, self._public_contexts
-        ):
-            playback_info, public_info = await asyncio.gather(
-                asyncio.to_thread(PlaybackInfo, playback_ctx),
-                asyncio.to_thread(PublicInfo,  public_ctx),
-            )
+        ):  
+            if self.media_type == 'VOD':
+                playback_info, public_info = await asyncio.gather(
+                    asyncio.to_thread(PlaybackInfo, playback_ctx),
+                    asyncio.to_thread(PublicInfo,  public_ctx),
+                )
+            elif self.media_type == 'LIVE':
+                playback_info, public_info = await asyncio.gather(
+                    asyncio.to_thread(LivePlaybackInfo, playback_ctx),
+                    asyncio.to_thread(PublicInfo,  public_ctx),
+                )
             self.all_playback_infos.append((playback_info, public_info))
             
             # Handle DRM and obtain information needed for download
@@ -196,3 +210,6 @@ class BerrizProcessor:
         await asyncio.gather(self.fetch_contexts())
         await self.prepare_download_tasks()
         await asyncio.create_task(self.execute_downloads())
+        
+    async def check_vod_isLive(self):
+        return
