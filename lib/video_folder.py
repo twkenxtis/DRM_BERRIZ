@@ -157,6 +157,11 @@ async def save_json_to_folder(output_dir: str, json_data: dict):
         sys.exit(1)
 
 async def start_download_queue(decryption_key, json_data, mpd_content, raw_mpd, hls_playback_url, raw_hls):
+    
+    if mpd_content is None:
+        logger.error("Failed to parse MPD content.")
+        return
+    
     video_folder = Video_folder(json_data)
     media_id = video_folder.media_id
     community_name = await get_community_name(json_data)

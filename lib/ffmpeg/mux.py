@@ -123,8 +123,6 @@ class FFmpegMuxer:
             return False
         elif paramstore.get('skip_merge') is True:
             return False
-
-
         logger.info(F"{Color.fg('light_gray')}Start using FFmpeg to mux video and audio...{Color.reset()}")
 
         # Standard FFmpeg command without modification
@@ -154,50 +152,33 @@ class FFmpegMuxer:
         if audio_file is not None:
             return [
                 "ffmpeg",
-                "-i",
-                str(video_file),
-                "-i",
-                str(audio_file),
-                "-c",
-                "copy",
-                "-map_metadata",
-                "-1",
-                "-map_chapters",
-                "-1",
-                "-metadata",
-                "title=",
-                "-metadata",
-                "comment=",
-                "-f",
-                "mp4",
-                "-movflags",
-                "+faststart+frag_keyframe+empty_moov+default_base_moof",
-                "-fflags",
-                "+genpts",
+                "-i", str(video_file),
+                "-i", str(audio_file),
+                "-c", "copy",
+                "-bsf:a", "aac_adtstoasc",
+                "-movflags", "+faststart+frag_keyframe+empty_moov+default_base_moof",
+                "-fflags", "+genpts",
+                "-map_metadata", "-1",
+                "-map_chapters", "-1",
+                "-metadata", "title=",
+                "-metadata", "comment=",
+                "-f", "mp4",
                 "-y",
                 str(temp_file_path),
             ]
         if audio_file is None:
             return [
                 "ffmpeg",
-                "-i",
-                str(video_file),
-                "-c",
-                "copy",
-                "-map_metadata",
-                "-1",
-                "-map_chapters",
-                "-1",
-                "-metadata",
-                "title=",
-                "-metadata",
-                "comment=",
-                "-f",
-                "mp4",
-                "-movflags",
-                "+faststart+frag_keyframe+empty_moov+default_base_moof",
-                "-fflags",
-                "+genpts",
+                "-i", str(video_file),
+                "-c", "copy",
+                "-bsf:a", "aac_adtstoasc",
+                "-movflags", "+faststart+frag_keyframe+empty_moov+default_base_moof",
+                "-fflags", "+genpts",
+                "-map_metadata", "-1",
+                "-map_chapters", "-1",
+                "-metadata", "title=",
+                "-metadata", "comment=",
+                "-f", "mp4",
                 "-y",
                 str(temp_file_path),
             ]

@@ -1,3 +1,4 @@
+import asyncio
 import re
 from typing import List, Optional, Tuple, Dict
 from dataclasses import dataclass
@@ -10,6 +11,10 @@ from unit.http.request_berriz_api import GetRequest
 
 
 logger = setup_logging('parse_hls', 'periwinkle')
+
+
+regex_pattern = r'#.*|.*\.(?:ts|m4a|m4v|aac)'
+
 
 @dataclass
 class Segment:
@@ -44,6 +49,7 @@ class HLSContent:
 class HLS_Paser:
     def __init__(self):
         self.m3u8_highest = None
+        self.audio_link = None
         self.video_is_encrypted = False
         self.video_encryption_key_uri: Optional[str] = None
         self.video_encryption_key: Optional[bytes] = None
@@ -60,19 +66,54 @@ class HLS_Paser:
             drm_info={},
         )
 
-    async def _parse_media_m3u8(self, m3u8_content_str: str, prefix: str = "video") -> Tuple[List[Tuple[str, int, float]], Optional[str], bool, float]:
+    async def _parse_media_m3u8(
+        self,
+        m3u8_content_str: str,
+        prefix: str = "video"
+    ) -> Tuple[List[Tuple[str, int, float]], Optional[str], bool, float]:
         """Main method to parse M3U8 playlist and orchestrate processing."""
-        list_m3u8 = self._preprocess_content(m3u8_content_str)
-        if self._check_master_playlist(list_m3u8):
-            prefix = await self._process_master_playlist(list_m3u8, m3u8_content_str, prefix)
-            
-        playlist = await GetRequest().get_request(self.m3u8_highest)
-        playlist = playlist.text
-        playlist = [line.strip() for line in re.findall(r'#.*|.*\.ts', playlist) if line.strip()]
-        ts_segments, audio_url = await self._process_media_playlist(playlist, self.m3u8_highest, prefix)
-        base_url = re.sub(r'/\d+/playlist\.m3u8$', '', self.m3u8_highest)
-        return await self.make_obj(tuple(ts_segments), audio_url, base_url)
-        
+        # Master Playlist 分支
+        lines = self._preprocess_content(m3u8_content_str)
+        if self._check_master_playlist(lines):
+            prefix = await self._process_master_playlist(lines, m3u8_content_str, prefix)
+
+        # 定義共用 helper：取回並過濾出 ts 與 tag
+        async def _fetch_and_filter(url: str) -> List[str]:
+            resp = await GetRequest().get_request(url)
+            return [line.strip() for line in re.findall(regex_pattern, resp.text) if line.strip()]
+        tasks: dict[str, asyncio.Task] = {}
+        async with asyncio.TaskGroup() as tg:
+            if self.m3u8_highest:
+                tasks["video"] = tg.create_task(_fetch_and_filter(self.m3u8_highest), name="video")
+            if self.audio_link:
+                tasks["audio"] = tg.create_task(_fetch_and_filter(self.audio_link), name="audio")
+
+        video_list = tasks.get("video").result() if "video" in tasks else None
+        audio_list = tasks.get("audio").result() if "audio" in tasks else None
+
+        video_segments = []
+        audio_segments = []
+
+        if video_list:
+            video_segments = await self._process_media_playlist(
+                video_list, self.m3u8_highest, prefix
+            )
+
+        if audio_list:
+            audio_segments = await self._process_media_playlist(
+                audio_list, self.audio_link, prefix
+            )
+
+        # 組出 base_url 並回傳最終物件
+        base_url = (
+            re.sub(r'/\d+/playlist\.m3u8$', '', self.m3u8_highest)
+            if self.m3u8_highest else None
+        )
+        return await self.make_obj(
+            tuple(video_segments),
+            tuple(audio_segments),
+            base_url
+        )
     
     def _preprocess_content(self, content: str) -> List[str]:
         """Split and clean M3U8 content into a list of non-empty lines."""
@@ -98,6 +139,7 @@ class HLS_Paser:
                     ):
                         best_height = height
                         best_link = urljoin(m3u8_str, lines[i + 1])
+                        audio_link = re.search(r'URI="([^"]*)"', urljoin(m3u8_str, lines[i-1])).group(1)
                         best_info = line
 
             if best_link:
@@ -105,10 +147,13 @@ class HLS_Paser:
                     f"{Color.fg('light_gray')}{prefix}:{Color.reset()} "
                     f"{Color.fg('beige')}{best_info} {Color.reset()}\n"
                     f"{Color.fg('khaki')}choese m3u8: {Color.reset()}"
-                    f"{Color.fg('ivory')}{best_link}{Color.reset()}"
+                    f"{Color.fg('ivory')}{best_link}{Color.reset()} "
+                    f"{Color.fg('ivory')}{audio_link}{Color.reset()}"
                 )
                 if prefix == "video":
                     self.m3u8_highest = best_link
+                if audio_link:
+                    self.audio_link = audio_link
 
                 return prefix
 
@@ -120,14 +165,11 @@ class HLS_Paser:
     ) -> Tuple[List[Tuple[str, int, float]], Optional[str], bool, float]:
         """Extract segments, audio track, and metadata from a media playlist."""
         ts_segments = []
-        audio_url = None
         durations = []
 
         for i, line in enumerate(lines):
             line = line.strip()
-            if line.startswith("#EXT-X-MEDIA:TYPE=AUDIO") and prefix == "video":
-                audio_url = self._extract_audio_url(line, m3u8_url)
-            elif line.startswith("#EXT-X-KEY:"):
+            if line.startswith("#EXT-X-KEY:"):
                 self._handle_encryption(line, m3u8_url, prefix)
             elif line.startswith("#EXTINF:"):
                 current_duration = self._extract_segment_duration(line)
@@ -138,7 +180,7 @@ class HLS_Paser:
         if not durations:
             return (), None, False
         
-        return self._finalize_results(ts_segments, audio_url)
+        return self._finalize_results(ts_segments)
     
     def _extract_segment_duration(self, line: str) -> float:
         """Extract segment duration from an EXTINF line."""
@@ -158,20 +200,10 @@ class HLS_Paser:
     def _finalize_results(
         self,
         ts_segments: List[Tuple[str, int, float]],
-        audio_url: Optional[str],
     ) -> Tuple[List[Tuple[str, int, float]], Optional[str], bool, float]:
         """Sort segments and compute average duration."""
         ts_segments.sort(key=lambda x: x[1])
-        return ts_segments, audio_url
-
-    def _extract_audio_url(self, highest_url: str) -> Optional[str]:
-        """Extract audio track URL from an EXT-X-MEDIA line."""
-        uri_match = re.search(r'URI="([^"]+)"', highest_url)
-        if uri_match:
-            audio_url = urljoin(highest_url, uri_match.group(1))
-            logger.info(f"Found audio track: {audio_url}")
-            return audio_url
-        return None
+        return ts_segments
 
     def _handle_encryption(self, line: str, m3u8_url: str, prefix: str) -> None:
         """Process encryption key information from an EXT-X-KEY line."""

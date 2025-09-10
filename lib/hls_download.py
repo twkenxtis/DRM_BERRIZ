@@ -45,7 +45,6 @@ class HLSDownloader:
             "Referer": "https://berriz.in/",
             "Origin": "https://berriz.in",
         }
-        self.session_headers = {}
         self.initial_media_sequence = 0
         self.current_media_sequence = 0
         self.max_retries = max_retries

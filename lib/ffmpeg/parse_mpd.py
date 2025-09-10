@@ -36,34 +36,46 @@ class MPDContent:
 
 
 class MPDParser:
-    def __init__(self, raw_mpd: ET, mpd_url: str):
+    def __init__(self, raw_mpd_text: str, mpd_url: str):
         self.mpd_url = mpd_url
-        self.root = self.str_to_lxml(raw_mpd.text)
+        self.root = self.str_to_lxml(raw_mpd_text)
         self.namespaces = {
             "": "urn:mpeg:dash:schema:mpd:2011",
             "cenc": "urn:mpeg:cenc:2013",
             "mspr": "urn:microsoft:playready",
         }
-        
+    
     def str_to_lxml(self, obj):
-        return ET.fromstring(obj)
+        return ET.fromstring(obj.text)
 
     def _parse_drm_info(self) -> Dict:
         drm_info = {}
-        prot_info = self.root.find(
+
+        # 1. 尋找 cenc:default_KID
+        kid_prot_info = self.root.find(
+            ".//ContentProtection[@schemeIdUri='urn:mpeg:dash:mp4protection:2011']",
+            self.namespaces,
+        )
+        if kid_prot_info is not None:
+            kid = kid_prot_info.get("{urn:mpeg:cenc:2013}default_KID", "").strip().replace('-', '')
+            drm_info["default_KID"] = kid if len(kid) == 32 else None
+
+        # 2. 尋找 PlayReady 資訊
+        # 尋找 schemeIdUri='urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95' 的 ContentProtection 元素
+        playready_prot_info = self.root.find(
             ".//ContentProtection[@schemeIdUri='urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95']",
             self.namespaces,
         )
-        if prot_info is not None:
-            drm_info = {
-                "default_KID": prot_info.get("cenc:default_KID"),
-                "playready_pro": prot_info.findtext(
-                    "./mspr:pro", "", namespaces=self.namespaces
-                ),
-                "pssh": prot_info.findtext(
-                    "./cenc:pssh", "", namespaces=self.namespaces
-                ),
-            }
+
+        if playready_prot_info is not None:
+            pro_value = playready_prot_info.findtext("./mspr:pro", "", namespaces=self.namespaces)
+            if pro_value:
+                drm_info["playready_pro"] = pro_value
+                return drm_info
+            
+            if playready_prot_info.get("value") == "MSPR 2.0":
+                drm_info["playready_pro"] = playready_prot_info.findtext("./cenc:pssh", "", namespaces=self.namespaces)
+        
         return drm_info
 
     def _parse_segment_timeline(self, seg_template: ET.Element) -> List[Segment]:

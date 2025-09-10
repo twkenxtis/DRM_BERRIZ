@@ -49,8 +49,6 @@ class SUCCESS:
     async def clean_file(self, had_drm, merge_type):
         base_dir = self.base_dir
         if os.path.exists(base_dir / "audio.ts"):
-            print(merge_type)
-
             # Files to delete
             if had_drm is None:
                 file_paths = [

@@ -298,7 +298,6 @@ class MediaDownloader:
 
         try:
             tasks = []
-
             if mpd_content.audio_track:
                 tasks.append(self.download_track(mpd_content.audio_track, "audio", merge_type))
             if mpd_content.video_track:
