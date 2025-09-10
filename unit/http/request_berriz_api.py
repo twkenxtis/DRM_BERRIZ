@@ -1,3 +1,4 @@
+import asyncio
 import concurrent.futures
 import logging
 import os
@@ -125,11 +126,15 @@ UUID_REGEX = re.compile(
 
 
 class BerrizAPIClient:
+    
     def __init__(self):
-        self.cookies = Berriz_cookie()._cookies
         self.headers = self._build_headers()
         self.session = None
         self.connector = None
+
+    @lru_cache(maxsize=2)
+    async def cookie(self):
+        return await asyncio.create_task(Berriz_cookie().get_cookies())
 
     @lru_cache(maxsize=1)
     def _build_headers(self) -> Dict[str, str]:
@@ -148,7 +153,7 @@ class BerrizAPIClient:
                 response = await client.get(
                     url,
                     params=params,
-                    cookies=self.cookies,
+                    cookies = await self.cookie(),
                     headers=headers or self.headers,
                 )
                 response.raise_for_status()
@@ -176,7 +181,7 @@ class BerrizAPIClient:
         if usecookie is False:
             c = {}
         else:
-            c = self.cookies
+            c = await self.cookie()
         try:
             async with httpx.AsyncClient(http2=False, timeout=4, verify=True) as client:
                 response = await client.get(
