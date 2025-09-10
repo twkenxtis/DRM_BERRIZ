@@ -297,8 +297,7 @@ class Berriz_cookie:
         self._cookies = {}
         try:
             # 觸發 token 重新整理
-            async with aiohttp.ClientSession() as session:
-                await Refresh_JWT(session).main()
+            await self.trigger_rwt()
 
             # 載入 cookies
             async with asyncio.TaskGroup() as tg:
@@ -309,7 +308,7 @@ class Berriz_cookie:
             self._cookies = default_task.result()
             self._cookies["bz_a"] = bz_a_task.result()
             self._cookies["bz_r"] = bz_r_task.result()
-            
+            await self.check_cookie()
             logger.info(f"{Color.fg('chartreuse')}Cookies loaded: {Color.fg('dark_gray')}{list(self._cookies.values())}{Color.reset()}")
         except Exception as e:
             if Berriz_cookie.show_no_cookie_log:
@@ -321,3 +320,15 @@ class Berriz_cookie:
         if not hasattr(self, "_cookies") or not self._cookies:
             await self.load_cookies()
         return self._cookies
+    
+    async def check_cookie(self):
+        if len(self._cookies.get('bz_a')) < 500:
+            if os.path.exists(REFRESH_FILE):
+                os.remove(REFRESH_FILE)
+                await self.trigger_rwt()
+                await self.load_cookies()
+                
+    async def trigger_rwt(self):
+        # 觸發 token 重新整理
+        async with aiohttp.ClientSession() as session:
+            await Refresh_JWT(session).main()
