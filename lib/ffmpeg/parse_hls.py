@@ -185,5 +185,12 @@ class HLS_Paser:
                     f"{Color.fg('ruby')}{prefix}{Color.reset()} {Color.fg('light_gray')}encryption key URI: {Color.reset()} "
                     f"{Color.fg('bright_cyan')}{key_uri}{Color.reset()}"
                 )
+        if "METHOD=SAMPLE-AES" in line:
+            key_format = re.search(r'KEYFORMAT="([^"]+)"', line).group(1) if re.search(r'KEYFORMAT="([^"]+)"', line) else None
+            if key_format == 'com.apple.streamingkeydelivery':
+                logger.info(
+                    f"{Color.fg('light_gray')}encryption support:{Color.reset()} "
+                    f"{Color.fg('bright_cyan')}FairPlay{Color.reset()}"
+                )
         else:
             logger.warning(f"Unsupported {prefix} encryption method: {line}")

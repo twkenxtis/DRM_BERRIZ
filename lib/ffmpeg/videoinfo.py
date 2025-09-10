@@ -13,7 +13,7 @@ class VideoInfo:
             raise RuntimeError(f"FFmpeg issuse!: {e.stderr.decode('utf-8')}")
 
         self._format = self._probe_data["format"]
-        self._streams = self._probe_data["streams"]
+        self._vstreams = self._probe_data["streams"]
 
         self._size_bytes = int(self._format.get("size", 0))
         self._duration_sec = float(self._format.get("duration", 0.0))
@@ -39,7 +39,7 @@ class VideoInfo:
 
     @property
     def codec(self) -> str:
-        for stream in self._streams:
+        for stream in self._vstreams:
             if stream["codec_type"] == "video":
                 codec = stream.get("codec_name", "unknown").upper()
                 return "H265" if "hevc" in codec.lower() else "H264"
@@ -68,7 +68,7 @@ class VideoInfo:
             3840: "2160p",
             2880: "2880p",
         }
-        for stream in self._streams:
+        for stream in self._vstreams:
             if stream["codec_type"] == "video":
                 height = int(stream.get("height", 0))
                 return resolution_map.get(height, f"{height}p")
@@ -76,7 +76,7 @@ class VideoInfo:
 
     @property
     def audio_codec(self) -> str:
-        for stream in self._streams:
+        for stream in self._vstreams:
             if stream["codec_type"] == "audio":
                 return stream.get("codec_name", "unknown").upper()
         return "unknown"
