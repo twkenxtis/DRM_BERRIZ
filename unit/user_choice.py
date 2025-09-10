@@ -9,7 +9,11 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 
+from unit.handle_log import setup_logging
 from unit.community import custom_dict, get_community
+
+
+logger = setup_logging('user_choice', 'fresh_chartreuse')
 
 
 MediaItem = Dict[str, Union[str, Dict, bool]]
@@ -57,7 +61,11 @@ class InquirerPySelector:
                 f"{community_name} [{core}] {item['title']} "
             )
             item_choices.append(Choice(value=disp_no, name=name))
-
+            
+        if item_choices == []:
+            logger.info(f"No items found")
+            return
+        
         separator = '━' * 70
         # Initial selection with fuzzy search
         cmd = await inquirer.fuzzy(
@@ -92,7 +100,7 @@ class InquirerPySelector:
                     "📷 Photo" if t == "photo" else
                     "📡 Live"
                 )
-                print(f"  {n:2d}. {label:<8}: {itm['title']} ({core})")
+                print(f"  {n:3d}. {label:<15}: {itm['title']} ({core})")
             print()
 
             text = await inquirer.text(

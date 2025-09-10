@@ -4,12 +4,11 @@ from datetime import datetime
 from functools import cache
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from cookies.cookies import Berriz_cookie
 from mystate.fanclub import fanclub_main
 from static.color import Color
 from unit.community import get_community, get_community_print
 from unit.handle_log import setup_logging
-from unit.http.request_berriz_api import Live, MediaList
+from unit.http.request_berriz_api import Live, MediaList, BerrizAPIClient
 from unit.parameter import paramstore
 
 
@@ -48,7 +47,7 @@ class MediaParser:
         )
 
         # Cookie 檢查：沒 cookie 則清空付費列表
-        if not Berriz_cookie()._cookies:
+        if not await BerrizAPIClient().cookie():
             v_fc = p_fc = l_fc = []
 
         # Fanclub 身份檢查
