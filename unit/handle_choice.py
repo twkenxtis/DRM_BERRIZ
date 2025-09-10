@@ -27,10 +27,12 @@ async def handle_choice(community_id: int, time_a, time_b):
         vod_list, photo_list, live_list = await asyncio.create_task(MediaFetcher(community_id).get_all_media_lists(time_a, time_b))
     except TypeError:
         return
-    
     selector = InquirerPySelector(vod_list, photo_list, live_list)
     selected_media = await selector.run()
-
+    
+    if selected_media is None:
+        logger.info(f"{Color.fg('light_gray')}No items selected. Exiting...{Color.reset()}")
+        return
     if len(selected_media['vods']) > 0:
         logger.info(f"{Color.fg('light_gray')}choese "
             f"{Color.fg('indigo')}{len(selected_media['vods'])} "

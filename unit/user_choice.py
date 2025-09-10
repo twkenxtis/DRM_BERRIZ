@@ -58,7 +58,7 @@ class InquirerPySelector:
             )
             item_choices.append(Choice(value=disp_no, name=name))
 
-        separator = '―' * 70
+        separator = '━' * 70
         # Initial selection with fuzzy search
         cmd = await inquirer.fuzzy(
             message="Select items or quick command:",
@@ -102,7 +102,6 @@ class InquirerPySelector:
         else:
             # for choese only one
             picks = {cmd}
-
         if cmd == "range":
             # Prepare choices for checkbox (only item choices, not quick commands)
             adjust_choices = self._build_media_choices(picks, display_map)
@@ -126,25 +125,28 @@ class InquirerPySelector:
         return self._collect(picks, display_map)
 
     def _collect(self, picks: Set[int], display_map: Dict[int, Tuple[str, int]]) -> dict:
-        vods = [
-            self.vod_items[idx]
-            for n in picks
-            if (t := display_map[n])[0] == "vod"
-            for idx in [t[1]]
-        ]
-        photos = [
-            self.photo_items[idx]
-            for n in picks
-            if (t := display_map[n])[0] == "photo"
-            for idx in [t[1]]
-        ]
-        lives = [
-            self.live_items[idx]
-            for n in picks
-            if (t := display_map[n])[0] == "live"
-            for idx in [t[1]]
-        ]
-        return {"vods": vods, "photos": photos, "lives": lives}
+        try:
+            vods = [
+                self.vod_items[idx]
+                for n in picks
+                if (t := display_map[n])[0] == "vod"
+                for idx in [t[1]]
+            ]
+            photos = [
+                self.photo_items[idx]
+                for n in picks
+                if (t := display_map[n])[0] == "photo"
+                for idx in [t[1]]
+            ]
+            lives = [
+                self.live_items[idx]
+                for n in picks
+                if (t := display_map[n])[0] == "live"
+                for idx in [t[1]]
+            ]
+            return {"vods": vods, "photos": photos, "lives": lives}
+        except KeyError:
+            pass
 
     def _build_media_choices(
         self,
