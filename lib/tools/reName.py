@@ -49,7 +49,7 @@ class SUCCESS:
     async def clean_file(self, had_drm, merge_type):
         base_dir = self.base_dir
         if os.path.exists(base_dir / "audio.ts"):
-            hls_need_del_audio_ts = True
+            print(merge_type)
 
             # Files to delete
             if had_drm is None:
@@ -64,12 +64,12 @@ class SUCCESS:
                     base_dir / "audio_decrypted.ts",
                     base_dir / "audio.ts",
                 ]
-            elif merge_type == 'hls' and hls_need_del_audio_ts is True:
+            elif merge_type == 'hls' and os.path.exists(base_dir / "audio.ts"):
                 file_paths = [
                     base_dir / "video.ts",
                     base_dir / "audio.ts",
                 ]
-            elif merge_type == 'hls' and hls_need_del_audio_ts is False:
+            elif merge_type == 'hls' and not os.path.exists(base_dir / "audio.ts"):
                 file_paths = [
                     base_dir / "video.ts",
                 ]
