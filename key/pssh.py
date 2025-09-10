@@ -38,9 +38,13 @@ class GetMPD_wv:
             logger.warning(f"{Color.bg('mint')}No WV PSSH values found in the MPD file.{Color.reset()}")
             return None
 
+        valid_pssh_list = []
         for pssh in pssh_values:
             if len(pssh) == 76:
-                return pssh
+                valid_pssh_list.append(pssh)
 
-        logger.error("No WV PSSH value with exactly 76 characters found")
-        return None
+        if valid_pssh_list:
+            return valid_pssh_list
+        else:
+            logger.error("No MSPR:PRO PSSH value with exactly 76 characters found")
+            return None

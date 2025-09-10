@@ -32,14 +32,18 @@ def extract_pssh(response: requests.Response) -> List[str]:
 class GetMPD_prd:
     def parse_pssh(raw_mpd):
         pssh_values = extract_pssh(raw_mpd)
-
+        
         if not pssh_values:
             logger.warning(f"{Color.bg('mint')}No MSPR:PRO PSSH values found in the MPD file.{Color.reset ()}")
             return None
-
+        
+        valid_pssh_list = []
         for pssh in pssh_values:
             if len(pssh) > 76:
-                return pssh
-
-        logger.error("No MSPR:PRO PSSH value with exactly 76 characters found")
-        return None
+                valid_pssh_list.append(pssh)
+        
+        if valid_pssh_list:
+            return valid_pssh_list
+        else:
+            logger.error("No MSPR:PRO PSSH value with exactly 76 characters found")
+            return None
