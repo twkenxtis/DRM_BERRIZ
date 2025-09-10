@@ -24,10 +24,7 @@ class FFmpegMuxer:
         if not input_file.exists():
             return None
 
-        # Check for encryption
-        kid = await self._check_encryption(input_file)
-
-        if kid and self.decryption_key:
+        if self.decryption_key:
             logger.info(
                 f"{Color.fg('blue')}Detected{Color.reset()} {Color.fg('cyan')}{track_type} {Color.reset()}{Color.fg('blue')}"
                 f"{Color.reset()}{Color.fg('blue')}decrypting...{Color.reset()}"
@@ -37,12 +34,6 @@ class FFmpegMuxer:
             if await self._decrypt_file(input_file, decrypted_file, decryption_key):
                 return decrypted_file
             return None
-        elif kid:
-            logger.warning(
-                f"Warning: {track_type} track is encrypted but no decryption key is provided."
-            )
-            return None
-
         # No encryption, use original file
         return input_file
 
@@ -53,55 +44,44 @@ class FFmpegMuxer:
         elif type(self.decryption_key) is str:
             return self.decryption_key
 
-    async def _check_encryption(self, file_path: Path) -> Optional[str]:
-        """Check if file is encrypted using mp4info and return KID if found"""
-        try:
-            result = subprocess.run(
-                ["mp4info", str(file_path)], capture_output=True, text=True
-            )
-
-            if "encrypted" in result.stdout.lower():
-                return "encrypted"
-            return None
-        except Exception as e:
-            logger.error(f"Encryption check failed {file_path}: {str(e)}")
-            return None
-
     async def _decrypt_file(
-        self,
-        input_path: Path,
-        output_path: Path,
-        key: str,
-    ) -> bool:
-        current_dir = Path(__file__).parent
-        parent_tools_dir = current_dir.parent / "tools"
-        mp4decrypt_path = parent_tools_dir / "mp4decrypt.exe"
-
-        if not mp4decrypt_path.exists():
-            logger.error(f"mp4decrypt.exe not found at: {mp4decrypt_path}")
-            return False
-
-        try:
-            subprocess.run(
-                [
-                    str(mp4decrypt_path),
-                    "--key",
-                    key,
-                    str(input_path),
-                    str(output_path),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            return True
-
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Decryption failed for {input_path}: {e.stderr or e.stdout}")
-            return False
-        except Exception as e:
-            logger.error(f"Unexpected error decrypting {input_path}: {str(e)}")
-            return False
+            self,
+            input_path: Path,
+            output_path: Path,
+            key: str,
+        ) -> bool:
+            current_dir = Path(__file__).parent
+            parent_tools_dir = current_dir.parent / "tools"
+            mp4decrypt_path = parent_tools_dir / "mp4decrypt.exe"
+            
+            if not mp4decrypt_path.exists():
+                logger.error(f"mp4decrypt.exe not found at: {mp4decrypt_path}")
+                return False
+            
+            try:
+                # 分割 key 字串並為每個 key 添加 --key 參數
+                key_parts = key.split()
+                key_args = []
+                for k in key_parts:
+                    key_args.extend(["--key", k])
+                
+                # 建立完整的命令
+                command = [str(mp4decrypt_path)] + key_args + [str(input_path), str(output_path)]
+                
+                subprocess.run(
+                    command,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                return True
+                
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Decryption failed for {input_path}: {e.stderr or e.stdout}")
+                return False
+            except Exception as e:
+                logger.error(f"Unexpected error decrypting {input_path}: {str(e)}")
+                return False
 
     async def mux_to_mp4(self, merge_type: str, tempfile_name) -> bool:
         # Prepare video and audio tracks
