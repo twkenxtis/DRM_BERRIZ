@@ -80,8 +80,8 @@ class Video_folder:
         base_name = original_name.replace(self.media_id, self.title)
         new_path = self.get_unique_folder_name(base_name, parent_dir)
 
-        max_retries = 6
-        delay_seconds = 6
+        max_retries = 10
+        delay_seconds = 2
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -101,6 +101,8 @@ class Video_folder:
                 else:
                     logger.warning(
                         f"Attempt {attempt} failed: {e}. "
+                        )
+                    logger.info(
                         f"Retrying in {delay_seconds}s..."
                     )
                     time.sleep(delay_seconds)

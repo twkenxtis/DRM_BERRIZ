@@ -147,9 +147,10 @@ class MediaDownloader:
             ascii="-#",
             desc=f"{track_type} process",
             unit="file",
-            bar_format="{desc:6}: {percentage:1.0f} %  |{bar:70}| {n_fmt:>2}/{total_fmt:<2} files",
-            ncols=70,
-            colour='MAGENTA'
+            bar_format="{desc:6}: {percentage:1.0f} %  |{bar:150}| {n_fmt:>2}/{total_fmt:<2} files",
+            ncols=150,
+            colour='MAGENTA',
+            leave=False
         )
         
         success_count = sum(results)
@@ -294,6 +295,7 @@ class MediaDownloader:
                         f"{Color.fg('light_gray')}content{Color.reset()}"
                         )
             merge_type = 'hls'
+
         try:
             tasks = []
 
@@ -304,7 +306,7 @@ class MediaDownloader:
 
             download_results = await asyncio.gather(*tasks)
             
-            if paramstore.get('skip_merge') is not True:    
+            if paramstore.get('skip_merge') is not True: 
                 merge_results = []
                 if mpd_content.video_track and download_results[0]:
                     merge_results.append(await self._merge_track("video", merge_type))
@@ -312,10 +314,10 @@ class MediaDownloader:
                     len(download_results) > 1 and download_results[1]
                 ):
                     merge_results.append(await self._merge_track("audio", merge_type))
-
                 return all(merge_results), merge_type
             else:
                 logger.info(f"{Color.fg('light_gray')}Skip merge because --skip-merge is {Color.fg('cyan')}True{Color.reset()}")
+                return False, merge_type
         finally:
             if self.session:
                 await self.session.close()
@@ -331,7 +333,7 @@ async def run_dl(mpd_uri, decryption_key, json_data, raw_mpd, hls_playback_url, 
         return
     if mpd_content.drm_info is not None and mpd_content.drm_info.get("default_KID"):
         logger.info(
-            f"Encrypted content detected (KID: {Color.fg('platinum')}{mpd_content.drm_info['default_KID']}{Color.reset()})"
+            f"Encrypted content detected (KID: {Color.fg('platinum')}{mpd_content.drm_info['default_KID']}){Color.reset()}"
         )
 
     await start_download_queue(decryption_key, json_data, hls_content, raw_mpd, hls_playback_url, raw_hls)
