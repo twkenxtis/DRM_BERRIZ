@@ -11,6 +11,7 @@ from lib.ffmpeg.parse_mpd import MPDParser, MediaTrack, MPDContent
 from lib.ffmpeg.videoinfo import VideoInfo
 from lib.ffmpeg.mux import FFmpegMuxer
 from static.color import Color
+from static.PublicInfo import PublicInfo_Custom
 from unit.handle_log import setup_logging
 from unit.parameter import paramstore
 from unit.community import get_community
@@ -23,6 +24,7 @@ class SUCCESS:
     def __init__(self, downloader, json_data, community_name):
         self.downloader = downloader
         self.json_data = json_data
+        self.publicinfo = PublicInfo_Custom(json_data)
         self.community_name = community_name
         self.base_dir = self.downloader.base_dir
         self.tempname = "temp_output_DO_NOT_DEL.mp4"
@@ -92,18 +94,16 @@ class SUCCESS:
                     logger.error(f"Error force-removing directory {dir_path}: {e}")
 
     async def re_name(self):
-        t = (
-            self.json_data.get("media", {})
-            .get("formatted_published_at", "")[2:-6]
-            .replace("-", "")
+        d = (
+            self.publicinfo.formatted_published_at[2:-6].replace("-", "")
         )
         video_codec, video_quality_label, video_audio_codec = await self.extract_video_info()
         filename = (
-            f"{t} {self.community_name} - "
-            + self.json_data.get("media", {}).get("title")
+            f"{d} {self.community_name} - "
+            + self.publicinfo.media_title
             + f" WEB-DL.{video_quality_label}.{video_codec}.{video_audio_codec}.mp4"
         )
-        await aios.rename(self.path, self.base_dir / filename)
+        await aios.rename(self.path, Path(self.base_dir).parent / filename)
         logger.info(f"{Color.fg('yellow')}Final output file: {Color.reset()}{Color.fg('aquamarine')}{self.base_dir / filename}{Color.reset()}")
         
     async def extract_video_info(self):
@@ -121,17 +121,14 @@ class SUCCESS:
 
 
     async def dl_thumbnail(self):
-        thumbnail_url = self.json_data.get("media", {}).get("thumbnail_url", "")
+        thumbnail_url = self.publicinfo.media_thumbnail_url
         if not thumbnail_url:
             logger.warning("No thumbnail URL found")
             return
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:141.0) Gecko/20100101 Firefox/141.0",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
-        }
+        headers = {"User-Agent": "Mozilla/5.0", "Accept-Encoding": "gzip, deflate, br, zstd"}
 
-        async with httpx.AsyncClient(http2=True, verify=False) as client:
+        async with httpx.AsyncClient(http2=True, verify=True) as client:
             try:
                 response = await client.get(thumbnail_url, headers=headers)
             except httpx.RequestError as e:
@@ -139,7 +136,7 @@ class SUCCESS:
                 return
 
         thumbnail_name = os.path.basename(thumbnail_url)
-        save_path = self.base_dir / thumbnail_name
+        save_path = Path(self.base_dir).parent / thumbnail_name
 
         if response.status_code == 200:
             async with aiofiles.open(save_path, "wb") as f:

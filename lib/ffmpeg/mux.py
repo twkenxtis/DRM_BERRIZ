@@ -53,7 +53,7 @@ class FFmpegMuxer:
             current_dir = Path(__file__).parent
             parent_tools_dir = current_dir.parent / "tools"
             mp4decrypt_path = parent_tools_dir / "mp4decrypt.exe"
-            
+
             if not mp4decrypt_path.exists():
                 logger.error(f"mp4decrypt.exe not found at: {mp4decrypt_path}")
                 return False

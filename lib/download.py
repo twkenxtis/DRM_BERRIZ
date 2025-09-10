@@ -147,10 +147,10 @@ class MediaDownloader:
             ascii="-#",
             desc=f"{track_type} process",
             unit="file",
-            bar_format="{desc:6}: {percentage:1.0f} %  |{bar:150}| {n_fmt:>2}/{total_fmt:<2} files",
+            bar_format="{desc:6}: {percentage:1.0f} % {n_fmt:>2}/{total_fmt:<2} files",
             ncols=150,
             colour='MAGENTA',
-            leave=False
+            leave=True
         )
         
         success_count = sum(results)
@@ -334,5 +334,9 @@ async def run_dl(mpd_uri, decryption_key, json_data, raw_mpd, hls_playback_url, 
         logger.info(
             f"Encrypted content detected (KID: {Color.fg('platinum')}{mpd_content.drm_info['default_KID']}){Color.reset()}"
         )
+    if decryption_key:
+        use_hls = mpd_content
+    elif decryption_key is None:
+        use_hls = hls_content
 
-    await start_download_queue(decryption_key, json_data, hls_content, raw_mpd, hls_playback_url, raw_hls)
+    await start_download_queue(decryption_key, json_data, use_hls, raw_mpd, hls_playback_url, raw_hls)
