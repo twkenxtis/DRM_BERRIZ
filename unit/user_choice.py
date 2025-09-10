@@ -58,15 +58,13 @@ class InquirerPySelector:
             )
             item_choices.append(Choice(value=disp_no, name=name))
 
-        # Combine quick commands and item choices
-        all_choices = quick_commands + item_choices
-
+        separator = '―' * 70
         # Initial selection with fuzzy search
         cmd = await inquirer.fuzzy(
             message="Select items or quick command:",
-            choices=all_choices,
+            choices=quick_commands + [separator] + item_choices,
             default="",
-            cycle=True,
+            cycle=False,
             border=True,
         ).execute_async()
 
@@ -109,13 +107,12 @@ class InquirerPySelector:
             # Prepare choices for checkbox (only item choices, not quick commands)
             adjust_choices = self._build_media_choices(picks, display_map)
 
-            final = await inquirer.fuzzy(
+            final = await inquirer.checkbox(
                 message="Finalize your selection (→ all, ← none, type to filter):",
-                choices=adjust_choices,
+                choices=item_choices,
                 cycle=True,
                 height=30,
                 border=True,
-                multiselect=True,
                 validate=lambda res: len(res) > 0 or "",
                 keybindings={
                     "toggle-all-true": [{"key": "right"}],
