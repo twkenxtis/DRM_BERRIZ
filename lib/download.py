@@ -329,10 +329,9 @@ async def run_dl(mpd_uri, decryption_key, json_data, raw_mpd, hls_playback_url, 
     if not mpd_content.video_track and not mpd_content.audio_track:
         logger.error("Error: No valid audio or video tracks found in MPD.")
         return
-
-    if mpd_content.drm_info and mpd_content.drm_info.get("default_KID"):
+    if mpd_content.drm_info is not None and mpd_content.drm_info.get("default_KID"):
         logger.info(
-            f"\nEncrypted content detected (KID: {mpd_content.drm_info['default_KID']})"
+            f"Encrypted content detected (KID: {Color.fg('platinum')}{mpd_content.drm_info['default_KID']}{Color.reset()})"
         )
 
     await start_download_queue(decryption_key, json_data, hls_content, raw_mpd, hls_playback_url, raw_hls)
