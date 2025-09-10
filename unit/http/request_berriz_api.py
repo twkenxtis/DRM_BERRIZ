@@ -3,13 +3,14 @@ import logging
 import os
 import re
 import threading
+from functools import lru_cache
 from logging.handlers import TimedRotatingFileHandler
 from typing import Dict, List, Optional, Union
-from functools import lru_cache
 
 import httpx
 
 from cookies.cookies import Berriz_cookie
+from static.api_error_handle import api_error_handle
 from static.color import Color
 
 
@@ -157,6 +158,7 @@ class BerrizAPIClient:
             return None
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error for {url}: {e}")
+            logger.info(api_error_handle(response.status_code))
             return None
         except httpx.ConnectError as e:
             logger.error(f"Connection error for {url}: {e}")

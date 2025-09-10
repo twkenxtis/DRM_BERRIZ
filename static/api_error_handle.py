@@ -11,3 +11,5 @@ def api_error_handle(code):
         return ('Service could not be found.')
     if code == 'FS_ER4020':
         return ('Please log in again.')
+    if code == 'FS_ER5010':
+        return ('An error occurred during the service.')

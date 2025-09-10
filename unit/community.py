@@ -4,7 +4,9 @@ from static.color import Color
 from unit.http.request_berriz_api import Community
 from unit.handle_log import setup_logging
 
+
 logger = setup_logging('community', 'ivory')
+
 
 PRELOADED_COMMUNITIES = [
     {'communityId': 1, 'communityKey': 'jsh'},

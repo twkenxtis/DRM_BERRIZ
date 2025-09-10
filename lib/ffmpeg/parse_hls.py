@@ -1,12 +1,11 @@
 import asyncio
 import re
-from typing import List, Optional, Tuple, Dict
 from dataclasses import dataclass
-from urllib.parse import urlparse, urlunparse, urljoin
-
-from unit.handle_log import setup_logging
+from typing import Dict, List, Optional, Tuple
+from urllib.parse import urljoin, urlparse, urlunparse
 
 from static.color import Color
+from unit.handle_log import setup_logging
 from unit.http.request_berriz_api import GetRequest
 
 

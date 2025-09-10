@@ -1,12 +1,11 @@
+import asyncio
 import subprocess
 from pathlib import Path
-
-from typing import Optional, List
+from typing import List, Optional
 
 from static.color import Color
 from unit.handle_log import setup_logging
 from unit.parameter import paramstore
-import asyncio
 
 
 logger = setup_logging('mux', 'lavender')

@@ -1,6 +1,7 @@
 from functools import wraps
 from typing import Callable
 
+
 class ParamStore:
     _instance = None
     

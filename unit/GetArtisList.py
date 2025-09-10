@@ -1,15 +1,11 @@
 import asyncio
-import aiohttp
-from typing import Dict, Optional
 from aiohttp import ClientTimeout
-
 import aiohttp
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-
-from unit.user_choice import NumericSelector
 from unit.handle_log import setup_logging
+
 
 MediaItem = Dict[str, Union[str, Dict, bool]]
 SelectedMedia = Dict[str, List[Dict]]

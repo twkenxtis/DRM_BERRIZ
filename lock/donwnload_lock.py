@@ -1,6 +1,6 @@
 import atexit
-import pickle
 import os
+import pickle
 import queue
 import threading
 

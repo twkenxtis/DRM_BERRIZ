@@ -1,6 +1,7 @@
 from cookies.cookies import Berriz_cookie
 from unit.http.request_berriz_api import My
 
+
 async def fanclub_main():
     if Berriz_cookie()._cookies == {}:
         return

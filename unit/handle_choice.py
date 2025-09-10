@@ -1,13 +1,13 @@
 import asyncio
 
 from lib.media_queue import MediaQueue
+from mystate.parse_my import request_my
 from static.color import Color
 from unit.GetMediaList import MediaFetcher
-from unit.user_choice import InquirerPySelector
-from unit.media_json_process import MediaJsonProcessor
-from unit.main_process import MediaProcessor
-from mystate.parse_my import request_my
 from unit.handle_log import setup_logging
+from unit.main_process import MediaProcessor
+from unit.media_json_process import MediaJsonProcessor
+from unit.user_choice import InquirerPySelector
 
 
 logger = setup_logging('handle_choice', 'light_slate_gray')

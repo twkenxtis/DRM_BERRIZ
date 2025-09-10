@@ -1,18 +1,17 @@
 import asyncio
-from typing import Dict, Optional
-from functools import cache
-
+import random
 from datetime import datetime
+from functools import cache
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from cookies.cookies import Berriz_cookie
-from static.color import Color
 from mystate.fanclub import fanclub_main
-from unit.handle_log import setup_logging
-from unit.parameter import paramstore
+from static.color import Color
 from unit.community import get_community, get_community_print
-from unit.http.request_berriz_api import MediaList, Live
-import random
+from unit.handle_log import setup_logging
+from unit.http.request_berriz_api import Live, MediaList
+from unit.parameter import paramstore
+
 
 MediaItem = Dict[str, Union[str, Dict, bool]]
 SelectedMedia = Dict[str, List[Dict]]

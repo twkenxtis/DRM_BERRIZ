@@ -1,7 +1,10 @@
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List, Tuple
+
+from typing import List, Optional, Tuple
+
 from dateutil import parser as dateutil_parser
+
 
 class FlexibleDateParser:
     def __init__(self, default_hour: int = 23, default_minute: int = 59, default_second: int = 0,

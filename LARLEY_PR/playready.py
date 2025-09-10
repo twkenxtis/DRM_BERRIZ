@@ -1,14 +1,15 @@
-import logging
-import httpx
 import xml.etree.ElementTree as ET
 
+import httpx
+
+from unit.handle_log import setup_logging
 from pyplayready.cdm import Cdm
 from pyplayready.device import Device
 from pyplayready.system.pssh import PSSH
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+
+logger = setup_logging('playready', 'graphite')
+
 
 class PlayReadyDRM:
     def __init__(self, device_path: str):
@@ -16,11 +17,11 @@ class PlayReadyDRM:
         self.cdm = Cdm.from_device(self.device)
         self.session_id = self.cdm.open()
 
-    async def get_license_key(self, pssh: str, acquirelicenseassertion: str, license_url: str = "https://berriz.drmkeyserver.com/playready_license") -> str:
+    async def get_license_key(self, pssh: str, acquirelicenseassertion: str) -> str:
         try:
             pssh_obj = PSSH(pssh)
             if not pssh_obj.wrm_headers:
-                logging.error("Invalid PSSH: No WRM headers found")
+                logger.error("Invalid PSSH: No WRM headers found")
                 return None
             if len(pssh) < 76:
                 raise ValueError("Invalid PSSH: WRM header length is too short")
@@ -28,7 +29,7 @@ class PlayReadyDRM:
             challenge = self.cdm.get_license_challenge(self.session_id, pssh_obj.wrm_headers[0])
 
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 9; AFTKA) AppleWebKit/537.36 (KHTML, like Gecko) Silk/112.5.1 like Chrome/112.0.5615.213 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; AFTKA) AppleWebKit/537.36 (KHTML, like Gecko) Silk/112.5.1 like Chrome/112.0.5615.213 Safari/537.36',
                 'Connection': 'Keep-Alive',
                 'Content-Type': 'application/octet-stream',
                 'acquirelicenseassertion': acquirelicenseassertion
@@ -36,7 +37,7 @@ class PlayReadyDRM:
 
             async with httpx.AsyncClient(timeout=13.0, verify=True) as client:
                 response = await client.post(
-                    url=license_url,
+                    url="https://berriz.drmkeyserver.com/playready_license",
                     headers=headers,
                     data=challenge,
                 )
@@ -54,7 +55,7 @@ class PlayReadyDRM:
             return content_keys
 
         except Exception as e:
-            logging.error(e)
+            logger.error(e)
 
         finally:
             self.cdm.close(self.session_id)

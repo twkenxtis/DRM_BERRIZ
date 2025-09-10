@@ -1,6 +1,11 @@
+from typing import List
+import json
 import httpx
-import json 
-import logging
+
+from unit.handle_log import setup_logging
+
+
+logger = setup_logging('watora', 'foggy')
 
 
 class Watora_wv:
@@ -28,11 +33,11 @@ class Watora_wv:
                 decryption_results.raise_for_status()
 
             if decryption_results.status_code != 200:
-                logging.error(f"Failed to get decryption results: {decryption_results.text}")
+                logger.error(f"Failed to get decryption results: {decryption_results.text}")
                 return None
             keys = []
             keys.append(decryption_results.json().get('Message').strip())
             return keys
         except Exception as e:
-            logging.error(e)
+            logger.error(e)
             return None

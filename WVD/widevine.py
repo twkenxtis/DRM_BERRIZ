@@ -5,9 +5,8 @@ from pywidevine.cdm import Cdm
 from pywidevine.device import Device
 from pywidevine.pssh import PSSH
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+from unit.handle_log import setup_logging
+
 
 class WidevineDRM:
     def __init__(self, device_path: str):

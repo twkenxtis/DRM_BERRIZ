@@ -3,12 +3,14 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from typing import Any, Dict, List, Set, Tuple, Union
+
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
-from typing import Dict, List, Set, Tuple, Union, Any
 
-from unit.community import get_community, custom_dict
+from unit.community import custom_dict, get_community
+
 
 MediaItem = Dict[str, Union[str, Dict, bool]]
 SelectedMedia = Dict[str, List[Dict]]
@@ -253,10 +255,13 @@ def parse_range_input(
     return picks
 
 def format_core(item: dict, t: str) -> str:
-    if t == "vod":
-        return f"{item['vod']['duration'] / 60:.1f} min"
-    elif t == "photo":
-        return f"{item['photo']['imageCount']} imgs"
-    elif t == "live":
-        return f"{item['live']['replay']['duration'] / 60:.1f} min"
+    try:
+        if t == "vod":
+            return f"{item['vod']['duration'] / 60:.1f} min"
+        elif t == "photo":
+            return f"{item['photo']['imageCount']} imgs"
+        elif t == "live":
+            return f"{item['live']['replay']['duration'] / 60:.1f} min"
+    except TypeError:
+        return 'Live-noreplay'
     return "unknown"

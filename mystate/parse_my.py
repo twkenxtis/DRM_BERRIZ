@@ -2,8 +2,9 @@ import asyncio
 
 from cookies.cookies import Berriz_cookie
 from static.color import Color
-from unit.http.request_berriz_api import My
 from unit.handle_log import setup_logging
+from unit.http.request_berriz_api import My
+
 
 
 logger = setup_logging('parse_my', 'ruby')

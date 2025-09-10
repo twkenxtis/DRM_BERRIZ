@@ -1,20 +1,18 @@
 import asyncio
-import aiofiles.os as aios
-import aiofiles
 import os
 import shutil
-
-import httpx
 from pathlib import Path
 
-from lib.ffmpeg.parse_mpd import MPDParser, MediaTrack, MPDContent
+import aiofiles
+import aiofiles.os as aios
+import httpx
+
 from lib.ffmpeg.videoinfo import VideoInfo
 from lib.ffmpeg.mux import FFmpegMuxer
 from static.color import Color
 from static.PublicInfo import PublicInfo_Custom
 from unit.handle_log import setup_logging
 from unit.parameter import paramstore
-from unit.community import get_community
 
 
 logger = setup_logging('reName', 'violet')

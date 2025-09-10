@@ -1,6 +1,6 @@
 import asyncio
-import re
 import random
+import re
 import string
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -9,15 +9,15 @@ import aiofiles
 import httpx
 from fake_useragent import UserAgent
 
-from typing import Any, Dict, List, Union, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
-from static.color import Color
 from mystate.fanclub import fanclub_main
+from static.color import Color
+from unit.community import custom_dict, get_community
 from unit.handle_log import setup_logging
 from unit.http.request_berriz_api import Playback_info, Public_context
-from unit.image.parse_public_contexts import parse_public_contexts
 from unit.image.parse_playback_contexts import parse_playback_contexts
-from unit.community import get_community, custom_dict
+from unit.image.parse_public_contexts import parse_public_contexts
 
 
 logger = setup_logging('image', 'mint')

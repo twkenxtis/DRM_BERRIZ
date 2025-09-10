@@ -1,7 +1,8 @@
 import os
 import sqlite3
-from typing import Dict, Any, Optional
-import json
+from typing import Any, Dict, Optional
+
+import orjson
 
 class SQLiteKeyVault:
     DB_FILE = "key\\local_key_vault.db"
@@ -41,17 +42,13 @@ class SQLiteKeyVault:
         """獲取數據庫連接"""
         return sqlite3.connect(self.DB_FILE)
 
-    def _serialize_value(self, value: Any) -> tuple:
-        """序列化值並返回類型和序列化後的數據"""
+    def _serialize_value(self, value: Any) -> tuple[str, str]:
         if isinstance(value, (str, int, float, bool)):
-            # 對於基本類型，直接轉換為字符串
             return (type(value).__name__, str(value))
         else:
-            # 對於複雜對象，使用 JSON 序列化
-            return ('json', json.dumps(value))
+            return ('json', orjson.dumps(value).decode('utf-8'))
 
     def _deserialize_value(self, value_type: str, value_data: str) -> Any:
-        """反序列化數據庫值"""
         if value_type == 'str':
             return value_data
         elif value_type == 'int':
@@ -61,9 +58,9 @@ class SQLiteKeyVault:
         elif value_type == 'bool':
             return value_data.lower() == 'true'
         elif value_type == 'json':
-            return json.loads(value_data)
+            return orjson.loads(value_data.encode('utf-8'))
         else:
-            return value_data
+            raise ValueError(f"Unsupported value type: {value_type}")
 
     def store(self, new_data: Dict[str, Any], drm_type: str = "unknown"):
         """存儲多個鍵值對，並指定 DRM 類型"""

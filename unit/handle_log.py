@@ -3,7 +3,6 @@ import logging
 import os
 import re
 import threading
-
 from logging.handlers import TimedRotatingFileHandler
 
 from static.color import Color

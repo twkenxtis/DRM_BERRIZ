@@ -1,6 +1,13 @@
-import httpx
 import logging
 from typing import List
+
+import httpx
+
+from unit.handle_log import setup_logging
+
+
+logger = setup_logging('cdrm', 'gray')
+
 
 class CDRM:
     def __init__(self):
@@ -16,7 +23,7 @@ class CDRM:
         
     async def get_license_key(self, pssh: str, acquirelicenseassertion: str) -> List:
         if not pssh:
-            logging.error("Invalid PSSH: No WRM headers found")
+            logger.error("Invalid PSSH: No WRM headers found")
             return None
         drm_service = self.chosee_drm_service(pssh)
 
@@ -29,7 +36,7 @@ class CDRM:
                     'pssh': pssh,
                     'licurl': licurl,
                     'headers': str({
-                        'User-Agent': 'Mozilla/5.0 (Linux; Android 9; AFTKA) AppleWebKit/537.36 (KHTML, like Gecko) Silk/112.5.1 like Chrome/112.0.5615.213 Safari/537.36',
+                        'User-Agent': 'Mozilla/5.0 (Linux; Android 11; AFTKA) AppleWebKit/537.36 (KHTML, like Gecko) Silk/112.5.1 like Chrome/112.0.5615.213 Safari/537.36',
                         'acquirelicenseassertion': acquirelicenseassertion
                     })
                 }

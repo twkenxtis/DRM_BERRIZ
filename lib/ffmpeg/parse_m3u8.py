@@ -1,6 +1,6 @@
+import os
 import re
 import urllib.parse
-import os
 
 
 URI_PATTERN = re.compile(r'URI="([^"]+)"')

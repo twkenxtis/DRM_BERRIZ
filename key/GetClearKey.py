@@ -1,9 +1,11 @@
 from static.color import Color
 from unit.handle_log import setup_logging
+
+# DRM modules
+from key.cdrm import CDRM
+from key.watora import Watora_wv
 from LARLEY_PR.playready import PlayReadyDRM
 from WVD.widevine import WidevineDRM
-from key.watora import Watora_wv
-from key.cdrm import CDRM
 
 
 logger = setup_logging('GetClearKey', 'honeydew')

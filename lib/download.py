@@ -1,17 +1,16 @@
 import asyncio
-import shutil
 import os
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
+import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any, Optional, Callable
-import aiohttp
-import aiofiles
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
+import aiofiles
+import aiohttp
 from tqdm.asyncio import tqdm_asyncio
 
-from lib.ffmpeg.parse_mpd import MPDContent, MPDParser, MediaTrack
 from lib.ffmpeg.parse_hls import HLS_Paser
+from lib.ffmpeg.parse_mpd import MPDContent, MPDParser, MediaTrack
 from lib.video_folder import start_download_queue
 from static.color import Color
 from unit.handle_log import setup_logging
