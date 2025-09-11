@@ -139,14 +139,29 @@ class save_hls_mpd:
     async def mpd_to_folder(self, raw_mpd: object):
         if raw_mpd is not None:
             save_path = self.output_dir / 'manifest.mpd'
+            save_path.parent.mkdir(parents=True, exist_ok=True)
             async with aiofiles.open(save_path, 'w') as f:
                 await f.write(raw_mpd.text)
 
     async def hls_to_folder(self, raw_hls: object):
         if raw_hls is not None:
             save_path = self.output_dir / 'manifest.m3u8'
+            save_path.parent.mkdir(parents=True, exist_ok=True)
             async with aiofiles.open(save_path, 'w') as f:
                 await f.write(raw_hls)
+                
+    async def play_list_to_folder(self, raw_play_list: object):
+        json_bytes = orjson.dumps(
+            raw_play_list,
+            option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS
+        )
+        save_path = self.output_dir / "meta.json"
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = save_path.with_suffix(".json.part")
+
+        async with aiofiles.open(tmp_path, "wb") as f:
+            await f.write(json_bytes)
+        tmp_path.replace(save_path)
 
 
 async def start_download_queue(decryption_key, json_data, mpd_content, raw_mpd, hls_playback_url, raw_hls):
@@ -171,7 +186,8 @@ async def start_download_queue(decryption_key, json_data, mpd_content, raw_mpd, 
         await asyncio.gather(
             asyncio.create_task(s_obhect.mpd_to_folder(raw_mpd)),
             asyncio.create_task(s_obhect.hls_to_folder(raw_hls)),
-            asyncio.create_task(video_folder_obj.save_json_to_folder(output_dir))
+            asyncio.create_task(video_folder_obj.save_json_to_folder(output_dir)),
+            asyncio.create_task(s_obhect.play_list_to_folder(mpd_content))
         )
         from lib.download import MediaDownloader
 
