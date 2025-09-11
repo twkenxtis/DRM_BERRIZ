@@ -75,7 +75,7 @@ class MediaProcessor:
 
     async def _process_vod_items(self, media_id: str, media_type) -> None:
         """Process VOD items using BerrizProcessor."""
-        if await BerrizAPIClient().cookie() != {}:
+        if await BerrizAPIClient().cookie() == {}:
             logger.warning(f"{Color.fg('light_gray')}Cookies are required to download {Color.bg('crimson')}videos{Color.reset()}")
             logger.info(f"{Color.fg('gold')}Skip {media_id} video download{Color.reset()}")
             return
@@ -159,4 +159,5 @@ class MediaProcessor:
             return True
         if video_dup is False and media_type == "VOD" and paramstore.get('key') is None:
             return True
+
         return False
