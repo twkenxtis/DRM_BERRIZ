@@ -23,126 +23,129 @@ logger = setup_logging('cookies', 'firebrick')
 
 
 class CookieUtils:
-    """Static class for common cookie-related utilities."""
-
     BASE_URL = "https://berriz.in"
     REQUIRED_COOKIES = ["pcid"]
 
+    async def _retry_with_action(self, action, error_log_cb, max_retries=5):
+        retry_count = 0
+        while retry_count < max_retries:
+            try:
+                return await action()
+            except Exception as e:
+                retry_count += 1
+                error_log_cb(e, retry_count)
+                await asyncio.sleep(1)
+        error_log_cb("Max retry fail", retry_count)
+        return None
+
+    async def _read_cache_key(self, key: str) -> str:
+        async def read_action():
+            async with _refresh_lock:
+                if not os.path.exists(TEMP_JSON):
+                    return ""
+                async with aiofiles.open(TEMP_JSON, "rb") as f:
+                    content = await f.read()
+                data = orjson.loads(content)
+                return data.get('cache_cookie', {}).get(key, "")
+
+        result = await self._retry_with_action(
+            read_action,
+            lambda e, rc: logger.warning(f"Read '{key}' issue: {e} ({rc}/5)")
+        )
+        if result is None:
+            logger.error(f"Max retry fail to read '{key}'")
+            return ""
+        return result
+
+    async def _write_cache_key(self, key: str, value: str) -> None:
+        tmp_path = TEMP_JSON.with_suffix(".tmp")
+
+        async def write_action():
+            async with _refresh_lock:
+                if not os.path.exists(TEMP_JSON):
+                    logger.error(f"快取檔案不存在，無法Write '{key}' ")
+                    return False
+                async with aiofiles.open(TEMP_JSON, "rb") as f:
+                    content = await f.read()
+                data = orjson.loads(content)
+                if 'cache_cookie' not in data:
+                    logger.error("JSON 檔案結構錯誤：缺少 'cache_cookie' 鍵 ")
+                    return False
+                data['cache_cookie'][key] = value
+                updated_content = orjson.dumps(data, option=orjson.OPT_INDENT_2)
+                async with aiofiles.open(tmp_path, "wb") as f:
+                    await f.write(updated_content)
+                await aiofiles.os.replace(tmp_path, TEMP_JSON)
+                return True
+
+        result = await self._retry_with_action(
+            write_action,
+            lambda e, rc: logger.error(f"Write '{key}' 時發生錯誤：{e} ({rc}/5)")
+        )
+
+        if result is not True:
+            logger.error(f"達到最大重試次數，Write '{key}' 失敗")
+            raise Exception(f"無法更新 '{key}' 快取 ")
+
+    async def read_bz_r(self) -> str:
+        return await self._read_cache_key("bz_r")
+
+    async def save_bz_r(self, bz_r: str) -> None:
+        await self._write_cache_key("bz_r", bz_r)
+
+    async def read_bz_a(self) -> str:
+        return await self._read_cache_key("bz_a")
+
+    async def save_bz_a(self, token: str) -> None:
+        await self._write_cache_key("bz_a", token)
+
+    async def read_pcid(self) -> str:
+        return await self._read_cache_key("pcid")
+
+    async def save_pcid(self, pcid: str) -> None:
+        await self._write_cache_key("pcid", pcid)
+
     async def get_bz_r(self) -> str:
-        """Get the bz_r value from the Netscape cookie file."""
         try:
             bz_r1 = await self.read_bz_r()
             bz_r2 = await NetscapeCookieReader().get_cookie("bz_r")
             if len(bz_r1) > 90 and bz_r1 != bz_r2:
                 if os.path.exists(TEMP_JSON):
-                    await aiofiles.os.remove(TEMP_JSON)
+                    os.remove(TEMP_JSON)
                     await Berriz_cookie().get_cookies()
-                    bz_r = bz_r2
-                    return bz_r
+                    return bz_r2
                 else:
                     raise FileNotFoundError
-            bz_r = bz_r2
             await self.save_bz_r(bz_r2)
-            if not bz_r:
+            if not bz_r2:
                 raise ValueError(f"bz_r cookie not found in {DEFAULT_COOKIE}")
-            return bz_r
+            return bz_r2
         except (FileNotFoundError, ValueError) as e:
             logger.error(f"Failed to load bz_r: {e}")
             raise
 
-    async def read_bz_r(self) -> str:
-        retry_count = 0
-        max_retries = 5
-
-        while retry_count < max_retries:
-            try:
-                async with _refresh_lock:
-                    if not os.path.exists(TEMP_JSON):
-                        return ""
-
-                    async with aiofiles.open(TEMP_JSON, "rb") as f:
-                        content = await f.read()
-
-                    data = orjson.loads(content)
-                    bz_r_value = data.get('cache_cookie', {}).get('bz_r', "")
-                    return bz_r_value
-
-            except Exception as e:
-                retry_count += 1
-                logger.warning(f"Read 'bz_r' issuse：{e} ({retry_count}/{max_retries})")
-                await asyncio.sleep(1)
-
-        logger.error("Max retry fail to read 'bz_r'")
-        return ""
-
-    async def save_bz_r(self, bz_r: str) -> None:
-        tmp_path = TEMP_JSON.with_suffix(".tmp")
-        
-        retry_count = 0
-        max_retries = 5
-        
-        while retry_count < max_retries:
-            try:
-                async with _refresh_lock:
-                    if not os.path.exists(TEMP_JSON):
-                        logger.error("快取檔案不存在，無法Write 'bz_r' ")
-                        break
-
-                    async with aiofiles.open(TEMP_JSON, "rb") as f:
-                        content = await f.read()
-
-                    data = orjson.loads(content)
-
-                    if 'cache_cookie' in data:
-                        data['cache_cookie']['bz_r'] = bz_r
-                    else:
-                        logger.error("JSON 檔案結構錯誤：缺少 'cache_cookie' 鍵 ")
-                        break
-                    
-                    updated_content = orjson.dumps(data, option=orjson.OPT_INDENT_2)
-                    
-                    async with aiofiles.open(tmp_path, "wb") as f:
-                        await f.write(updated_content)
-                    
-                    await aiofiles.os.replace(tmp_path, TEMP_JSON)
-                    break
-
-            except Exception as e:
-                retry_count += 1
-                if await aiofiles.os.path.exists(tmp_path):
-                    await aiofiles.os.remove(tmp_path)
-                logger.error(f"Write 'bz_r' 時發生錯誤：{e} ({retry_count}/{max_retries})")
-                await asyncio.sleep(1)
-                
-        if retry_count == max_retries:
-            logger.error("達到最大重試次數，Write 'bz_r' 失敗 ")
-            raise Exception("無法更新 'bz_r' 快取 ")
-    
     async def get_default_cookies(self) -> dict:
-        """Get default cookies from the Netscape cookie file."""
         try:
             pcid = await self.read_pcid()
             if len(pcid) > 20:
                 return {'pcid': pcid}
-            else:
-                cookie_reader = NetscapeCookieReader()
-                cookies = {
-                    name: await cookie_reader.get_cookie(name)
-                    for name in CookieUtils.REQUIRED_COOKIES
-                    if await cookie_reader.get_cookie(name)
-                }
-                if len(cookies) != len(CookieUtils.REQUIRED_COOKIES):
-                    missing = [
-                        name for name in CookieUtils.REQUIRED_COOKIES if name not in cookies
-                    ]
-                    raise ValueError(f"Missing required cookies in {DEFAULT_COOKIE}: {missing}")
-                await self.save_pcid(cookies['pcid'])
-                return cookies['pcid']
+            cookie_reader = NetscapeCookieReader()
+            cookies = {
+                name: await cookie_reader.get_cookie(name)
+                for name in CookieUtils.REQUIRED_COOKIES
+                if await cookie_reader.get_cookie(name)
+            }
+            if len(cookies) != len(CookieUtils.REQUIRED_COOKIES):
+                missing = [
+                    name for name in CookieUtils.REQUIRED_COOKIES if name not in cookies
+                ]
+                raise ValueError(f"Missing required cookies in {DEFAULT_COOKIE}: {missing}")
+            await self.save_pcid(cookies.get('pcid', ''))
+            return cookies.get('pcid', '')
         except (ValueError) as e:
             raise ValueError(e)
 
     async def get_initial_headers(self) -> dict:
-        """Get initial headers with bz_r from the cookie file."""
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0",
             "Accept": "application/json",
@@ -156,136 +159,6 @@ class CookieUtils:
             "bz_r": await self.get_bz_r(),
         }
         return headers
-
-    async def save_bz_a(self, token: str) -> None:
-        if not os.path.exists(TEMP_JSON.parent):
-            raise FileNotFoundError(f"{TEMP_JSON} does not exist")
-        
-        tmp_path = TEMP_JSON.with_suffix(".tmp")
-        
-        retry_count = 0
-        max_retries = 5
-        
-        while retry_count < max_retries:
-            try:
-                async with _refresh_lock:
-                    async with aiofiles.open(TEMP_JSON, "rb") as f:
-                        content = await f.read()
-                    data = orjson.loads(content)
-                    if 'cache_cookie' in data:
-                        data['cache_cookie']['bz_a'] = token
-                    else:
-                        logger.error("JSON 檔案缺少 'cache_cookie' 鍵")
-                        raise RuntimeError
-                    updated_content = orjson.dumps(data, option=orjson.OPT_INDENT_2) 
-                    async with aiofiles.open(tmp_path, "wb") as f:
-                        await f.write(updated_content)
-                    await aiofiles.os.replace(tmp_path, TEMP_JSON)
-                    break
-            except Exception as e:
-                retry_count += 1
-                if await aiofiles.os.path.exists(tmp_path):
-                    await aiofiles.os.remove(tmp_path)
-                logger.error(f"Write 'bz_a' 時發生錯誤：{e} ({retry_count}/{max_retries})")
-                await asyncio.sleep(1)
-        
-        if retry_count == max_retries:
-            logger.error("達到最大重試次數，Write 'bz_a' 失敗")
-            raise Exception("無法更新 'bz_a' 快取")
-
-    async def read_bz_a(self) -> str:
-        retry_count = 0
-        max_retries = 5
-
-        if not os.path.exists(TEMP_JSON):
-            return ""
-
-        while retry_count < max_retries:
-            try:
-                async with _refresh_lock:
-                    async with aiofiles.open(TEMP_JSON, "rb") as f:
-                        content = await f.read()
-
-                    data = orjson.loads(content)
-                    bz_a_value = data.get('cache_cookie', {}).get('bz_a', "")
-                    return bz_a_value
-
-            except Exception as e:
-                retry_count += 1
-                logger.warning(f"讀取 'bz_a' 時發生錯誤：{e} ({retry_count}/{max_retries})")
-                await asyncio.sleep(1)
-
-        logger.error("Max retry fail to read 'bz_a'")
-        return ""
-
-    async def save_pcid(self, pcid: str) -> None:
-        tmp_path = TEMP_JSON.with_suffix(".tmp")
-        
-        retry_count = 0
-        max_retries = 5
-        
-        while retry_count < max_retries:
-            try:
-                async with _refresh_lock:
-                    if not os.path.exists(TEMP_JSON):
-                        logger.error("快取檔案不存在，無法Write 'pcid'")
-                        break
-
-                    async with aiofiles.open(TEMP_JSON, "rb") as f:
-                        content = await f.read()
-
-                    data = orjson.loads(content)
-
-                    if 'cache_cookie' in data:
-                        data['cache_cookie']['pcid'] = pcid
-                    else:
-                        logger.error("JSON 檔案結構錯誤：缺少 'cache_cookie' 鍵")
-                        break
-                    
-                    updated_content = orjson.dumps(data, option=orjson.OPT_INDENT_2)
-                    
-                    async with aiofiles.open(tmp_path, "wb") as f:
-                        await f.write(updated_content)
-                    
-                    await aiofiles.os.replace(tmp_path, TEMP_JSON)
-                    break
-
-            except Exception as e:
-                retry_count += 1
-                if await aiofiles.os.path.exists(tmp_path):
-                    await aiofiles.os.remove(tmp_path)
-                logger.error(f"Write 'pcid' 時發生錯誤：{e} ({retry_count}/{max_retries})")
-                await asyncio.sleep(1)
-                
-        if retry_count == max_retries:
-            logger.error("達到最大重試次數，Write 'pcid' 失敗")
-            raise Exception("無法更新 'pcid' 快取")
-
-    async def read_pcid(self) -> str:
-        retry_count = 0
-        max_retries = 5
-
-        while retry_count < max_retries:
-            try:
-                async with _refresh_lock:
-                    if not os.path.exists(TEMP_JSON):
-                        return ""
-
-                    async with aiofiles.open(TEMP_JSON, "rb") as f:
-                        content = await f.read()
-
-                    data = orjson.loads(content)
-                    pcid_value = data.get('cache_cookie', {}).get('pcid', "")
-
-                    return pcid_value
-
-            except Exception as e:
-                retry_count += 1
-                logger.warning(f"讀取 'pcid' 時發生錯誤：{e} ({retry_count}/{max_retries})")
-                await asyncio.sleep(1)
-
-        logger.error("Max retry fail to read 'pcid'")
-        return ""
 
 class Refresh_JWT:
     no_expires_log = False
@@ -466,8 +339,8 @@ class NetscapeCookieReader:
         self.file_path = Path(DEFAULT_COOKIE)
 
     async def cookies(self) -> Dict[str, str]:
-        if not await aiofiles.os.path.exists(self.file_path):
-            await aiofiles.os.makedirs(self.file_path.parent, exist_ok=True)
+        if not os.path.exists(self.file_path):
+            os.makedirs(self.file_path.parent, exist_ok=True)
             return {}
 
         try:
@@ -541,15 +414,7 @@ class Berriz_cookie:
             self._cookies = {}
             
     async def get_cookies(self) -> dict:
-        empty_cache_json = {
-            "cache_cookie": {
-                "bz_a": "",
-                "bz_r": "",
-                "pcid": "",
-                "refresh_time": ""
-            }
-        }
-
+        empty_cache_json = self.default_json()
         if not os.path.exists(TEMP_JSON):
             try:
                 content_bytes = orjson.dumps(empty_cache_json, option=orjson.OPT_INDENT_2)
@@ -577,6 +442,16 @@ class Berriz_cookie:
                     return {}
             
             return self._cookies
+    
+    def default_json(self) -> dict:
+        return {
+            "cache_cookie": {
+                "bz_a": "",
+                "bz_r": "",
+                "pcid": "",
+                "refresh_time": 0
+            }
+        }
 
     async def check_cookie(self):
         if len(self._cookies.get('bz_a', '')) < 500:
@@ -586,14 +461,7 @@ class Berriz_cookie:
             max_retries = 5
             while retry_count < max_retries:
                 try:
-                    async with aiofiles.open(TEMP_JSON, 'rb') as f:
-                        content = await f.read()
-                    data = orjson.loads(content)
-                    if 'cache_cookie' in data:
-                        data['cache_cookie']['refresh_time'] = ""
-                    else:
-                        logger.error(f"檔案結構錯誤：'{TEMP_JSON}' 缺少 'cache_cookie' 鍵")
-                        break 
+                    os.remove(TEMP_JSON)
                     break 
                 except Exception as e:
                     retry_count += 1
