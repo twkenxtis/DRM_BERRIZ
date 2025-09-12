@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import textwrap
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from unit.parameter import paramstore
 
 import jwt
 import aiohttp
@@ -149,8 +150,6 @@ class CookieUtils:
 
     async def get_initial_headers(self) -> dict:
         bz_r = await self.get_bz_r()
-        if len(bz_r) < 80:
-            return None
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0",
             "Accept": "application/json",
@@ -172,47 +171,43 @@ class CookieUtils:
 class Refresh_JWT:
     no_expires_log = False
     CU = CookieUtils()
+    show_no_passwd_log = True
     def __init__(self, session: aiohttp.ClientSession):
         self.session = session
+        self.headers = None
 
     async def refresh_token(self) -> str | None:
         """Refresh the JWT token and save it to bz_a"""
         url = "https://account.berriz.in/auth/v1/token:refresh?languageCode=en"
         headers = await Refresh_JWT.CU.get_initial_headers()
+        self.headers = headers
         json_data = {"clientId": "e8faf56c-575a-42d2-933d-7b2e279ad827"}
-        if headers is not None:
-            try:
-                async with self.session.post(url, headers=headers, json=json_data) as resp:
-                    data = await resp.json()
-                if resp.status != 200:
-                    if data['code'] == 'FS_AU4021':
-                        LM = LoginManager()
-                        if await LM.load_info() is True:
-                            bz_a, bz_r = await LM.new_refresh_cookie()
-                            if all([bz_a, bz_r]) is not None and await self.update_cookie_file(bz_a, bz_r) is True:
-                                logger.info(f"{Color.fg('light_red')}Token refresh failed, try auto re-login {Color.fg('olive')}success!{Color.reset()}")
-                            return True
-                        else:
-                            logger.info(f"{Color.fg('light_red')}Token refresh failed, try auto re-login stil {Color.fg('gold')}Fail{Color.reset()}")
-                            return None
-                access_token = data["data"]["accessToken"]
-                try:
-                    decoded = jwt.decode(access_token, options={"verify_signature": False})
-                    exp_time = datetime.fromtimestamp(decoded["exp"]).strftime("%Y-%m-%d %H:%M:%S")
-                    if Refresh_JWT.no_expires_log is False:
-                        logger.info(f"{Color.fg('beige')}Token expires at {exp_time}{Color.reset()}")
-                        Refresh_JWT.no_expires_log = True
-                except Exception as e:
-                    logger.warning(f"Failed to decode token: {e}")
-                await Refresh_JWT.CU.save_bz_a(access_token)
-                return access_token
 
+        try:
+            async with self.session.post(url, headers=headers, json=json_data) as resp:
+                data = await resp.json()
+            if resp.status != 200:
+                if data['code'] == 'FS_AU4021':
+                    await self.fsau4021()
+            access_token = data["data"]["accessToken"]
+            try:
+                decoded = jwt.decode(access_token, options={"verify_signature": False})
+                exp_time = datetime.fromtimestamp(decoded["exp"]).strftime("%Y-%m-%d %H:%M:%S")
+                if Refresh_JWT.no_expires_log is False:
+                    logger.info(f"{Color.fg('beige')}Token expires at {exp_time}{Color.reset()}")
+                    Refresh_JWT.no_expires_log = True
             except Exception as e:
-                logger.error(f"Token refresh error: {e}")
-                return None
-        else:
-            raise ValueError('bz_r is None')
-            
+                logger.warning(f"Failed to decode token: {e}")
+            await Refresh_JWT.CU.save_bz_a(access_token)
+            return access_token
+
+        except Exception as e:
+            if str(e) == 'No valid account/password in YAML':
+                if Refresh_JWT.show_no_passwd_log == True:
+                    logger.warning('No valid account/password in YAML')
+                    Refresh_JWT.show_no_passwd_log = False
+            logger.error(f"Token refresh error: {e}")
+            return None
 
     async def fsau4021(self):
         LM = LoginManager()
@@ -252,44 +247,10 @@ class Refresh_JWT:
             logger.error(f"Failed to update cookie file: {e}")
             return False
         
-    async def my_state_test(self) -> None:
-        """Test cookie validity by making a state request."""
-        async with asyncio.TaskGroup() as tg:
-            cookies_task = tg.create_task(Refresh_JWT.CU.get_default_cookies())
-            bz_a_task = tg.create_task(Refresh_JWT.CU.read_bz_a())
-            headers_task = tg.create_task(Refresh_JWT.CU.get_initial_headers())
-        if headers is None:
-            raise ValueError('bz_r is None')
-        cookies = cookies_task.result()
-        cookies["bz_a"] = bz_a_task.result()
-        headers = headers_task.result()
-        params = {"languageCode": "en"}
-
-        try:
-            async with self.session.get(
-                "https://svc-api.berriz.in/service/v1/my/state",
-                params=params,
-                cookies=cookies,
-                headers=headers,
-            ) as resp:
-                data = await resp.json()
-
-                if resp.status != 200:
-                    logger.error(f"Cookie test failed: {data}")
-                    return
-                elif data.get("message") != "SUCCESS":
-                    logger.error(f"Cookie test failed: {data}")
-                    return
-        except Exception as e:
-            print(data.text)
-            logger.error(f"State test error: {e}")
-            raise('Cookie test fail')
-
     async def refresh_and_test(self) -> str | None:
         """Refresh token and test cookie validity."""
         access_token = await self.refresh_token()
         if access_token:
-            await self.my_state_test()
             return access_token
         else:
             logger.error("Initial token refresh failed")
@@ -380,15 +341,13 @@ class Refresh_JWT:
 
     async def main(self) -> None:
         """Main method to handle token refresh if needed."""
-        
         if (os.path.exists(DEFAULT_COOKIE) and os.path.getsize(DEFAULT_COOKIE) > 0) is False:
             return
         if await self.should_refresh():
             if await self.refresh_and_test():
                 asyncio.create_task(self.write_next_refresh_time())
                 return True
-            else:
-                return False
+            return False
 
 
 class NetscapeCookieReader:
@@ -435,7 +394,6 @@ class Berriz_cookie:
     CU = CookieUtils()
     _instance = None
     show_no_cookie_log = True
-    _cookie_refresh_count = 0
 
     def __new__(cls):
         if cls._instance is None:
@@ -474,36 +432,40 @@ class Berriz_cookie:
             self._cookies = {}
             
     async def get_cookies(self) -> dict:
-        empty_cache_json = self.default_json()
-        if not os.path.exists(DEFAULT_COOKIE):
-            await self.create_empty_cookie()
-        if not os.path.exists(TEMP_JSON):
-            try:
-                content_bytes = orjson.dumps(empty_cache_json, option=orjson.OPT_INDENT_2)
-                async with aiofiles.open(TEMP_JSON, 'wb') as f:
-                    await f.write(content_bytes)
-            except Exception as e:
-                logger.error(f"Write {TEMP_JSON} 檔案時發生錯誤：{e}")
-                raise FileExistsError
+        if paramstore.get('no_cookie') is True:
+            empty_cache_json = self.default_json()
+            if not os.path.exists(DEFAULT_COOKIE):
+                await self.create_empty_cookie()
+            if not os.path.exists(TEMP_JSON):
+                try:
+                    content_bytes = orjson.dumps(empty_cache_json, option=orjson.OPT_INDENT_2)
+                    async with aiofiles.open(TEMP_JSON, 'wb') as f:
+                        await f.write(content_bytes)
+                except Exception as e:
+                    logger.error(f"Write {TEMP_JSON} 檔案時發生錯誤：{e}")
+                    raise FileExistsError
+            else:
+                if not hasattr(self, "_cookies") or not self._cookies:
+                    retry_count = 0
+                    max_retries = 5
+
+                    while retry_count < max_retries:
+                        try:
+                            await self.load_cookies()
+                            break 
+                        except Exception as e:
+                            retry_count += 1
+                            logger.warning(f"載入 cookie 時發生錯誤：{e} ({retry_count}/{max_retries})")
+                            await asyncio.sleep(1)
+
+                    if retry_count == max_retries:
+                        logger.error("達到最大重試次數，無法載入 cookie")
+                        return {}
+                
+                return self._cookies
         else:
-            if not hasattr(self, "_cookies") or not self._cookies:
-                retry_count = 0
-                max_retries = 5
-
-                while retry_count < max_retries:
-                    try:
-                        await self.load_cookies()
-                        break 
-                    except Exception as e:
-                        retry_count += 1
-                        logger.warning(f"載入 cookie 時發生錯誤：{e} ({retry_count}/{max_retries})")
-                        await asyncio.sleep(1)
-
-                if retry_count == max_retries:
-                    logger.error("達到最大重試次數，無法載入 cookie")
-                    return {}
-            
-            return self._cookies
+            # no cookie
+            return {}
     
     def default_json(self) -> dict:
         return {
@@ -538,12 +500,14 @@ class Berriz_cookie:
                 await self.load_cookies()
                 
     async def trigger_rwt(self):
-        # 觸發 token 重新整理
-        async with aiohttp.ClientSession() as session:
-            bool = await Refresh_JWT(session).main()
-            Berriz_cookie._cookie_refresh_count +=1
-            if bool is False:
-                raise
+        if paramstore.get('no_cookie') is not True:
+            # 觸發 token 重新整理
+            async with aiohttp.ClientSession() as session:
+                bool = await Refresh_JWT(session).main()
+                return bool
+        else:
+            print('/')
+            return False
     
     async def create_empty_cookie(self) -> None:
         cookie_text = textwrap.dedent("""\
@@ -561,8 +525,8 @@ class Berriz_cookie:
         berriz.in\tFALSE\t/\tFALSE\t1792088189\tcookie_policy_confirmed\tTRUE
         .berriz.in\tTRUE\t/\tTRUE\t0\tpcid\tsPj0iNAHjd7KzbDEBsBUB
         berriz.in\tFALSE\t/\tFALSE\t0\tNEXT_LOCALE\ten
-        .berriz.in\tTRUE\t/\tTRUE\t0\tbz_r\t25565
-        .berriz.in\tTRUE\t/\tTRUE\t0\tbz_a\t25565
+        .berriz.in\tTRUE\t/\tTRUE\t0\tbz_r\tNOCOOKIE_BZ_R
+        .berriz.in\tTRUE\t/\tTRUE\t0\tbz_a\tNOCOOKIE_BZ_A
         berriz.in\tFALSE\t/\tFALSE\t1757531775\tauth_status\tauthenticated
         """)
 
