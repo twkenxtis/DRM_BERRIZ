@@ -9,6 +9,7 @@ from unit.parameter import paramstore
 import jwt
 import aiohttp
 import aiofiles
+from aiofiles import os as aioos
 import orjson
 
 from lib.account.login import LoginManager
@@ -19,6 +20,7 @@ from unit.handle_log import setup_logging
 DEFAULT_COOKIE = Path("cookies/Berriz/default.txt")
 TEMP_JSON = Path("cookies/temp.json")
 _refresh_lock = asyncio.Lock()
+fsau4021_lock = asyncio.Lock()
 
 
 logger = setup_logging('cookies', 'firebrick')
@@ -77,7 +79,7 @@ class CookieUtils:
                 updated_content = orjson.dumps(data, option=orjson.OPT_INDENT_2)
                 async with aiofiles.open(tmp_path, "wb") as f:
                     await f.write(updated_content)
-                await aiofiles.os.replace(tmp_path, TEMP_JSON)
+                await aioos.replace(tmp_path, TEMP_JSON)
                 return True
 
         result = await self._retry_with_action(
@@ -120,7 +122,8 @@ class CookieUtils:
                     raise FileNotFoundError
             await self.save_bz_r(bz_r2)
             if not bz_r2:
-                await Refresh_JWT(await self.session()).fsau4021()
+                async with fsau4021_lock:
+                    await Refresh_JWT(await self.session()).fsau4021()
             else:
                 return bz_r2
         except (FileNotFoundError, ValueError) as e:
@@ -172,6 +175,7 @@ class Refresh_JWT:
     no_expires_log = False
     CU = CookieUtils()
     show_no_passwd_log = True
+    fsau_lock = 0
     def __init__(self, session: aiohttp.ClientSession):
         self.session = session
         self.headers = None
@@ -188,7 +192,11 @@ class Refresh_JWT:
                 data = await resp.json()
             if resp.status != 200:
                 if data['code'] == 'FS_AU4021':
-                    await self.fsau4021()
+                    if Refresh_JWT.fsau_lock == 0:
+                        async with fsau4021_lock:
+                            print(Refresh_JWT.fsau_lock, '跑刷新JWT FSAU4021')
+                            await self.fsau4021()
+                            Refresh_JWT.fsau_lock += 1
             access_token = data["data"]["accessToken"]
             try:
                 decoded = jwt.decode(access_token, options={"verify_signature": False})
@@ -432,7 +440,7 @@ class Berriz_cookie:
             self._cookies = {}
             
     async def get_cookies(self) -> dict:
-        if paramstore.get('no_cookie') is True:
+        if paramstore.get('no_cookie') is not True:
             empty_cache_json = self.default_json()
             if not os.path.exists(DEFAULT_COOKIE):
                 await self.create_empty_cookie()
