@@ -1,6 +1,7 @@
 import asyncio
 import os
 from datetime import datetime, timedelta
+import textwrap
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -118,8 +119,9 @@ class CookieUtils:
                     raise FileNotFoundError
             await self.save_bz_r(bz_r2)
             if not bz_r2:
-                raise ValueError(f"bz_r cookie not found in {DEFAULT_COOKIE}")
-            return bz_r2
+                await Refresh_JWT(await self.session()).fsau4021()
+            else:
+                return bz_r2
         except (FileNotFoundError, ValueError) as e:
             logger.error(f"Failed to load bz_r: {e}")
             raise
@@ -146,6 +148,9 @@ class CookieUtils:
             raise ValueError(e)
 
     async def get_initial_headers(self) -> dict:
+        bz_r = await self.get_bz_r()
+        if len(bz_r) < 80:
+            return None
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0",
             "Accept": "application/json",
@@ -156,9 +161,13 @@ class CookieUtils:
             "Alt-Used": "account.berriz.in",
             "Connection": "keep-alive",
             "TE": "trailers",
-            "bz_r": await self.get_bz_r(),
+            "bz_r": bz_r,
         }
         return headers
+    
+    async def session(self):
+        async with aiohttp.ClientSession() as session:
+            return session
 
 class Refresh_JWT:
     no_expires_log = False
@@ -171,35 +180,49 @@ class Refresh_JWT:
         url = "https://account.berriz.in/auth/v1/token:refresh?languageCode=en"
         headers = await Refresh_JWT.CU.get_initial_headers()
         json_data = {"clientId": "e8faf56c-575a-42d2-933d-7b2e279ad827"}
-
-        try:
-            async with self.session.post(url, headers=headers, json=json_data) as resp:
-                data = await resp.json()
-            if resp.status != 200:
-                if data['code'] == 'FS_AU4021':
-                    LM = LoginManager()
-                    if await LM.load_info() is True:
-                        bz_a, bz_r = await LM.new_refresh_cookie()
-                        if all([bz_a, bz_r]) is not None and await self.update_cookie_file(bz_a, bz_r) is True:
-                            logger.info(f"{Color.fg('light_red')}Token refresh failed, try auto re-login {Color.fg('olive')}success!{Color.reset()}")
-                        return True
-                    else:
-                        logger.info(f"{Color.fg('light_red')}Token refresh failed, try auto re-login stil {Color.fg('gold')}Fail{Color.reset()}")
-                        return None
-            access_token = data["data"]["accessToken"]
+        if headers is not None:
             try:
-                decoded = jwt.decode(access_token, options={"verify_signature": False})
-                exp_time = datetime.fromtimestamp(decoded["exp"]).strftime("%Y-%m-%d %H:%M:%S")
-                if Refresh_JWT.no_expires_log is False:
-                    logger.info(f"{Color.fg('beige')}Token expires at {exp_time}{Color.reset()}")
-                    Refresh_JWT.no_expires_log = True
-            except Exception as e:
-                logger.warning(f"Failed to decode token: {e}")
-            await Refresh_JWT.CU.save_bz_a(access_token)
-            return access_token
+                async with self.session.post(url, headers=headers, json=json_data) as resp:
+                    data = await resp.json()
+                if resp.status != 200:
+                    if data['code'] == 'FS_AU4021':
+                        LM = LoginManager()
+                        if await LM.load_info() is True:
+                            bz_a, bz_r = await LM.new_refresh_cookie()
+                            if all([bz_a, bz_r]) is not None and await self.update_cookie_file(bz_a, bz_r) is True:
+                                logger.info(f"{Color.fg('light_red')}Token refresh failed, try auto re-login {Color.fg('olive')}success!{Color.reset()}")
+                            return True
+                        else:
+                            logger.info(f"{Color.fg('light_red')}Token refresh failed, try auto re-login stil {Color.fg('gold')}Fail{Color.reset()}")
+                            return None
+                access_token = data["data"]["accessToken"]
+                try:
+                    decoded = jwt.decode(access_token, options={"verify_signature": False})
+                    exp_time = datetime.fromtimestamp(decoded["exp"]).strftime("%Y-%m-%d %H:%M:%S")
+                    if Refresh_JWT.no_expires_log is False:
+                        logger.info(f"{Color.fg('beige')}Token expires at {exp_time}{Color.reset()}")
+                        Refresh_JWT.no_expires_log = True
+                except Exception as e:
+                    logger.warning(f"Failed to decode token: {e}")
+                await Refresh_JWT.CU.save_bz_a(access_token)
+                return access_token
 
-        except Exception as e:
-            logger.error(f"Token refresh error: {e}")
+            except Exception as e:
+                logger.error(f"Token refresh error: {e}")
+                return None
+        else:
+            raise ValueError('bz_r is None')
+            
+
+    async def fsau4021(self):
+        LM = LoginManager()
+        if await LM.load_info() is True:
+            bz_a, bz_r = await LM.new_refresh_cookie()
+            if all([bz_a, bz_r]) is not None and await self.update_cookie_file(bz_a, bz_r) is True:
+                logger.info(f"{Color.fg('light_red')}Token refresh failed, try auto re-login {Color.fg('olive')}success!{Color.reset()}")
+            return True
+        else:
+            logger.info(f"{Color.fg('light_red')}Token refresh failed, try auto re-login stil {Color.fg('gold')}Fail{Color.reset()}")
             return None
 
     async def update_cookie_file(self, bz_a_new: str, bz_r_new: str):
@@ -235,7 +258,8 @@ class Refresh_JWT:
             cookies_task = tg.create_task(Refresh_JWT.CU.get_default_cookies())
             bz_a_task = tg.create_task(Refresh_JWT.CU.read_bz_a())
             headers_task = tg.create_task(Refresh_JWT.CU.get_initial_headers())
-
+        if headers is None:
+            raise ValueError('bz_r is None')
         cookies = cookies_task.result()
         cookies["bz_a"] = bz_a_task.result()
         headers = headers_task.result()
@@ -400,7 +424,6 @@ class NetscapeCookieReader:
                     logger.warning(f"Skipping malformed cookie line (invalid parts): {line}")
             else:
                 logger.warning(f"Skipping malformed cookie line (too few parts): {line}")
-
         return cookies_dict
 
     async def get_cookie(self, name: str) -> str:
@@ -452,6 +475,8 @@ class Berriz_cookie:
             
     async def get_cookies(self) -> dict:
         empty_cache_json = self.default_json()
+        if not os.path.exists(DEFAULT_COOKIE):
+            await self.create_empty_cookie()
         if not os.path.exists(TEMP_JSON):
             try:
                 content_bytes = orjson.dumps(empty_cache_json, option=orjson.OPT_INDENT_2)
@@ -519,3 +544,27 @@ class Berriz_cookie:
             Berriz_cookie._cookie_refresh_count +=1
             if bool is False:
                 raise
+    
+    async def create_empty_cookie(self) -> None:
+        cookie_text = textwrap.dedent("""\
+        # Netscape HTTP Cookie File
+        # http://curl.haxx.se/rfc/cookie_spec.html
+        # This is a generated file!  Do not edit.
+
+        .berriz.in\tTRUE\t/en\tFALSE\t0\t__T_\t1
+        .berriz.in\tTRUE\t/en\tTRUE\t0\t__T_SECURE\t1
+        berriz.in\tFALSE\t/\tFALSE\t1792088189\tapp_install_confirmed\tTRUE
+        .berriz.in\tTRUE\t/\tTRUE\t0\tpacode\t'fanplatf::app:android:phone'
+        .berriz.in\tTRUE\t/\tFALSE\t0\tNEXT_LOCALE\ten
+        .berriz.in\tTRUE\t/\tFALSE\t0\t__T_\t1
+        .berriz.in\tTRUE\t/\tTRUE\t0\t__T_SECURE\t1
+        berriz.in\tFALSE\t/\tFALSE\t1792088189\tcookie_policy_confirmed\tTRUE
+        .berriz.in\tTRUE\t/\tTRUE\t0\tpcid\tsPj0iNAHjd7KzbDEBsBUB
+        berriz.in\tFALSE\t/\tFALSE\t0\tNEXT_LOCALE\ten
+        .berriz.in\tTRUE\t/\tTRUE\t0\tbz_r\t25565
+        .berriz.in\tTRUE\t/\tTRUE\t0\tbz_a\t25565
+        berriz.in\tFALSE\t/\tFALSE\t1757531775\tauth_status\tauthenticated
+        """)
+
+        async with aiofiles.open(DEFAULT_COOKIE, "w", encoding="utf-8") as f:
+            await f.write(cookie_text)
