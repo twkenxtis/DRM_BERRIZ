@@ -284,14 +284,14 @@ class MediaDownloader:
     async def download_content(self, mpd_content: MPDContent):
         if mpd_content.__class__.__name__ == 'MPDContent':
             logger.info(f"{Color.fg('light_gray')}Start downloading{Color.reset()} "
-                        f"{Color.fg('tan')}MPD{Color.reset()} "
-                        f"{Color.fg('light_gray')}content{Color.reset()}"
+                        f"{Color.fg('light_gray')}content{Color.reset()} "
+                        f"{Color.fg('tan')}by MPEG-SASH{Color.reset()}"
                         )
             merge_type = 'mpd'
         elif mpd_content.__class__.__name__ == 'HLSContent':
             logger.info(f"{Color.fg('light_gray')}Start downloading{Color.reset()} "
-                        f"{Color.fg('orchid')}HLS{Color.reset()} "
-                        f"{Color.fg('light_gray')}content{Color.reset()}"
+                        f"{Color.fg('light_gray')}content{Color.reset()} "
+                        f"{Color.fg('orchid')}by HLS{Color.reset()}"
                         )
             merge_type = 'hls'
 
