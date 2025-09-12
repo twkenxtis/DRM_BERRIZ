@@ -10,7 +10,9 @@ logger = setup_logging('parse_my', 'ruby')
 
 async def request_my():
     # 檢查 cookie，若無則直接返回
-    await retry()
+    if await retry() is False:
+        return
+
     try:
         data, locat, notif, me_data = await asyncio.gather(
             My().fetch_my(),
@@ -64,15 +66,17 @@ async def retry():
         while retry_count < max_retries:
             try:
                 is_cookie_valid = await BerrizAPIClient().cookie()
-                if is_cookie_valid:
+                if is_cookie_valid != {}:
                     break
                 else:
                     retry_count += 1
                     await asyncio.sleep(0.25)
 
             except Exception as e:
+                if str(e) == 'request_berriz_api trigger token refresh failed':
+                    return False
                 retry_count += 2
                 await asyncio.sleep(1)
 
         if retry_count == max_retries:
-            return
+            return False
