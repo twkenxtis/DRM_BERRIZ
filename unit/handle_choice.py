@@ -8,6 +8,7 @@ from unit.handle_log import setup_logging
 from unit.main_process import MediaProcessor
 from unit.media_json_process import MediaJsonProcessor
 from unit.user_choice import InquirerPySelector
+from unit.parameter import paramstore
 
 
 logger = setup_logging('handle_choice', 'light_slate_gray')
@@ -15,7 +16,8 @@ logger = setup_logging('handle_choice', 'light_slate_gray')
 
 async def handle_choice(community_id: int, time_a, time_b):
     
-    await request_my()
+    if paramstore.get('no_cookie') is not True:
+        await request_my()
 
     if time_a is not None or time_b is not None:
         logger.info(f"{Color.fg('tomato')}choese "

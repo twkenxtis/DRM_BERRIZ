@@ -4,6 +4,7 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any, Union
 import xml.etree.ElementTree as ET
 
 import aiofiles
@@ -132,36 +133,61 @@ class DateTimeFormatter:
 
 
 class save_hls_mpd:
-    def __init__(self, output_dir):
+    def __init__(self, output_dir: Union[str, Path]):
         self.output_dir = Path(output_dir).parent
+        self.max_retries = 3
+        self.retry_delay = 2
+        self._ensure_dir()
+
+    def _ensure_dir(self) -> None:
+        """Ensure the output directory exists."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
-    async def mpd_to_folder(self, raw_mpd: object):
-        if raw_mpd is not None:
-            save_path = self.output_dir / 'manifest.mpd'
-            save_path.parent.mkdir(parents=True, exist_ok=True)
-            async with aiofiles.open(save_path, 'w') as f:
-                await f.write(raw_mpd.text)
 
-    async def hls_to_folder(self, raw_hls: object):
-        if raw_hls is not None:
-            save_path = self.output_dir / 'manifest.m3u8'
-            save_path.parent.mkdir(parents=True, exist_ok=True)
-            async with aiofiles.open(save_path, 'w') as f:
-                await f.write(raw_hls)
-                
-    async def play_list_to_folder(self, raw_play_list: object):
-        json_bytes = orjson.dumps(
-            raw_play_list,
-            option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS
-        )
-        save_path = self.output_dir / "meta.json"
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = save_path.with_suffix(".json.part")
+    async def _write_file(self, file_path: Path, content: Union[str, bytes], mode: str = "wb") -> None:
+        """Write content to a file with retry logic and atomic replacement."""
+        tmp_path = file_path.with_suffix(file_path.suffix + ".part")
+        for attempt in range(self.max_retries):
+            try:
+                async with aiofiles.open(tmp_path, mode) as f:
+                    await f.write(content)
+                await aiofiles.os.replace(tmp_path, file_path)
+                return
+            except Exception as e:
+                if attempt < self.max_retries - 1:
+                    await asyncio.sleep(self.retry_delay)
+                    continue
+                if await aiofiles.os.path.exists(tmp_path):
+                    await aiofiles.os.remove(tmp_path)
+                raise RuntimeError(f"Failed to write to {file_path} after {self.max_retries} attempts: {e}")
+    
+    async def mpd_to_folder(self, raw_mpd: Any) -> None:
+        """Save MPD content to manifest.mpd."""
+        if raw_mpd is None:
+            return
+        try:
+            content = raw_mpd.text
+            await self._write_file(self.output_dir / "manifest.mpd", content, mode="w")
+        except AttributeError as e:
+            raise ValueError("Invalid MPD object: missing 'text' attribute") from e
 
-        async with aiofiles.open(tmp_path, "wb") as f:
-            await f.write(json_bytes)
-        tmp_path.replace(save_path)
+    async def hls_to_folder(self, raw_hls: str) -> None:
+        """Save HLS content to manifest.m3u8."""
+        if raw_hls is None:
+            return
+        await self._write_file(self.output_dir / "manifest.m3u8", raw_hls, mode="w")
+
+    async def play_list_to_folder(self, raw_play_list: Any) -> None:
+        """Save playlist JSON to meta.json."""
+        if raw_play_list is None:
+            return
+        try:
+            json_bytes = orjson.dumps(
+                raw_play_list,
+                option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS
+            )
+            await self._write_file(self.output_dir / "meta.json", json_bytes)
+        except orjson.JSONEncodeError as e:
+            raise ValueError("Failed to serialize playlist to JSON") from e
 
 
 async def start_download_queue(decryption_key, json_data, mpd_content, raw_mpd, hls_playback_url, raw_hls):

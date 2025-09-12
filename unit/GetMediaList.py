@@ -21,9 +21,12 @@ logger = setup_logging('GetMediaList', 'turquoise')
 
 class FanClubFilter:
     async def is_fanclub():
-        context = await fanclub_main()
-        """None - not fanclub"""
-        return context
+        if paramstore.get('no_cookie') is not True:
+            context = await fanclub_main()
+            """None - not fanclub"""
+            return context
+        else:
+            return None
 
 
 class MediaParser:
@@ -51,6 +54,7 @@ class MediaParser:
             v_fc = p_fc = l_fc = []
 
         # Fanclub 身份檢查
+        
         t = await FanClubFilter.is_fanclub()
         if t is None:
             # 非會員 → 回傳非付費

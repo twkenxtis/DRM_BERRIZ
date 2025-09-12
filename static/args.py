@@ -44,6 +44,12 @@ def parse_args() -> argparse.Namespace:
         help="Show key and skip download"
     )
     parser.add_argument(
+        "--no_cookie", "--nocookie", "--no-cookie",
+        dest="had_nocookie",
+        action="store_true",
+        help="No cookie use"
+    )
+    parser.add_argument(
         "--fanclub-only",
         dest="fanclub",
         action="store_true",
@@ -92,6 +98,10 @@ def parse_args() -> argparse.Namespace:
 def had_key() -> bool:
     args = parse_args()
     return args.has_key
+
+def had_nocookie() -> bool:
+    args = parse_args()
+    return args.had_nocookie
 
 def clean_dl() -> bool:
     args = parse_args()

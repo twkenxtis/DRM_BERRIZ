@@ -1,19 +1,19 @@
-import asyncio
 import base64
+from datetime import datetime, timedelta
 import hashlib
+from pathlib import Path
 import re
 import secrets
-from datetime import datetime, timedelta
-from pathlib import Path
+from typing import List, Tuple, Union
 from urllib.parse import parse_qs, urlparse
 
+import aiofiles
 import httpx
 import yaml
 
+from lib.account.unban_account import unban_main
 from static.color import Color
 from unit.handle_log import setup_logging
-import aiofiles
-import orjson
 
 
 logger = setup_logging('login', 'flamingo_pink')
@@ -332,170 +332,155 @@ def extract_url_params(url_string):
 
 
 class LoginManager:
-    
     EMAIL_REGEX = re.compile(r".+@.+\..+")
-    
-    YAML_PATH = Path("cookies") / "account.yaml"
-    CLIENTID = 'e8faf56c-575a-42d2-933d-7b2e279ad827'
+    YAML_PATH   = Path("cookies") / "account.yaml"
+    CLIENTID    = "e8faf56c-575a-42d2-933d-7b2e279ad827"
 
     def __init__(self):
         self.account = None
         self.password = None
         self.bz_a = None
         self.bz_r = None
-        pass
 
-    async def load_info(self):
+    async def load_info(self) -> bool:
         if not LoginManager.YAML_PATH.exists():
-            raise FileNotFoundError
-        async with aiofiles.open(LoginManager.YAML_PATH, 'r', encoding='utf-8') as f:
-            data = await f.read()
-            if self.sort_yaml(yaml.safe_load(data)) is True:
-                if await self.run_login() is True:
-                    return True
-        
-    def sort_yaml(self, yaml_dict):
-        if yaml_dict is not None and type(yaml_dict) is dict:
-            account = yaml_dict['berriz']['account']
-            password = yaml_dict['berriz']['password']
-            account = account.strip().lower()
-            password = password.strip()
-            if LoginManager.EMAIL_REGEX.match(account) and len(password) > 7 and len(account) > 2:
-                self.account = account
-                self.password = password
-                return True
+            raise FileNotFoundError(f"{LoginManager.YAML_PATH} not found")
 
-    async def run_login(self):
-        if await self.check_mail() is True:
-            challenge, state_pks, code_verifier = self.get_auth_request()
-            if not all([self.check_challenge, self.check_state, self.check_code_verifier]):
-                return
-            authkey_data = await authorizeKey(challenge, state_pks, LoginManager.CLIENTID)
-            authkey = self.check_authkey(authkey_data)
-            authenticatekey_data =  await authenticateKey(authkey, challenge, state_pks, self.account, self.password, LoginManager.CLIENTID)
-            authenticatekey = self.check_authenticatekey(authenticatekey_data)
-            location_url = await get_code(LoginManager.CLIENTID, challenge, state_pks, authenticatekey)
-            if self.check_location_url(location_url) is False:
-                return
-            code_value, postRedirectUri_value = extract_url_params(location_url)
-            if self.check_code_value(code_value) is False:
-                return
-            bz_a_bz_r = await token_issue(LoginManager.CLIENTID, code_value, code_verifier)
-            if self.check_bz_a_bz_r(bz_a_bz_r) is False:
-                return
-            result = self.sort_bz_a_bz_r(bz_a_bz_r)
-            if result is not None:
-                bz_a, bz_r = result
-                self.bz_a = bz_a
-                self.bz_r = bz_r
-                return True
-            
-    async def check_mail(self):
-        email = await vaild_email(self.account)
-        if email is not None and email['code'] == '0000':
-            if email['data']['exists'] is False:
+        async with aiofiles.open(LoginManager.YAML_PATH, "r", encoding="utf-8") as f:
+            raw = await f.read()
+            data = yaml.safe_load(raw)
+
+        for entry in data.values():
+            acct = entry.get("account", "").strip().lower()
+            pwd  = entry.get("password", "").strip()
+            if LoginManager.EMAIL_REGEX.match(acct) and len(pwd) > 7:
+                self.account  = acct
+                self.password = pwd
+                return await self.run_login()
+
+        raise ValueError("No valid account/password in YAML")
+
+    async def run_login(self) -> bool:
+        # 校驗郵箱
+        ok = await self.check_mail()
+        if not ok:
+            return False
+
+        # PKCE 請求
+        challenge, state, verifier = self.get_auth_request()
+        if not all((self.check_challenge(challenge),
+                    self.check_state(state),
+                    self.check_code_verifier(verifier))):
+            return False
+
+        # authorizeKey
+        authkey_data = await authorizeKey(challenge, state, self.CLIENTID)
+        authkey      = self.check_authkey(authkey_data)
+
+        # authenticateKey
+        ak_data = await authenticateKey(
+            authkey, challenge, state,
+            self.account, self.password, self.CLIENTID
+        )
+        authk = await self.check_authenticatekey(ak_data)
+
+        # 拿到重定向 URL 回應header裡面有資料
+        location = await get_code(self.CLIENTID, challenge, state, authk)
+        if not self.check_location_url(location):
+            return False
+
+        # 提取 code from 回應header的資料
+        code, _ = extract_url_params(location)
+        if not self.check_code_value(code):
+            return False
+
+        # PKCE 發起請求 set-cookie 取得
+        tokens = await token_issue(self.CLIENTID, code, verifier)
+        if not self.check_bz_a_bz_r(tokens):
+            return False
+
+        # 確認 bz_a bz_r 返回 True 到 cookie.py 完成 Login
+        pair = self.sort_bz_a_bz_r(tokens)
+        if not pair:
+            return False
+
+        self.bz_a, self.bz_r = pair
+        return True
+
+    async def check_mail(self) -> bool:
+        info = await vaild_email(self.account)
+        if info["code"] == "0000":
+            if not info["data"]["exists"]:
                 raise ValueError(f"Account does not exist: {self.account}")
             return True
-        elif email is not None and email['code'] == 'FS_ME2120':
+        if info["code"] == "FS_ME2120":
             return False
-        else:
-            raise Exception('Unknown error at check mail')
-            
-    def get_auth_request(self):
-        result = create_auth_request(
-            password = self.password,
-            email = self.account,
+        raise Exception("Unknown error at check_mail")
+
+    def get_auth_request(self) -> Tuple[str, str, str]:
+        res = create_auth_request(
+            password=self.password,
             authorize_key='',
-            challenge_method='S256',
-            post_redirect_uri='https://berriz.in/auth/token&postRedirectUri=/en',
-            clientid = LoginManager.CLIENTID,
+            email=self.account,
+            challenge_method="S256",
+            post_redirect_uri="https://berriz.in/auth/token&postRedirectUri=/en",
+            clientid=self.CLIENTID,
         )
-        try:
-            challenge = result['auth_manager'].challenge
-            state_csrf = result['auth_manager'].state
-            code_verifier = result['auth_manager'].code_verifier
-            if all([challenge, state_csrf, code_verifier]):
-                return challenge, state_csrf, code_verifier
-        except Exception as e:
-            raise ValueError(f"Failed to get auth request: {e}")
+        m = res["auth_manager"]
+        return m.challenge, m.state, m.code_verifier
 
-    def check_authkey(self, authkey):
-        if authkey is None:
-            raise ValueError("Auth key is None")
-        elif authkey['code'] == '0000' and authkey['message'] == 'OK':
-            key = authkey['data']['authorizeKey']
-            if key is not None and len(key) == 30:
-                    return key
-            elif key is not None and len(key) != 30:
-                raise ValueError(key, "Auth key length is not 30", len(key))
-        elif authkey['code'] != '0000':
-            raise ValueError(f"Auth key error: {authkey}")
-        
-    def check_challenge(self, challenge):
-        if len(challenge) == 64:
-            return True
-        return False
+    def check_authkey(self, data: dict) -> str:
+        if data["code"] != "0000":
+            raise ValueError(f"Auth key error: {data}")
+        key = data["data"]["authorizeKey"]
+        if not key or len(key) != 30:
+            raise ValueError(f"Bad authorizeKey: {key}")
+        return key
 
-    def check_state(self, state_pks):
-        if len(state_pks) == 21:
-            return True
-        return False
+    async def check_authenticatekey(self, data: dict) -> str:
+        if data["code"] != "0000":
+            if data["code"] == 'FS_AU4030':
+                logger.info(f"{Color.fg('gold')}{data['message']}{Color.reset()}")
+                """{'code': 'FS_AU4030', 'message': 'Unfortunately, 
+                your account has been suspended. Additional authentication is required to re-enable.'}"""
+                if await unban_main(self.account) is True:
+                    logger.info(f"{Color.fg('light_green')}Account unlocked ! Try login now{Color.reset()}")
+                    await self.run_login()
+            else:
+                raise ValueError(f"Authenticate key error: {data}")
+        key = data["data"]["authenticateKey"]
+        if not key or len(key) != 30:
+            raise ValueError(f"Bad authenticateKey: {key}")
+        return key
 
-    def check_code_verifier(self, code_verifier):
-        if len(code_verifier) == 21:
-            return True
-        return False
-    
-    def check_authenticatekey(self, authenticatekey_data):
-        if authenticateKey is None:
-            raise ValueError("Auth key is None")
-        elif authenticatekey_data['code'] == '0000' and authenticatekey_data['message'] == 'OK':
-            key = authenticatekey_data['data']['authenticateKey']
-            if key is not None and len(key) == 30:
-                    return key
-            elif key is not None and len(key) != 30:
-                raise ValueError(key, "Auth key length is not 30", len(key))
-        elif authenticatekey_data['code'] != '0000':
-            raise ValueError(f"Auth key error: {authenticatekey_data}")
-        
-    def check_location_url(self, location_url):
-        if location_url is None:
-            raise ValueError("Location URL is None")
-        
-        if location_url.startswith('https://berriz.in/auth/token?code='):
-            if len(location_url) > 110:
-                return True
-        return False
-    
-    def check_code_value(self, code_value):
-        if code_value is None:
-            raise ValueError("Code value is None")
-        elif len(code_value) == 30:
-            return True
-        return False
-    
-    def check_bz_a_bz_r(self, bz_a_bz_r):
-        if bz_a_bz_r is None:
-            raise ValueError("bz_a_bz_r is None")
-        elif bz_a_bz_r['code'] == '0000' and bz_a_bz_r['message'] == 'OK':
-            return True
-        return False
-    
-    def sort_bz_a_bz_r(self, bz_a_bz_r):
-        if not isinstance(bz_a_bz_r, dict):
-            return None
+    def check_challenge(self, ch: str) -> bool:
+        return len(ch) == 64
 
-        data = bz_a_bz_r.get('data')
-        if not isinstance(data, dict):
-            return None
+    def check_state(self, st: str) -> bool:
+        return len(st) == 21
 
-        bz_a = data.get('accessToken')
-        bz_r = data.get('refreshToken')
+    def check_code_verifier(self, cv: str) -> bool:
+        return len(cv) == 21
 
-        if isinstance(bz_a, str) and isinstance(bz_r, str):
-            if len(bz_a) == 598 and len(bz_r) > 79:
-                return bz_a.strip(), bz_r.strip()
+    def check_location_url(self, url: str) -> bool:
+        return (
+            url.startswith("https://berriz.in/auth/token?code=")
+            and len(url) > 110
+        )
+
+    def check_code_value(self, code: str) -> bool:
+        return code is not None and len(code) == 30
+
+    def check_bz_a_bz_r(self, data: dict) -> bool:
+        return data.get("code") == "0000" and isinstance(data.get("data"), dict)
+
+    def sort_bz_a_bz_r(self, data: dict) -> Union[Tuple[str, str], None]:
+        d = data["data"]
+        a = d.get("accessToken")
+        r = d.get("refreshToken")
+        if isinstance(a, str) and isinstance(r, str) and len(a) == 598 and len(r) > 79:
+            return a.strip(), r.strip()
         return None
-    
+
     async def new_refresh_cookie(self):
         return self.bz_a, self.bz_r

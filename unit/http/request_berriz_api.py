@@ -7,6 +7,7 @@ import threading
 from functools import lru_cache
 from logging.handlers import TimedRotatingFileHandler
 from typing import Dict, List, Optional, Union
+from unit.parameter import paramstore
 
 import httpx
 
@@ -136,13 +137,15 @@ class BerrizAPIClient:
 
     @lru_cache(maxsize=2)
     async def cookie(self):
-        cookie = await asyncio.create_task(Berriz_cookie().get_cookies())
-        if cookie == {}:
-            if BerrizAPIClient._re_request_cookie is True:
-                await Berriz_cookie().trigger_rwt()
-                BerrizAPIClient._re_request_cookie = False
-            raise Exception('request_berriz_api trigger token refresh failed')
-        return cookie
+        if paramstore.get('no_cookie') is not True:
+            cookie = await asyncio.create_task(Berriz_cookie().get_cookies())
+            if cookie == {}:
+                if BerrizAPIClient._re_request_cookie is True:
+                    await Berriz_cookie().trigger_rwt()
+                    BerrizAPIClient._re_request_cookie = False
+            return cookie
+        else:
+            return {}
 
     @lru_cache(maxsize=1)
     def _build_headers(self) -> Dict[str, str]:
@@ -157,11 +160,14 @@ class BerrizAPIClient:
 
     async def _send_request(self, url: str, params: Optional[Dict] = None, headers: Optional[Dict] = None) -> Optional[Dict]:
         try:
+            ck = await self.cookie()
+            if ck == {}:
+                logger.info(f"{Color.fg('chartreuse')}no cookie requesting without cookie{Color.reset()}")
             async with httpx.AsyncClient(http2=True, timeout=4, verify=True) as client:
                 response = await client.get(
                     url,
                     params=params,
-                    cookies = await self.cookie(),
+                    cookies = ck,
                     headers=headers or self.headers,
                 )
                 response.raise_for_status()
