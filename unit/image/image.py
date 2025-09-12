@@ -75,11 +75,9 @@ class FolderManager:
 
         try:
             await asyncio.to_thread(base_dir.mkdir, parents=True, exist_ok=True)
-
             while await asyncio.to_thread(folder_path.exists):
-                random_suffix = "".join(random.choices(string.ascii_letters, k=5))
+                random_suffix = "".join(random.choices(string.ascii_lowercase, k=5))
                 folder_path = base_dir / f"{base_folder_name} [{random_suffix}]"
-
             await asyncio.to_thread(folder_path.mkdir)
             return str(folder_path.resolve())
         except Exception as e:
@@ -101,7 +99,6 @@ class FolderManager:
         
     async def get_community_name(self, community_id:int):
         n = await get_community(community_id)
-        n = f"{n}"
         return n
 
 
@@ -136,7 +133,7 @@ class ImageDownloader:
                     write_queue.task_done()
         writer = asyncio.create_task(writer_task())
         try:
-            async for chunk in resp.aiter_bytes(1048576):
+            async for chunk in resp.aiter_bytes(25565):
                 await write_queue.put(chunk)
             await write_queue.join()
             
@@ -174,10 +171,11 @@ class ImageDownloader:
             except asyncio.CancelledError:
                 logger.warning(f"File write cancelled for {Color.fg('light_gray')}{url}{Color.reset()}")
                 try:
-                    if Path(file_path).exists():
-                        Path(file_path).unlink()
-                except OSError:
-                    pass
+                    if await aiofiles.os.path.exists(file_path):
+                        await aiofiles.os.remove(file_path)
+                        logger.info(f"Removed partial file: {file_path}")
+                except OSError as e:
+                    logger.warning(f"Failed to remove file {file_path}: {e}")
                 raise
 
     @staticmethod
@@ -246,7 +244,6 @@ async def run_image_dl(media_ids: list, max_concurrent: int = 23):
         async def process_single_media(media_id: str):
             async with semaphore:
                 try:
-                    # 並行獲取上下文
                     public_ctxs, playback_ctxs = await asyncio.gather(
                         Public_context().get_public_context(media_id),
                         Playback_info().get_playback_context(media_id),
@@ -275,4 +272,3 @@ async def run_image_dl(media_ids: list, max_concurrent: int = 23):
         for chunk in chunks:
             tasks = [process_single_media(media_id) for media_id in chunk]
             await asyncio.gather(*tasks, return_exceptions=True)
-            await asyncio.sleep(0.1)

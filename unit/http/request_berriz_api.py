@@ -127,6 +127,8 @@ UUID_REGEX = re.compile(
 
 class BerrizAPIClient:
     
+    _re_request_cookie = True
+    
     def __init__(self):
         self.headers = self._build_headers()
         self.session = None
@@ -136,6 +138,9 @@ class BerrizAPIClient:
     async def cookie(self):
         cookie = await asyncio.create_task(Berriz_cookie().get_cookies())
         if cookie == {}:
+            if BerrizAPIClient._re_request_cookie is True:
+                await Berriz_cookie().trigger_rwt()
+                BerrizAPIClient._re_request_cookie = False
             raise Exception('request_berriz_api trigger token refresh failed')
         return cookie
 

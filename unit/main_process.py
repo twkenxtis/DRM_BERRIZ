@@ -159,5 +159,4 @@ class MediaProcessor:
             return True
         if video_dup is False and media_type == "VOD" and paramstore.get('key') is None:
             return True
-
         return False
