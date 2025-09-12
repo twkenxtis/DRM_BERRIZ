@@ -177,7 +177,9 @@ class Refresh_JWT:
                 data = await resp.json()
                 
             if resp.status != 200:
-                logger.error(f"Token refresh failed: {data}")
+                if data['code'] == 'FS_AU4021':
+                    pass
+                #logger.error(f"Token refresh failed: {data}")
                 return None
             access_token = data["data"]["accessToken"]
             try:
@@ -231,10 +233,10 @@ class Refresh_JWT:
         access_token = await self.refresh_token()
         if access_token:
             await self.my_state_test()
+            return access_token
         else:
-            logger.error("Initial token refresh failed.")
-            raise RuntimeError
-        return access_token
+            logger.error("Initial token refresh failed")
+            return False
 
     async def should_refresh(self) -> bool:
         retry_count = 0
@@ -324,12 +326,12 @@ class Refresh_JWT:
         
         if (os.path.exists(DEFAULT_COOKIE) and os.path.getsize(DEFAULT_COOKIE) > 0) is False:
             return
-        
         if await self.should_refresh():
             if await self.refresh_and_test():
                 asyncio.create_task(self.write_next_refresh_time())
+                return True
             else:
-                logger.warning("Refresh failed, next refresh time not updated.")
+                return False
 
 
 class NetscapeCookieReader:
@@ -377,6 +379,7 @@ class Berriz_cookie:
     CU = CookieUtils()
     _instance = None
     show_no_cookie_log = True
+    _cookie_refresh_count = 0
 
     def __new__(cls):
         if cls._instance is None:
@@ -392,7 +395,8 @@ class Berriz_cookie:
         self._cookies = {}
         try:
             # 觸發 token 重新整理
-            await self.trigger_rwt()
+            if await self.trigger_rwt() is False:
+                return
 
             # 載入 cookies
             async with asyncio.TaskGroup() as tg:
@@ -471,10 +475,14 @@ class Berriz_cookie:
             if retry_count == max_retries:
                 raise Exception("無法處理cookie cache josn")
             else:
-                await self.trigger_rwt()
+                if await self.trigger_rwt() is False:
+                    return
                 await self.load_cookies()
                 
     async def trigger_rwt(self):
         # 觸發 token 重新整理
         async with aiohttp.ClientSession() as session:
-            await Refresh_JWT(session).main()
+            bool = await Refresh_JWT(session).main()
+            Berriz_cookie._cookie_refresh_count +=1
+            if bool is False:
+                raise
