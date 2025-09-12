@@ -134,7 +134,10 @@ class BerrizAPIClient:
 
     @lru_cache(maxsize=2)
     async def cookie(self):
-        return await asyncio.create_task(Berriz_cookie().get_cookies())
+        cookie = await asyncio.create_task(Berriz_cookie().get_cookies())
+        if cookie == {}:
+            raise Exception('request_berriz_api trigger token refresh failed')
+        return cookie
 
     @lru_cache(maxsize=1)
     def _build_headers(self) -> Dict[str, str]:
