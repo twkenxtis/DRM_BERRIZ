@@ -1,9 +1,19 @@
+import asyncio
+import logging
+import sys
 import httpx
 import uuid
 
+from static.color import Color
+from unit.handle_log import setup_logging
+
+
+logging = setup_logging('unban_account', 'linen')
+
+
 class Request:
     cookies = {
-        'pcid': '2a8efaf9a92eadb88b38a0324306edc75fc5fb7688b88a508e66f69d5dffdee4',
+        'pcid': 'lI7rkSE16xpDltz1A14Zn',
         'pacode': 'fanplatf::app:android:phone',
         '__T_': '1',
         '__T_SECURE': '1',
@@ -18,11 +28,12 @@ class Request:
         'Connection': 'keep-alive',
     }
 
-    params = {
-        'languageCode': 'en',
-    }
+    params = {'languageCode': 'en'}
+    
+    def __init__(self):
+        pass
         
-    async def post(url, json_data):
+    async def post(self, url, json_data):
         async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
             response = await client.post(
                 url,
@@ -31,60 +42,92 @@ class Request:
                 headers=Request.headers,
                 json=json_data,
             )
-            return response.json()
-
-    async def get(url, json_data):
+            return response
+        
+    async def put(self, url, json_data):
         async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            response = await client.get(
+            response = await client.put(
                 url,
                 params=Request.params,
                 cookies=Request.cookies,
                 headers=Request.headers,
                 json=json_data,
             )
-            return response.json()
+            return response
 R = Request()
 
-def berriz_verification_email_code(email: str):
+async def berriz_verification_email_code(email: str):
     """不會和資料庫拿帳號ID或OAUTH驗證 沒有註冊過也會發"""
-    json_data = {'sendTo': {email}}
+    json_data = {'sendTo': email}
 
-    response = R.post(
+    response = await R.post(
         'https://account.berriz.in/member/v1/verification-emails:send/UNBLOCK',
-        json=json_data,
+        json_data,
     )
-    return response # {"code":"0000","message":"OK"}
+    if str(response.status_code) == '201':
+        if response.json()['code'] == '0000':
+            return True
+        elif response.json()['code'] != '0000':
+            if response.json()['code'] == 'FS_ME2020':
+                logging.error(f"{Color.bg('cyan')}You've exceeded the code request limit. Please try again after 1 hour.{Color.reset()}")
+                raise RuntimeWarning('Max exceeded e-mail code')
+            logging.warning(f"{Color.fg('golden')}{response.json()['message']}{Color.reset()}")
+            return False
+    else:
+        logging.error(f" {response.status_code} 'https://account.berriz.in/member/v1/verification-emails:send/UNBLOCK'")
+        return False
 
-def post_verification_key(email: str, otpCode: int):
-    json_data = {'email': email, 'otpCode': '385224'}
+async def post_verification_key(email: str, otpInt: str):
+    json_data = {'email': email, 'otpCode': str(otpInt)}
 
-    response = R.post(
+    response = await R.post(
         'https://account.berriz.in/member/v1/verification-emails:verify/UNBLOCK',
-        json=json_data,
+        json_data,
     )
-    return response # {"code":"0000","message":"OK","data":{"verifiedKey":"01993736-a197-84b1-4033-13c0218182ec"}}
+    if response.json()['code'] == '0000':
+        return response.json()['data']['verifiedKey']
+    elif response.json()['code'] == 'FS_ME2050':
+        logging.warning(f"{Color.fg('golden')}{response.json()['message']} resend a new code for {Color.reset()}{email}")
+        await unban_main(email)
+    if response.json()['code'] not in ("0000", "FS_ME2050"):
+        logging.error('Fail to get verifiedKey')
+        return None
 
-def member_unlock(email: str, verifiedKey: uuid):
-    json_data = {'email': 'omenbibi26@gmail.com', 'verifiedKey': '01993736-a197-84b1-4033-13c0218182ec'}
-
-    response = R.put(
+async def member_unlock(email: str, verifiedKey: str):
+    json_data = {'email': str(email), 'verifiedKey': str(verifiedKey)}
+    response = await R.put(
         'https://account.berriz.in/member/v1/members:unblock',
-        json=json_data,
+        json_data,
     )
-    return response.json() # {"code":"0000","message":"OK"}
+    if response.json()['code'] == '0000':
+        logging.info(f"{Color.fg('green')}{response.json()['message']}{Color.reset()}")
+        return True
+    elif response.json()['code'] == 'FS_ER5010':
+      logging.warning(f"{response.json()['message']} This account may not be registered in the Berriz database")
+      return False
+    if response.json()['code'] != '0000':
+        logging.error(f"{Color.fg('golden')}{response.json()['message']}{Color.reset()}")
+        return False
 
-email = ''.strip().lower()
+def handle_user_input(email):
+    while True:
+        logging.info(f"{Color.fg('light_gray')}Auto start unban account, Please enter the 6-digit code you received via email: {Color.fg('yellow')}{email} {Color.reset()}")
+        otpCode = input(f'{Color.fg("honeydew")}Enter the 6-digit code you received via email:{Color.reset()} {Color.fg("yellow")}{email} {Color.reset()}').strip()
+        if otpCode.isdigit() and len(otpCode) == 6:
+            otpInt = str(otpCode.strip())
+            return str(otpInt)
+        logging.warning("Invalid OTP: must be exactly 6 digits")
 
-data = berriz_verification_email_code(email)
-print(data)
-otpCode = input('Enter the code you received via email').strip()
-otpCode = input('Enter the 6-digit code you received via email: ').strip()
-if otpCode.isdigit() and len(otpCode) == 6:
-    otpInt = int(otpCode)
-else:
-    print("Invalid OTP: must be exactly 6 digits")
-verification_key = post_verification_key(email, otpCode)['data']['verifiedKey']
-
-data = member_unlock(email, verification_key)
-print(data)
-print('Your account has been unlocked. Please log in again.')
+async def unban_main(email):
+    email = email.strip().lower()
+    if await berriz_verification_email_code(email) is True:
+        otpInt = handle_user_input(email)
+        verification_key = await post_verification_key(email, otpInt)
+        if verification_key is not None:
+            if await member_unlock(email, verification_key) is True:
+                logging.info(f"{Color.fg('light_gray')}Your account {Color.fg('yellow')}"
+                            f"{email} {Color.fg('light_gray')}has been unlocked. Please log in again"
+                            )
+                return True
+            else:
+                sys.exit(1)
