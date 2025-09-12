@@ -1,9 +1,10 @@
-from unit.http.request_berriz_api import My, BerrizAPIClient
-
+from lib.lock_cookie import cookie_session, Lock_Cookie
+from unit.http.request_berriz_api import My
 
 async def fanclub_main():
-    if await BerrizAPIClient().cookie() == {}:
-        return
+    if cookie_session == {}:
+        await Lock_Cookie.cookie_session()
+    
     data = await (My().fetch_fanclub())
     if data is None:
         return

@@ -1,18 +1,18 @@
 import asyncio
 
+from cookies.cookies import Berriz_cookie
 from static.color import Color
+from lib.lock_cookie import cookie_session, Lock_Cookie
 from unit.handle_log import setup_logging
-from unit.http.request_berriz_api import My, BerrizAPIClient
+from unit.http.request_berriz_api import My
 
 
 logger = setup_logging('parse_my', 'ruby')
 
 
 async def request_my():
-    # 檢查 cookie，若無則直接返回
-    if await retry() is False:
+    if cookie_session in ({}, None):
         return
-
     try:
         data, locat, notif, me_data = await asyncio.gather(
             My().fetch_my(),
@@ -59,25 +59,3 @@ async def request_my():
             pass
     except Exception as e:
         logger.error(f"An unexpected error occurred during API requests: {e}")
-        
-async def retry():
-        retry_count = 0
-        max_retries = 6
-        while retry_count < max_retries:
-            try:
-                is_cookie_valid = await BerrizAPIClient().cookie()
-                if is_cookie_valid == {}:
-                    return False
-                if is_cookie_valid != {}:
-                    break
-                else:
-                    retry_count += 1
-                    await asyncio.sleep(0.25)
-            except Exception as e:
-                if str(e) == 'request_berriz_api trigger token refresh failed':
-                    return False
-                retry_count += 2
-                await asyncio.sleep(1)
-
-        if retry_count == max_retries:
-            return False

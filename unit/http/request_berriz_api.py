@@ -11,7 +11,7 @@ from unit.parameter import paramstore
 
 import httpx
 
-from cookies.cookies import Berriz_cookie
+from lib.lock_cookie import cookie_session, Lock_Cookie
 from static.api_error_handle import api_error_handle
 from static.color import Color
 
@@ -135,18 +135,6 @@ class BerrizAPIClient:
         self.session = None
         self.connector = None
 
-    @lru_cache(maxsize=2)
-    async def cookie(self):
-        if paramstore.get('no_cookie') is not True:
-            cookie = await asyncio.create_task(Berriz_cookie().get_cookies())
-            if cookie == {}:
-                if BerrizAPIClient._re_request_cookie is True:
-                    await Berriz_cookie().trigger_rwt()
-                    BerrizAPIClient._re_request_cookie = False
-            return cookie
-        else:
-            return {}
-
     @lru_cache(maxsize=1)
     def _build_headers(self) -> Dict[str, str]:
         return {
@@ -157,17 +145,21 @@ class BerrizAPIClient:
             'pragma': 'no-cache',
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148; iPhone17.6.1; iPhone12,3",
         }
+    
+    async def cookie(self):
+        if cookie_session is None:
+            cookie = await Lock_Cookie.cookie_session()
+            return cookie
+        else:
+            return cookie_session
 
     async def _send_request(self, url: str, params: Optional[Dict] = None, headers: Optional[Dict] = None) -> Optional[Dict]:
         try:
-            ck = await self.cookie()
-            if ck == {}:
-                logger.info(f"{Color.fg('chartreuse')}no cookie requesting without cookie{Color.reset()}")
             async with httpx.AsyncClient(http2=True, timeout=4, verify=True) as client:
                 response = await client.get(
                     url,
                     params=params,
-                    cookies = ck,
+                    cookies = await self.cookie(),
                     headers=headers or self.headers,
                 )
                 response.raise_for_status()
