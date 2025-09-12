@@ -1,12 +1,22 @@
 import asyncio
 import base64
 import hashlib
-import json
+import re
 import secrets
 from datetime import datetime, timedelta
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import httpx
+import yaml
+
+from static.color import Color
+from unit.handle_log import setup_logging
+import aiofiles
+import orjson
+
+
+logger = setup_logging('login', 'flamingo_pink')
 
 
 class AuthManager:
@@ -148,7 +158,7 @@ class AuthManager:
         return f"{base_url}?{httpx.QueryParams(params)}"
 
 
-# 使用範例：構建完整的認證請求，對應 JS 端 authenticate 流程
+# 獲取或創建認證管理器 - 對應 let d = a.R.get() ?? a.R.create()
 def create_auth_request(
     password,
     authorize_key,
@@ -265,7 +275,7 @@ async def get_code(CLIENTID, challenge, state_csrf, authenticatekey):
         'codeChallenge': challenge,
         'challengeMethod': 'S256',
         'redirectUri': 'https://berriz.in/auth/token',
-        'postRedirectUri': '/en/',
+        'postRedirectUri': '/',
         'state': state_csrf,
         'authenticateKey': authenticatekey,
     }
@@ -308,9 +318,6 @@ async def token_issue(CLIENTID, code_value, code_verifier):
     }
     url = 'https://account.berriz.in/auth/v1/token:issue'
     response = await R.post(url, params, json_data)
-    """
-    {"code":"0000","message":"OK","data":{"accessToken":"eyJraWQiOiJUUWVSeENZSFhDMkxNQTdFY0Rma1hBQ3loSzBjMlAzajZ6VHZXT2h3Ujl3IiwiYWxnIjoiUlMyNTYifQ.eyJpc3MiOiJhY2NvdW50LmJlcnJpei5pbiIsImlhdCI6MTc1NzU3MjA2NSwiZXhwIjoxNzU3NTc1NjY1LCJzdWIiOiIwMTk4ODRkZS03ZGI2LWQwZGItZDc1NC03M2NkNmQ2ZGYzODMiLCJpZHBOYW1lIjoiRkFOWiJ9.fos0-e_6flr1DnnZ5aH83be_aTbwQEp5FPVfKFn1C6IoRUUrqFLl83vdo-QWA24MdSkD1teRIWV8HXozWWbOCkrGfF8OMnvFZBYe2Hdt6n8UOr2bhTzeLB04_yT96bynmDc7QPYGwo36SjZtInohh-o_239z292_IeIawB8mWyuiTbvRVd3alP5KxgkKPhhM5BMtkeFe6skGrkxWvFnit9hH97vecceB9r_s8Q4ol6TlPNPZ8wOQA_iOyM-KsEKdDm6mHT8kkXfkJ__inoPzEKf-JsgX-iYicvQtyEE2fPcTAU5iPiMKrR4nB7iaiwpzpLdzqAskS0EdhMoFY8kx0A","refreshToken":"HC4Ake2jr6MtubaiV9erM4snMZN8zu1uLtfrytKEiB9p2O3qSLcaFA8JKZJFvnNeIqc4eHK4lxV7mTttqhXwZT3BEtOUViq2MC"}}
-    """
     return response.json()
 
 def extract_url_params(url_string):
@@ -323,43 +330,172 @@ def extract_url_params(url_string):
     postRedirectUri = query_params.get('postRedirectUri', [None])[0]
     return code, postRedirectUri
 
-# 使用示例
-if __name__ == "__main__":
+
+class LoginManager:
+    
+    EMAIL_REGEX = re.compile(r".+@.+\..+")
+    
+    YAML_PATH = Path("cookies") / "account.yaml"
     CLIENTID = 'e8faf56c-575a-42d2-933d-7b2e279ad827'
-    PASSWORD= 'k2qDrd3a5dDeaj7xkkD$4 '.strip()
-    ENMAIL = 'bsvn9@powerscrews.com'.strip().lower()
-    
-    result = create_auth_request(
-        password = PASSWORD,
-        email = ENMAIL,
-        authorize_key='',
-        challenge_method='S256',
-        post_redirect_uri='https://berriz.in/auth/token&postRedirectUri=/en',
-        clientid = CLIENTID,
-    )
-    
-    challenge = result['auth_manager'].challenge
-    state_csrf = result['auth_manager'].state
-    code_verifier = result['auth_manager'].code_verifier
-    
-    print("code_verifier:", code_verifier)
-    print("codeChallenge:", challenge)
-    print("state:", state_csrf)
-    print(json.dumps(result['request_data'], indent=4))
 
-async def main():
-    print(await vaild_email(ENMAIL))
-    authkey = await authorizeKey(challenge, state_csrf, CLIENTID)
-    # 網路請求的 授權:  {'code': '0000', 'message': 'OK', 'data': {'authorizeKey': 'Ho0Hos4UMOhrLqpohpbO58mq89I7Lb'}}
-    authenticatekey =  await authenticateKey(authkey['data']['authorizeKey'], challenge, state_csrf, ENMAIL, PASSWORD, CLIENTID)
-    print(authenticatekey)
-    if authenticatekey['code'] == '0000':
-        # 網路請求的 認證 {'code': '0000', 'message': 'OK', 'data': {'authenticateKey': 'lf4H3qBCIWDKW0j9DQwglCrUCYZa2a'}}
-        location_url = (await get_code(CLIENTID, challenge, state_csrf, authenticatekey['data']['authenticateKey']))
-        # 預期 302 回應標頭有 Code 用在token_issue 驗證
-        code_value, postRedirectUri_value = extract_url_params(location_url)
-        print('來自302 /auth/v1/authorize 的回應標頭解析後的內容:', code_value)
-        print(await token_issue(CLIENTID, code_value, code_verifier))
-        # token_issue 拿到bz_a + bz_r {"code":"0000","message":"OK","data":{"accessToken":"","refreshToken":""}}
+    def __init__(self):
+        self.account = None
+        self.password = None
+        self.bz_a = None
+        self.bz_r = None
+        pass
 
-asyncio.run(main())
+    async def load_info(self):
+        if not LoginManager.YAML_PATH.exists():
+            raise FileNotFoundError
+        async with aiofiles.open(LoginManager.YAML_PATH, 'r', encoding='utf-8') as f:
+            data = await f.read()
+            if self.sort_yaml(yaml.safe_load(data)) is True:
+                if await self.run_login() is True:
+                    return True
+        
+    def sort_yaml(self, yaml_dict):
+        if yaml_dict is not None and type(yaml_dict) is dict:
+            account = yaml_dict['berriz']['account']
+            password = yaml_dict['berriz']['password']
+            account = account.strip().lower()
+            password = password.strip()
+            if LoginManager.EMAIL_REGEX.match(account) and len(password) > 7 and len(account) > 2:
+                self.account = account
+                self.password = password
+                return True
+
+    async def run_login(self):
+        if await self.check_mail() is True:
+            challenge, state_pks, code_verifier = self.get_auth_request()
+            if not all([self.check_challenge, self.check_state, self.check_code_verifier]):
+                return
+            authkey_data = await authorizeKey(challenge, state_pks, LoginManager.CLIENTID)
+            authkey = self.check_authkey(authkey_data)
+            authenticatekey_data =  await authenticateKey(authkey, challenge, state_pks, self.account, self.password, LoginManager.CLIENTID)
+            authenticatekey = self.check_authenticatekey(authenticatekey_data)
+            location_url = await get_code(LoginManager.CLIENTID, challenge, state_pks, authenticatekey)
+            if self.check_location_url(location_url) is False:
+                return
+            code_value, postRedirectUri_value = extract_url_params(location_url)
+            if self.check_code_value(code_value) is False:
+                return
+            bz_a_bz_r = await token_issue(LoginManager.CLIENTID, code_value, code_verifier)
+            if self.check_bz_a_bz_r(bz_a_bz_r) is False:
+                return
+            result = self.sort_bz_a_bz_r(bz_a_bz_r)
+            if result is not None:
+                bz_a, bz_r = result
+                self.bz_a = bz_a
+                self.bz_r = bz_r
+                return True
+            
+    async def check_mail(self):
+        email = await vaild_email(self.account)
+        if email is not None and email['code'] == '0000':
+            if email['data']['exists'] is False:
+                raise ValueError(f"Account does not exist: {self.account}")
+            return True
+        elif email is not None and email['code'] == 'FS_ME2120':
+            return False
+        else:
+            raise Exception('Unknown error at check mail')
+            
+    def get_auth_request(self):
+        result = create_auth_request(
+            password = self.password,
+            email = self.account,
+            authorize_key='',
+            challenge_method='S256',
+            post_redirect_uri='https://berriz.in/auth/token&postRedirectUri=/en',
+            clientid = LoginManager.CLIENTID,
+        )
+        try:
+            challenge = result['auth_manager'].challenge
+            state_csrf = result['auth_manager'].state
+            code_verifier = result['auth_manager'].code_verifier
+            if all([challenge, state_csrf, code_verifier]):
+                return challenge, state_csrf, code_verifier
+        except Exception as e:
+            raise ValueError(f"Failed to get auth request: {e}")
+
+    def check_authkey(self, authkey):
+        if authkey is None:
+            raise ValueError("Auth key is None")
+        elif authkey['code'] == '0000' and authkey['message'] == 'OK':
+            key = authkey['data']['authorizeKey']
+            if key is not None and len(key) == 30:
+                    return key
+            elif key is not None and len(key) != 30:
+                raise ValueError(key, "Auth key length is not 30", len(key))
+        elif authkey['code'] != '0000':
+            raise ValueError(f"Auth key error: {authkey}")
+        
+    def check_challenge(self, challenge):
+        if len(challenge) == 64:
+            return True
+        return False
+
+    def check_state(self, state_pks):
+        if len(state_pks) == 21:
+            return True
+        return False
+
+    def check_code_verifier(self, code_verifier):
+        if len(code_verifier) == 21:
+            return True
+        return False
+    
+    def check_authenticatekey(self, authenticatekey_data):
+        if authenticateKey is None:
+            raise ValueError("Auth key is None")
+        elif authenticatekey_data['code'] == '0000' and authenticatekey_data['message'] == 'OK':
+            key = authenticatekey_data['data']['authenticateKey']
+            if key is not None and len(key) == 30:
+                    return key
+            elif key is not None and len(key) != 30:
+                raise ValueError(key, "Auth key length is not 30", len(key))
+        elif authenticatekey_data['code'] != '0000':
+            raise ValueError(f"Auth key error: {authenticatekey_data}")
+        
+    def check_location_url(self, location_url):
+        if location_url is None:
+            raise ValueError("Location URL is None")
+        
+        if location_url.startswith('https://berriz.in/auth/token?code='):
+            if len(location_url) > 110:
+                return True
+        return False
+    
+    def check_code_value(self, code_value):
+        if code_value is None:
+            raise ValueError("Code value is None")
+        elif len(code_value) == 30:
+            return True
+        return False
+    
+    def check_bz_a_bz_r(self, bz_a_bz_r):
+        if bz_a_bz_r is None:
+            raise ValueError("bz_a_bz_r is None")
+        elif bz_a_bz_r['code'] == '0000' and bz_a_bz_r['message'] == 'OK':
+            return True
+        return False
+    
+    def sort_bz_a_bz_r(self, bz_a_bz_r):
+        if not isinstance(bz_a_bz_r, dict):
+            return None
+
+        data = bz_a_bz_r.get('data')
+        if not isinstance(data, dict):
+            return None
+
+        bz_a = data.get('accessToken')
+        bz_r = data.get('refreshToken')
+
+        if isinstance(bz_a, str) and isinstance(bz_r, str):
+            if len(bz_a) == 598 and len(bz_r) > 79:
+                return bz_a.strip(), bz_r.strip()
+        return None
+    
+    async def new_refresh_cookie(self):
+        return self.bz_a, self.bz_r

@@ -1,12 +1,12 @@
 import requests
 def logout():
     cookies = {
-        'pcid': '2a8efaf9a92eadb88b38a0324306edc75fc5fb7688b88a508e66f69d5dffdee4',
+        'pcid': 'sPj0iNAHjd7KzbDEBsBUB',
         'pacode': 'fanplatf::app:android:phone',
         '__T_': '1',
         '__T_SECURE': '1',
-        'bz_a': 'eyJraWQiOiJUUWVSeENZSFhDMkxNQTdFY0Rma1hBQ3loSzBjMlAzajZ6VHZXT2h3Ujl3IiwiYWxnIjoiUlMyNTYifQ.eyJpc3MiOiJhY2NvdW50LmJlcnJpei5pbiIsImlhdCI6MTc1NzU3MDcyNiwiZXhwIjoxNzU3NTc0MzI2LCJzdWIiOiIwMTk4ODRkZS03ZGI2LWQwZGItZDc1NC03M2NkNmQ2ZGYzODMiLCJpZHBOYW1lIjoiRkFOWiJ9.ESt85glof_ip9rKKH9b8hp3yHZNhUq5EYidpLt__wtsNU5cruUGhdISqNnEilLoDFyxsMcnnNu2aL0wf2V22Wf_NEopH6yPJGgvVa1hiiHaviRGaFqcGcFR9oAwU0Jum9zP1VLtcrFpoDjLDwlNuziirjgkYB1oTSEC4Q0XURqXHUwZg-y3ObEwByc73S0oqV9uwDqKXOs0R4_cENBVnKItfQOG1rOQhMitTQLJE09MKCCpwh8G7UMI2RUwI1pw-Me7EJx9oN50DbNvaKmi_-PgEZgbtwjoHbrlSJz2W69woxu4JvhUE_U-5Ma5RpYJsXMcbpJvePbioB2m7yhV5hA',
-        'bz_r': 'ydraKQJLCiyR3xa82Tw8bDMyrjIUYsqCtBwW4X20rKaIBnCF0OVjDdTnNaBFOJssDl3UUDFbnYhIMsF49AhmQr39xSSwy',
+        'bz_a': 'eyJraWQiOiJUUWVSeENZSFhDMkxNQTdFY0Rma1hBQ3loSzBjMlAzajZ6VHZXT2h3Ujl3IiwiYWxnIjoiUlMyNTYifQ.eyJpc3MiOiJhY2NvdW50LmJlcnJpei5pbiIsImlhdCI6MTc1NzY0MTQ5NywiZXhwIjoxNzU3NjQ1MDk3LCJzdWIiOiIwMTk5MzhlNC03YTYyLWEyZDgtZTNiYy01YTc4MDNhNmQ5ZDEiLCJpZHBOYW1lIjoiRkFOWiJ9.CvXuC8kQcoAjhZt0Xhjan2lMOOWRlv9_ax0lKmfUQkdO8G0Y_EuKAxaxjTHxBKgIoJ1u1s3kwf0ONSLkJUeU6oQxsLhNqpNI4C5OaVSCl8J88CzRdVjMrULxdpBn5pRnHpow0G9A46Wj2Vnrpfa9NzpDBcN9dHA17BeqL1YK7Dw7Rw2Kn2nc-7QXOdmZIFaQxP0yp_mcDw3JrH6Xp1FNKCGH-hgv4u--3aJ5TdfL1jybkTt2idNa6CPK1Kp63Ldlc9Du1SuYwyUbBQkcD9_sdDMFo3_x2JITDtEswR4FUHROOyxkbr0f2PovS5BjbATgTNK-OU_X01vGodjYl34wRg',
+        'bz_r': 'wr5dmr9YsyN0aiRCEY9jYi4qLsqSKGFa8Su3xrntjDqri2LYxQmJoDQj7OIQNEeaerBsfxErv9DPfbki1FUFhx7LXZCwgUZyiT',
     }
 
     headers = {
