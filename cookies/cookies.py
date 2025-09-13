@@ -1,6 +1,10 @@
 import asyncio
 import os
 from datetime import datetime, timedelta
+import sys
+import base64
+import json
+import uuid
 import textwrap
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -19,8 +23,7 @@ from unit.handle_log import setup_logging
 
 DEFAULT_COOKIE = Path("cookies/Berriz/default.txt")
 TEMP_JSON = Path("cookies/temp.json")
-_refresh_lock = asyncio.Lock()
-fsau4021_lock = asyncio.Lock()
+file_lock = asyncio.Lock()
 
 
 logger = setup_logging('cookies', 'firebrick')
@@ -29,6 +32,9 @@ logger = setup_logging('cookies', 'firebrick')
 class CookieUtils:
     BASE_URL = "https://berriz.in"
     REQUIRED_COOKIES = ["pcid"]
+    
+    def __init__(self):
+        self._session = None
 
     async def _retry_with_action(self, action, error_log_cb, max_retries=5):
         retry_count = 0
@@ -43,53 +49,32 @@ class CookieUtils:
         return None
 
     async def _read_cache_key(self, key: str) -> str:
-        async def read_action():
-            async with _refresh_lock:
-                if not os.path.exists(TEMP_JSON):
-                    return ""
-                async with aiofiles.open(TEMP_JSON, "rb") as f:
-                    content = await f.read()
-                data = orjson.loads(content)
-                return data.get('cache_cookie', {}).get(key, "")
-
-        result = await self._retry_with_action(
-            read_action,
-            lambda e, rc: logger.warning(f"Read '{key}' issue: {e} ({rc}/5)")
-        )
-        if result is None:
-            logger.error(f"Max retry fail to read '{key}'")
-            return ""
-        return result
+        async with file_lock:
+            if not os.path.exists(TEMP_JSON):
+                return ""
+            async with aiofiles.open(TEMP_JSON, "r") as f:
+                content = await f.read()
+            data = orjson.loads(content)
+            return data.get('cache_cookie', {}).get(key, "")
 
     async def _write_cache_key(self, key: str, value: str) -> None:
         tmp_path = TEMP_JSON.with_suffix(".tmp")
-
-        async def write_action():
-            async with _refresh_lock:
-                if not os.path.exists(TEMP_JSON):
-                    logger.error(f"快取檔案不存在，無法Write '{key}' ")
-                    return False
-                async with aiofiles.open(TEMP_JSON, "rb") as f:
-                    content = await f.read()
-                data = orjson.loads(content)
-                if 'cache_cookie' not in data:
-                    logger.error("JSON 檔案結構錯誤：缺少 'cache_cookie' 鍵 ")
-                    return False
-                data['cache_cookie'][key] = value
-                updated_content = orjson.dumps(data, option=orjson.OPT_INDENT_2)
-                async with aiofiles.open(tmp_path, "wb") as f:
-                    await f.write(updated_content)
-                await aioos.replace(tmp_path, TEMP_JSON)
-                return True
-
-        result = await self._retry_with_action(
-            write_action,
-            lambda e, rc: logger.error(f"Write '{key}' 時發生錯誤：{e} ({rc}/5)")
-        )
-
-        if result is not True:
-            logger.error(f"達到最大重試次數，Write '{key}' 失敗")
-            raise Exception(f"無法更新 '{key}' 快取 ")
+        async with file_lock:
+            if not os.path.exists(TEMP_JSON):
+                logger.error(f"快取檔案不存在，無法Write '{key}' ")
+                return False
+            async with aiofiles.open(TEMP_JSON, "r") as f:
+                content = await f.read()
+            data = orjson.loads(content)
+            if 'cache_cookie' not in data:
+                logger.error("JSON 檔案結構錯誤：缺少 'cache_cookie' 鍵 ")
+                return False
+            data['cache_cookie'][key] = value
+            updated_content = orjson.dumps(data, option=orjson.OPT_INDENT_2)
+            async with aiofiles.open(tmp_path, "wb") as f:
+                await f.write(updated_content)
+            await aioos.replace(tmp_path, TEMP_JSON)
+            return True
 
     async def read_bz_r(self) -> str:
         return await self._read_cache_key("bz_r")
@@ -113,18 +98,27 @@ class CookieUtils:
         try:
             bz_r1 = await self.read_bz_r()
             bz_r2 = await NetscapeCookieReader().get_cookie("bz_r")
+            
+            # default bz_r 改變 換帳號
             if len(bz_r1) > 79 and bz_r1 != bz_r2:
                 if os.path.exists(TEMP_JSON):
-                    os.remove(TEMP_JSON)
-                    await Berriz_cookie().get_cookies()
-                    return bz_r2
+                    logger.info('Account change, reset temp.json file')
+                    async with aiofiles.open(TEMP_JSON, 'w') as f:
+                        await f.write("")
+                        await Berriz_cookie.create_temp_json()
+                        await self.save_bz_r(bz_r2)
+                        await self.save_bz_a('eyJpc3MiOiJhY2NvdW50LmJlcnJpei5pbiIsImlkcE5hbWUiOiJHT09HTEUifQ')
+                        await self.get_default_cookies()
+                        return bz_r2
                 else:
                     raise FileNotFoundError
-            await self.save_bz_r(bz_r2)
+            
+            # default.txt 讀取失敗 沒有bz_r 嘗試用fsau4021 觸發login.py 來刷新default.txt
             if not bz_r2:
-                async with fsau4021_lock:
-                    await Refresh_JWT(await self.session()).fsau4021()
+                await Refresh_JWT(await self.session()).fsau4021()
             else:
+                # 讀取到default.txt 內的 bz_r 寫入到json並返回作為請求結果
+                await self.save_bz_r(bz_r2)
                 return bz_r2
         except (FileNotFoundError, ValueError) as e:
             logger.error(f"Failed to load bz_r: {e}")
@@ -166,16 +160,18 @@ class CookieUtils:
             "bz_r": bz_r,
         }
         return headers
-    
+
     async def session(self):
-        async with aiohttp.ClientSession() as session:
-            return session
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
 
 class Refresh_JWT:
     no_expires_log = False
     CU = CookieUtils()
     show_no_passwd_log = True
-    fsau_lock = 0
+    fsau4021_log = True
+    no_LOGIN_log = True
     def __init__(self, session: aiohttp.ClientSession):
         self.session = session
         self.headers = None
@@ -187,51 +183,49 @@ class Refresh_JWT:
         self.headers = headers
         json_data = {"clientId": "e8faf56c-575a-42d2-933d-7b2e279ad827"}
 
+        async with self.session.post(url, headers=headers, json=json_data) as resp:
+            data = await resp.json()
+        if resp.status != 200:
+            if data['code'] == 'FS_AU4021': 
+                if Refresh_JWT.fsau4021_log == True:
+                    Refresh_JWT.fsau4021_log = False
+                    logger.warning(f"{data['code']} - {data['message']}")
+                await self.fsau4021()
+        access_token = data["data"]["accessToken"]
         try:
-            async with self.session.post(url, headers=headers, json=json_data) as resp:
-                data = await resp.json()
-            if resp.status != 200:
-                if data['code'] == 'FS_AU4021':
-                    if Refresh_JWT.fsau_lock == 0:
-                        async with fsau4021_lock:
-                            print(Refresh_JWT.fsau_lock, '跑刷新JWT FSAU4021')
-                            await self.fsau4021()
-                            Refresh_JWT.fsau_lock += 1
-            access_token = data["data"]["accessToken"]
-            try:
-                decoded = jwt.decode(access_token, options={"verify_signature": False})
-                exp_time = datetime.fromtimestamp(decoded["exp"]).strftime("%Y-%m-%d %H:%M:%S")
-                if Refresh_JWT.no_expires_log is False:
-                    logger.info(f"{Color.fg('beige')}Token expires at {exp_time}{Color.reset()}")
-                    Refresh_JWT.no_expires_log = True
-            except Exception as e:
-                logger.warning(f"Failed to decode token: {e}")
-            await Refresh_JWT.CU.save_bz_a(access_token)
-            return access_token
-
+            decoded = jwt.decode(access_token, options={"verify_signature": False})
+            exp_time = datetime.fromtimestamp(decoded["exp"]).strftime("%Y-%m-%d %H:%M:%S")
+            if Refresh_JWT.no_expires_log is False:
+                logger.info(f"{Color.fg('beige')}Token expires at {exp_time}{Color.reset()}")
+                Refresh_JWT.no_expires_log = True
         except Exception as e:
-            if str(e) == 'No valid account/password in YAML':
-                if Refresh_JWT.show_no_passwd_log == True:
-                    logger.warning('No valid account/password in YAML')
-                    Refresh_JWT.show_no_passwd_log = False
-            logger.error(f"Token refresh error: {e}")
-            return None
+            logger.warning(f"Failed to decode token: {e}")
+        await Refresh_JWT.CU.save_bz_a(access_token)
+        return access_token
 
     async def fsau4021(self):
-        LM = LoginManager()
-        if await LM.load_info() is True:
-            bz_a, bz_r = await LM.new_refresh_cookie()
-            if all([bz_a, bz_r]) is not None and await self.update_cookie_file(bz_a, bz_r) is True:
-                logger.info(f"{Color.fg('light_red')}Token refresh failed, try auto re-login {Color.fg('olive')}success!{Color.reset()}")
-            return True
-        else:
-            logger.info(f"{Color.fg('light_red')}Token refresh failed, try auto re-login stil {Color.fg('gold')}Fail{Color.reset()}")
-            return None
+        if paramstore.get('no_cookie') is not True:
+            LM = LoginManager()
+            try:
+                if await LM.load_info() is True:
+                    bz_a, bz_r = await LM.new_refresh_cookie()
+                    if all([bz_a, bz_r]) is not None and await self.update_cookie_file(bz_a, bz_r) is True:
+                        logger.info(f"{Color.fg('light_gray')}Token refresh failed, "
+                                    f"{Color.fg('light_red')}try auto re-login {Color.fg('olive')}success!{Color.reset()}")
+                    return True
+                else:
+                    logger.info(f"{Color.fg('light_gray')}Token refresh failed, "
+                                f"{Color.fg('light_red')}try auto re-login stil {Color.fg('gold')}Fail{Color.reset()}")
+                    sys.exit(1)
+            except Exception as e:
+                if Refresh_JWT.no_LOGIN_log == True:
+                    Refresh_JWT.no_LOGIN_log = False
+                    logger.error(f"[Login] {e}")
 
     async def update_cookie_file(self, bz_a_new: str, bz_r_new: str):
         updated_lines = []
         try:
-            async with _refresh_lock:
+            
                 async with aiofiles.open(DEFAULT_COOKIE, "r", encoding="utf-8") as f:
                     async for line in f:
                         if line.startswith("# ") or not line.strip():
@@ -266,26 +260,34 @@ class Refresh_JWT:
 
     async def should_refresh(self) -> bool:
         retry_count = 0
-        max_retries = 5
+        max_retries = 3
         refresh_time: Optional[str] = None
 
         while retry_count < max_retries:
             try:
-                async with aiofiles.open(TEMP_JSON, mode="rb") as f:
-                    content = await f.read()
-                data = orjson.loads(content)
-                
-                refresh_time = data.get('cache_cookie', {}).get('refresh_time')
-                if not refresh_time:
-                    return True
-                
-                break
+                async with file_lock:
+                    async with aiofiles.open(TEMP_JSON, mode="r") as f:
+                        content = await f.read()
+                    data = orjson.loads(content)
+                    
+                    refresh_time = data.get('cache_cookie', {}).get('refresh_time')
+                    if not refresh_time:
+                        return True
+                    
+                    break
             except FileNotFoundError:
                 logger.warning(f"快取檔案不存在：{TEMP_JSON}")
-                return True
+                return False
             except (orjson.JSONDecodeError, KeyError) as e:
                 retry_count += 1
-                logger.warning(f"檔案格式錯誤或缺少鍵：{e}({retry_count}/{max_retries})")
+                if isinstance(e, orjson.JSONDecodeError) and e.lineno == 1 and e.colno == 1:
+                    await Berriz_cookie.create_temp_json()
+                    logger.info(
+                        f"{Color.fg('light_amber')}Reset {Color.fg('light_gray')}{TEMP_JSON} {Color.fg('light_amber')}"
+                        f"to initialization complete{Color.reset()}"
+                        )
+                else:
+                    logger.warning(f"檔案格式錯誤或缺少鍵：{e} ({retry_count}/{max_retries})")
                 await asyncio.sleep(1)
             except Exception as e:
                 retry_count += 1
@@ -293,8 +295,8 @@ class Refresh_JWT:
                 await asyncio.sleep(1)
 
         if retry_count == max_retries:
-            logger.error("Max retry fail to read快取檔案")
-            return True
+            logger.error("Max retry fail to read 快取檔案")
+            sys.exit(1)
 
         try:
             next_refresh = datetime.fromtimestamp(float(refresh_time))
@@ -312,12 +314,12 @@ class Refresh_JWT:
 
         while retry_count < max_retries:
             try:
-                async with _refresh_lock:
+                async with file_lock:
                     if not os.path.exists(TEMP_JSON):
                         logger.error("快取檔案不存在，無法Write刷新時間")
                         raise FileNotFoundError
 
-                    async with aiofiles.open(TEMP_JSON, 'rb') as f:
+                    async with aiofiles.open(TEMP_JSON, 'r') as f:
                         content = await f.read()
 
                     data = orjson.loads(content)
@@ -352,7 +354,8 @@ class Refresh_JWT:
         if (os.path.exists(DEFAULT_COOKIE) and os.path.getsize(DEFAULT_COOKIE) > 0) is False:
             return
         if await self.should_refresh():
-            if await self.refresh_and_test():
+            k = await self.refresh_and_test()
+            if k:
                 asyncio.create_task(self.write_next_refresh_time())
                 return True
             return False
@@ -400,8 +403,10 @@ class NetscapeCookieReader:
 
 class Berriz_cookie:
     CU = CookieUtils()
+    
     _instance = None
     show_no_cookie_log = True
+    count_rwt = 0
 
     def __new__(cls):
         if cls._instance is None:
@@ -411,13 +416,16 @@ class Berriz_cookie:
     def __init__(self):
         if not hasattr(self, "_cookies"):
             self._cookies = {}
+        self.rwt = None
+        self._session = None
 
     async def load_cookies(self) -> None:
         """Load cookies from disk."""
         self._cookies = {}
+        self.rwt = await self.trigger_rwt()
         try:
             # 觸發 token 重新整理
-            if await self.trigger_rwt() is False:
+            if self.rwt is False:
                 return
 
             # 載入 cookies
@@ -438,44 +446,35 @@ class Berriz_cookie:
                     logger.warning(f"{Color.fg('light_gray')}No cookie found, {Color.fg('pink')}request without cookies{Color.reset()}")
                 Berriz_cookie.show_no_cookie_log = False
             self._cookies = {}
-            
+    
+    # 進入點 
     async def get_cookies(self) -> dict:
         if paramstore.get('no_cookie') is not True:
-            empty_cache_json = self.default_json()
             if not os.path.exists(DEFAULT_COOKIE):
                 await self.create_empty_cookie()
             if not os.path.exists(TEMP_JSON):
-                try:
-                    content_bytes = orjson.dumps(empty_cache_json, option=orjson.OPT_INDENT_2)
-                    async with aiofiles.open(TEMP_JSON, 'wb') as f:
-                        await f.write(content_bytes)
-                except Exception as e:
-                    logger.error(f"Write {TEMP_JSON} 檔案時發生錯誤：{e}")
-                    raise FileExistsError
+                await Berriz_cookie.create_temp_json()
             else:
-                if not hasattr(self, "_cookies") or not self._cookies:
-                    retry_count = 0
-                    max_retries = 5
-
-                    while retry_count < max_retries:
-                        try:
-                            await self.load_cookies()
-                            break 
-                        except Exception as e:
-                            retry_count += 1
-                            logger.warning(f"載入 cookie 時發生錯誤：{e} ({retry_count}/{max_retries})")
-                            await asyncio.sleep(1)
-
-                    if retry_count == max_retries:
-                        logger.error("達到最大重試次數，無法載入 cookie")
-                        return {}
-                
-                return self._cookies
+                c = await self.get_valid_cookie()
+                return c
         else:
             # no cookie
             return {}
+        
+    async def get_valid_cookie(self):
+        try:
+            for attempt in range(4):
+                cookie = await self.check_hasattr()
+                if cookie not in (None, {}):
+                    return cookie
+            raise RuntimeError("Fail to get cookie")
+        except Exception as e:
+            logger.critical(e)
+            sys.exit(1)
+
     
-    def default_json(self) -> dict:
+    @staticmethod
+    def default_json() -> dict:
         return {
             "cache_cookie": {
                 "bz_a": "",
@@ -486,35 +485,57 @@ class Berriz_cookie:
         }
 
     async def check_cookie(self):
-        if len(self._cookies.get('bz_a', '')) != 598:
-            if not os.path.exists(TEMP_JSON):
-                raise FileNotFoundError(f"Cache cookie json not found: {TEMP_JSON}")
-            retry_count = 0
-            max_retries = 5
-            while retry_count < max_retries:
-                try:
-                    os.remove(TEMP_JSON)
-                    break 
-                except Exception as e:
-                    retry_count += 1
-                    logger.error(f"處理檔案時發生錯誤：{e} ({retry_count}/{max_retries})")
-                    await asyncio.sleep(1)
-            
-            if retry_count == max_retries:
-                raise Exception("無法處理cookie cache josn")
-            else:
-                if await self.trigger_rwt() is False:
-                    return
-                await self.load_cookies()
+        bz_a = self._cookies.get('bz_a', '')
+        try:
+            header_b64, payload_b64, signature_b64 = bz_a.split('.')
+            payload = json.loads(self.b64url_decode(payload_b64))
+            sub = payload.get("sub")
+            if not sub:
+                logger.error("JWT Payload 中沒有 'sub' 欄位")
+                return
+            try:
+                uuid.UUID(sub)
+            except ValueError:
+                logger.error(f"sub 不是合法 UUID：{sub}")
+                await self.jwt_error_handle()
+        except Exception as e:
+            logger.error(f"JWT Token 結構錯誤或解析失敗：{e}")
+            await self.jwt_error_handle()
+
+    async def jwt_error_handle(self):
+        if not os.path.exists(TEMP_JSON):
+            raise FileNotFoundError(f"Cache cookie json not found: {TEMP_JSON}")
+        retry_count = 0
+        max_retries = 1
+        while retry_count < max_retries:
+            try:
+                os.remove(TEMP_JSON)
+                break 
+            except Exception as e:
+                retry_count += 1
+                logger.error(f"處理檔案時發生錯誤：{e} ({retry_count}/{max_retries})")
+                await asyncio.sleep(1)
+        
+        if retry_count == max_retries:
+            raise Exception("無法處理cookie cache josn")
+        else:
+            async with aiohttp.ClientSession() as session:
+                await Refresh_JWT(session).refresh_token()
+                await self.get_cookies()
+
+    def b64url_decode(self, data: str) -> bytes:
+        padding = '=' * (-len(data) % 4)
+        return base64.urlsafe_b64decode(data + padding)
                 
     async def trigger_rwt(self):
         if paramstore.get('no_cookie') is not True:
             # 觸發 token 重新整理
-            async with aiohttp.ClientSession() as session:
-                bool = await Refresh_JWT(session).main()
-                return bool
+            if Berriz_cookie.count_rwt < 2:
+                Berriz_cookie.count_rwt +=1
+                async with aiohttp.ClientSession() as session:
+                    bool = await Refresh_JWT(session).main()
+                    return bool
         else:
-            print('/')
             return False
     
     async def create_empty_cookie(self) -> None:
@@ -540,3 +561,43 @@ class Berriz_cookie:
 
         async with aiofiles.open(DEFAULT_COOKIE, "w", encoding="utf-8") as f:
             await f.write(cookie_text)
+
+    async def check_cache_json_info(self) -> bool:
+        bz_a = await Berriz_cookie.CU._read_cache_key('bz_a')
+        bz_r = await Berriz_cookie.CU._read_cache_key('bz_r')
+        pcid = await Berriz_cookie.CU._read_cache_key('pcid')
+
+        # 判斷三個都是 str 且長度 > 0
+        if all(isinstance(v, str) and len(v) > 0 for v in (bz_a, bz_r, pcid)):
+            return True
+        return False
+
+    @staticmethod
+    async def create_temp_json():
+        try:
+            content_bytes = orjson.dumps(Berriz_cookie.default_json(), option=orjson.OPT_INDENT_2)
+            async with aiofiles.open(TEMP_JSON, 'wb') as f:
+                await f.write(content_bytes)
+        except Exception as e:
+            logger.error(f"Write {TEMP_JSON} 檔案時發生錯誤：{e}")
+            raise FileExistsError
+        
+    async def check_hasattr(self):
+        if not hasattr(self, "_cookies") or not self._cookies:
+            retry_count = 0
+            max_retries = 7
+
+            while retry_count < max_retries:
+                try:
+                    await self.load_cookies()
+                    break 
+                except Exception as e:
+                    retry_count += 1
+                    logger.warning(f"載入 cookie 時發生錯誤：{e} ({retry_count}/{max_retries})")
+                    await asyncio.sleep(1)
+
+            if retry_count == max_retries:
+                logger.error("達到最大重試次數，無法載入 cookie")
+                return {}
+        
+        return self._cookies
