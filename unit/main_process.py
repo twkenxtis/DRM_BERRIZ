@@ -11,6 +11,7 @@ from lib.media_queue import MediaQueue
 from lib.lock_cookie import cookie_session
 from lock.donwnload_lock import UUIDSetStore
 from static.color import Color
+from unit.http.request_berriz_api import BerrizAPIClient
 from unit.berriz_drm import BerrizProcessor
 from unit.handle_log import setup_logging
 from unit.image.image import run_image_dl
@@ -75,10 +76,13 @@ class MediaProcessor:
 
     async def _process_vod_items(self, media_id: str, media_type) -> None:
         """Process VOD items using BerrizProcessor."""
-        if cookie_session == {}:
-            logger.warning(f"{Color.fg('light_gray')}Cookies are required to download {Color.bg('crimson')}videos{Color.reset()}")
+        if cookie_session == {} and paramstore.get('no_cookie') is True:
+            logger.warning(f"{Color.fg('light_gray')}Cookies is required to download {Color.bg('crimson')}videos{Color.reset()}")
             logger.info(f"{Color.fg('gold')}Skip {media_id} video download{Color.reset()}")
             return
+        elif cookie_session == {}:
+            raise ValueError('Fail to get cookie correct')
+
         logger.info(f"{Color.fg('light_gray')}Processing VOD ID:{Color.reset()} {Color.fg('periwinkle')}{media_id}{Color.reset()}")
         processor = BerrizProcessor(media_id, media_type)
         await processor.run()

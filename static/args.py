@@ -101,7 +101,7 @@ def had_key() -> bool:
 
 def had_nocookie() -> bool:
     args = parse_args()
-    return args.had_nocookie
+    return args.had_nocookie if args.had_nocookie is not None else False
 
 def clean_dl() -> bool:
     args = parse_args()

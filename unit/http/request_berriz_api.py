@@ -14,6 +14,7 @@ import httpx
 from lib.lock_cookie import cookie_session, Lock_Cookie
 from static.api_error_handle import api_error_handle
 from static.color import Color
+from unit.handle_log import ColoredConsoleFormatter
 
 
 class NonBlockingFileHandler(TimedRotatingFileHandler):
@@ -54,11 +55,8 @@ def setup_logging() -> logging.Logger:
     """Set up logging with console and rotating file handlers."""
     log_directory = "logs"
     os.makedirs(log_directory, exist_ok=True)
-
-    # 控制台格式（包含顏色）
-    console_format = logging.Formatter(
-       f"{Color.fg('light_gray')}%(asctime)s [%(levelname)s] [%(name)s]: %(message)s {Color.reset()}"
-    )
+    
+    console_format = ColoredConsoleFormatter()
 
     # 文件格式（去除所有顏色代碼）
     class NoColorFormatter(logging.Formatter):
@@ -145,21 +143,37 @@ class BerrizAPIClient:
             'pragma': 'no-cache',
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148; iPhone17.6.1; iPhone12,3",
         }
-    
-    async def cookie(self):
-        if cookie_session is None:
+
+    async def ensure_cookie(self):
+        max_retries = 5
+        for _ in range(max_retries):
             cookie = await Lock_Cookie.cookie_session()
-            return cookie
-        else:
-            return cookie_session
+            if cookie not in (None, {}):
+                return cookie
+        raise RuntimeError("Fail to get cookie")
+ 
+    async def cookie(self):
+        if paramstore.get('no_cookie') is not True:
+            if cookie_session in (None, {}):
+                BerrizAPIClient._re_request_cookie = False
+                cookie = await self.ensure_cookie()
+                return cookie
+            else:
+                return cookie_session
+        elif paramstore.get('no_cookie') is True:
+            return {}
 
     async def _send_request(self, url: str, params: Optional[Dict] = None, headers: Optional[Dict] = None) -> Optional[Dict]:
         try:
+            ck = await self.cookie()
+            if paramstore.get('no_cookie') is not True and ck in (None, {}):
+                raise RuntimeError('Cookie is empty! cancel request')
+                
             async with httpx.AsyncClient(http2=True, timeout=4, verify=True) as client:
                 response = await client.get(
                     url,
                     params=params,
-                    cookies = await self.cookie(),
+                    cookies = ck,
                     headers=headers or self.headers,
                 )
                 response.raise_for_status()
@@ -184,10 +198,14 @@ class BerrizAPIClient:
             logger.error(f"Unexpected error for {url}: {e}")
 
     async def _send_request_http1(self, url: str, params: Optional[Dict] = None, headers: Optional[Dict] = None, usecookie = False) -> Optional[Dict]:
+        ck = await self.cookie()    
+        if paramstore.get('no_cookie') is not True and ck in (None, {}):
+            raise RuntimeError('Cookie is empty! cancel request')
+        
         if usecookie is False:
             c = {}
         else:
-            c = await self.cookie()
+            c = ck
         try:
             async with httpx.AsyncClient(http2=False, timeout=4, verify=True) as client:
                 response = await client.get(

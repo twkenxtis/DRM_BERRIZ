@@ -187,7 +187,6 @@ def create_auth_request(
     }
     # 移除 None 項，保持請求參數乾淨
     request_data = {k: v for k, v in request_data.items() if v is not None}
-    print(request_data)
     return {
         'auth_manager': auth_manager,  # 保存實例用於後續 token 發行
         'request_data': request_data,
@@ -360,16 +359,17 @@ class LoginManager:
         async with aiofiles.open(LoginManager.YAML_PATH, "r", encoding="utf-8") as f:
             raw = await f.read()
             data = yaml.safe_load(raw)
-
-        for entry in data.values():
-            acct = entry.get("account", "").strip().lower()
-            pwd  = entry.get("password", "").strip()
-            if LoginManager.EMAIL_REGEX.match(acct) and len(pwd) > 7:
-                self.account  = acct
-                self.password = pwd
-                return await self.run_login()
-
-        raise ValueError("No valid account/password in YAML")
+        try:
+            for entry in data.values():
+                acct = entry.get("account", "").strip().lower()
+                pwd  = entry.get("password", "").strip()
+                if LoginManager.EMAIL_REGEX.match(acct) and len(pwd) > 7:
+                    self.account  = acct
+                    self.password = pwd
+                    return await self.run_login()
+            raise ValueError('No valid account/password in YAML')
+        except ValueError as e:
+            logger.error(f"{e} - Fail to use account password re-login in")
 
     async def run_login(self) -> bool:
         # 校驗郵箱
