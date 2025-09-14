@@ -5,11 +5,11 @@ from lib.account.berriz_create_community import community_join, leave_community_
 from static.args import (
     had_key, clean_dl, skip_merge, fanclub, nofanclub,
     community, _artis, time_date, had_nocookie,
-    join_community, leave_community
+    join_community, leave_community, change_password
 )
 from unit.parameter import paramstore
 from unit.handle_log import setup_logging
-
+from lib.account.change_pawword import Change_Password
 
 logger = setup_logging('main', 'orange')
 
@@ -56,6 +56,11 @@ async def run_leave_communoty(j):
         raise RuntimeError(f'Fail to join community {j}')
 
 try:
+    if change_password():
+        if asyncio.run(Change_Password().change_password()) is True:
+            pass
+        else:
+            raise RuntimeError('Something fail')
     if _artis():
         a = asyncio.run(get_community(_artis()))
         community_id = a
