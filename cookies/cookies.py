@@ -225,7 +225,7 @@ class Refresh_JWT:
     async def update_cookie_file(self, bz_a_new: str, bz_r_new: str):
         updated_lines = []
         try:
-            
+            async with file_lock:
                 async with aiofiles.open(DEFAULT_COOKIE, "r", encoding="utf-8") as f:
                     async for line in f:
                         if line.startswith("# ") or not line.strip():
