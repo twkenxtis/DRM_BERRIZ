@@ -476,7 +476,7 @@ class LoginManager:
     def check_location_url(self, url: str) -> bool:
         return (
             url.startswith("https://berriz.in/auth/token?code=")
-            and len(url) > 110
+            and len(url) >= 110
         )
 
     def check_code_value(self, code: str) -> bool:
