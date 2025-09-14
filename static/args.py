@@ -80,6 +80,12 @@ def parse_args() -> argparse.Namespace:
         help="Show only fanclub only content"
     )
     parser.add_argument(
+        "--change-password", "--change_password",
+        dest="change_password",
+        action="store_true",
+        help="Change password"
+    )
+    parser.add_argument(
         "--no-fanclub",
         dest="nofanclub",
         action="store_true",
@@ -134,6 +140,10 @@ def nofanclub() -> bool:
 def community() -> bool:
     args = parse_args()
     return args.community
+
+def change_password() -> bool:
+    args = parse_args()
+    return args.change_password
 
 def _artis() -> str:
     args = parse_args()
