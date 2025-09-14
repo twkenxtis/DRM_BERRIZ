@@ -537,4 +537,3 @@ email = 'mrqi7@powerscrews.com'
 password = '$D9AAzFF9js3q3h5f'
 clientId = 'e8faf56c-575a-42d2-933d-7b2e279ad827'
 print(asyncio.run(SignupMannger(email, password, clientId).sign_up()))
-# K0Y2gZS1Q7ZrD61v32E0JGTMksO5rA
