@@ -50,6 +50,18 @@ def parse_args() -> argparse.Namespace:
         help="No cookie use"
     )
     parser.add_argument(
+        "--join", "--join-community", "--join_community",
+        dest="join_community",
+        required=False,
+        help="Join a community"
+    )
+    parser.add_argument(
+        "--leave", "--leave-community", "--leave_community",
+        dest="leave_community",
+        required=False,
+        help="leave a community"
+    )
+    parser.add_argument(
         "--fanclub-only",
         dest="fanclub",
         action="store_true",
@@ -126,6 +138,14 @@ def community() -> bool:
 def _artis() -> str:
     args = parse_args()
     return args.artis if args.artis is not None else 'ive'
+
+def join_community() -> str:
+    args = parse_args()
+    return args.join_community if args.join_community is not None else ''
+
+def leave_community() -> str:
+    args = parse_args()
+    return args.leave_community if args.leave_community is not None else ''
 
 def time_date() -> bool:
     args = parse_args()
