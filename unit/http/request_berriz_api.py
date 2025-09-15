@@ -431,18 +431,19 @@ class Live(BerrizAPIClient):
 
 class Notify(BerrizAPIClient):
     async def fetch_notify(
-        self, community_id: str, page_size: str,
-        language_code: str, use_proxy: bool,
+        self, params
     ) -> Optional[Dict]:
-        params = {"languageCode": language_code, "communityId": community_id, "pageSize": page_size,}
-
         url = "https://svc-api.berriz.in/service/v1/notifications"
-
         headers = {
-            **self.headers,
-            "Accept": "application/json",
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 14; SAMSUNG SM-A057F) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/22.0 Chrome/111.0.5563.116 Mobile Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Alt-Used': 'svc-api.berriz.in',
+            'Connection': 'keep-alive',
+            'Sec-Fetch-Site': 'cross-site',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
         }
-        if response := await self._send_request(url, params, headers, use_proxy):
+        if response := await self._send_request(url, params, headers):
             return response
         logger.warning(f"{Color.fg('bright_red')}Failed to obtain notification information{Color.reset()}")
         return None
