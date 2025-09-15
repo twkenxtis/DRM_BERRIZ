@@ -8,6 +8,7 @@ from unit.handle_log import setup_logging
 from unit.main_process import MediaProcessor
 from unit.media_json_process import MediaJsonProcessor
 from unit.user_choice import InquirerPySelector
+from unit.GetNotifyList import NotifyFetcher
 from unit.parameter import paramstore
 
 
@@ -26,8 +27,13 @@ async def handle_choice(community_id: int, time_a, time_b):
                     f"{Color.fg('sand')}{time_b}{Color.reset()}"
                     )
     try:
-        vod_list, photo_list, live_list = await asyncio.create_task(MediaFetcher(community_id).get_all_media_lists(time_a, time_b))
-    except TypeError:
+        if paramstore.get('notify_mod') is not True:
+            vod_list, photo_list, live_list = await asyncio.create_task(MediaFetcher(community_id).get_all_media_lists(time_a, time_b))
+        else:
+            live_list = await NotifyFetcher().get_all_notify_lists(time_a, time_b)
+            vod_list, photo_list = [], []
+    except TypeError as e:
+        logger.error(e)
         return
     selector = InquirerPySelector(vod_list, photo_list, live_list)
     selected_media = await selector.run()
