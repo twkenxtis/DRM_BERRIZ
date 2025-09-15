@@ -130,8 +130,6 @@ class BerrizAPIClient:
     
     def __init__(self):
         self.headers = self._build_headers()
-        self.session = None
-        self.connector = None
 
     @lru_cache(maxsize=1)
     def _build_headers(self) -> Dict[str, str]:
@@ -141,8 +139,8 @@ class BerrizAPIClient:
             "Origin": "https://berriz.in",
             "Accept": "application/json",
             'pragma': 'no-cache',
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148; iPhone17.6.1; iPhone12,3",
-        }
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148; iPhone18.3; iPhone16,3"
+            }
 
     async def ensure_cookie(self):
         max_retries = 5
@@ -175,6 +173,76 @@ class BerrizAPIClient:
                     params=params,
                     cookies = ck,
                     headers=headers or self.headers,
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error for {url}: {e}")
+            return None
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error for {url}: {e}")
+            logger.info(api_error_handle(response.status_code))
+            return None
+        except httpx.ConnectError as e:
+            logger.error(f"Connection error for {url}: {e}")
+            return None
+        except httpx.TimeoutException as e:
+            logger.error(f"Timeout error for {url}: {e}")
+            return None
+        except httpx.RequestError as e:
+            logger.error(f"Unexpected request error for {url}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error for {url}: {e}")
+            
+    async def _patch_request(self, url: str, json_data: Dict, params: Optional[Dict] = None, headers: Optional[Dict] = None) -> Optional[Dict]:
+        try:
+            ck = await self.cookie()
+            if paramstore.get('no_cookie') is not True and ck in (None, {}):
+                raise RuntimeError('Cookie is empty! cancel request')
+                
+            async with httpx.AsyncClient(http2=True, timeout=4, verify=True) as client:
+                response = await client.patch(
+                    url,
+                    params=params,
+                    cookies = ck,
+                    headers=headers or self.headers,
+                    json=json_data,
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error for {url}: {e}")
+            return None
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error for {url}: {e}")
+            logger.info(api_error_handle(response.status_code))
+            return None
+        except httpx.ConnectError as e:
+            logger.error(f"Connection error for {url}: {e}")
+            return None
+        except httpx.TimeoutException as e:
+            logger.error(f"Timeout error for {url}: {e}")
+            return None
+        except httpx.RequestError as e:
+            logger.error(f"Unexpected request error for {url}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error for {url}: {e}")
+
+    async def _send_post(self, url: str, json_data: Dict, params: Optional[Dict] = None, headers: Optional[Dict] = None) -> Optional[Dict]:
+        try:
+            ck = await self.cookie()
+            if paramstore.get('no_cookie') is not True and ck in (None, {}):
+                raise RuntimeError('Cookie is empty! cancel request')
+                
+            async with httpx.AsyncClient(http2=True, timeout=3, verify=True) as client:
+                response = await client.post(
+                    url,
+                    params=params,
+                    cookies = ck,
+                    headers=headers or self.headers,
+                    json=json_data,
                 )
                 response.raise_for_status()
                 return response.json()
@@ -243,7 +311,7 @@ class Playback_info(BerrizAPIClient):
             if isinstance(media_id, str) and UUID_REGEX.match(media_id):
                 params =  {"languageCode": 'en'}
                 url = f"https://svc-api.berriz.in/service/v1/medias/{media_id}/playback_info"
-                if data := await self._send_request(url, params=params):
+                if data := await self._send_request(url, params):
                     results.append(data)
             else:
                 logger.warning(f"Invalid media ID format: {media_id}")
@@ -257,7 +325,7 @@ class Playback_info(BerrizAPIClient):
             if isinstance(media_id, str) and UUID_REGEX.match(media_id):
                 params =  {"languageCode": 'en'}
                 url = f"https://svc-api.berriz.in/service/v1/medias/live/replay/{media_id}/playback_area_context"
-                if data := await self._send_request(url, params=params):
+                if data := await self._send_request(url, params):
                     results.append(data)
             else:
                 logger.warning(f"Invalid media ID format: {media_id}")
@@ -271,7 +339,7 @@ class Public_context(BerrizAPIClient):
             if isinstance(media_id, str) and UUID_REGEX.match(media_id):
                 params =  {"languageCode": 'en'}
                 url = f"https://svc-api.berriz.in/service/v1/medias/{media_id}/public_context"
-                if data := await self._send_request(url, params=params):
+                if data := await self._send_request(url, params):
                     results.append(data)
             else:
                 logger.warning(f"Invalid media ID format: {media_id}")
@@ -293,7 +361,7 @@ class Live(BerrizAPIClient):
         }
 
         try:
-            if response := await self._send_request(playback_url, headers=headers):
+            if response := await self._send_request(playback_url, headers):
                 return response
         except httpx.HTTPError as e:
             logger.error(f"{Color.fg('plum')}Failed to get m3u8 list for media_id{Color.reset()}"
@@ -309,7 +377,7 @@ class Live(BerrizAPIClient):
             'Accept-Encoding': 'identity',
             'Cache-Control': 'no-cache',
         }
-        return await self._send_request_http1(url, headers=headers, usecookie=False)
+        return await self._send_request_http1(url, headers, usecookie=False)
 
     async def fetch_statics(self) -> Optional[Dict]:
         """Fetch static media information for the given media sequence."""
@@ -336,7 +404,7 @@ class Live(BerrizAPIClient):
             "Host": "chat-api.berriz.in",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         }
-        return await self._send_request(url, headers=headers)
+        return await self._send_request(url, headers)
 
     async def fetch_media_seq(self, media_url: str) -> Optional[int]:
         """Fetch mediaSeq from a media URL."""
@@ -345,7 +413,7 @@ class Live(BerrizAPIClient):
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         }
         try:
-            if response := await self._send_request(media_url, headers=headers):
+            if response := await self._send_request(media_url, headers):
                 data = response.json()
             media_seq = data.get("data", {}).get("media", {}).get("mediaSeq")
             if media_seq is None:
@@ -359,7 +427,7 @@ class Live(BerrizAPIClient):
 
     async def fetch_live_replay(self, community_id, params) -> Optional[Dict]:
         url = f"https://svc-api.berriz.in/service/v1/community/{community_id}/medias/live/end"
-        return await self._send_request(url, params=params, headers=self.headers)
+        return await self._send_request(url, params, self.headers)
 
 class Notify(BerrizAPIClient):
     async def fetch_notify(
@@ -374,7 +442,7 @@ class Notify(BerrizAPIClient):
             **self.headers,
             "Accept": "application/json",
         }
-        if response := await self._send_request(url, params=params, headers=headers, use_proxy=use_proxy):
+        if response := await self._send_request(url, params, headers, use_proxy):
             return response
         logger.warning(f"{Color.fg('bright_red')}Failed to obtain notification information{Color.reset()}")
         return None
@@ -389,7 +457,7 @@ class My(BerrizAPIClient):
             **self.headers,
             "Accept": "application/json",
         }
-        return await self._send_request(url, params=params, headers=headers)
+        return await self._send_request(url, params, headers)
     
     async def fetch_home(self) -> Optional[Dict]:
         params =  {"languageCode": 'en'}
@@ -400,7 +468,7 @@ class My(BerrizAPIClient):
             **self.headers,
             "Accept": "application/json",
         }
-        return await self._send_request(url, params=params, headers=headers)
+        return await self._send_request(url, params, headers)
 
     async def fetch_my(self) -> Optional[Dict]:
         params =  {"languageCode": 'en'}
@@ -411,7 +479,7 @@ class My(BerrizAPIClient):
             **self.headers,
             "Accept": "application/json",
         }
-        return await self._send_request(url, params=params, headers=headers)
+        return await self._send_request(url, params, headers)
     
     async def notifications(self) -> Optional[Dict]:
         params =  {"languageCode": 'en'}
@@ -422,18 +490,17 @@ class My(BerrizAPIClient):
             **self.headers,
             "Accept": "application/json",
         }
-        return await self._send_request(url, params=params, headers=headers)
+        return await self._send_request(url, params, headers)
     
     async def fetch_me(self) -> Optional[Dict]:
         params =  {"languageCode": 'en'}
         url = "https://account.berriz.in/auth/v1/accounts"
-
         headers = {
             'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_3_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148; iPhone18.3.2; iPhone14,8',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Alt-Used': 'account.berriz.in',
         }
-        return await self._send_request(url, params=params, headers=headers)
+        return await self._send_request(url, params, headers)
 
     async def fetch_fanclub(self) -> Optional[Dict]:
         params =  {"languageCode": 'en'}
@@ -444,7 +511,22 @@ class My(BerrizAPIClient):
             **self.headers,
             "Accept": "application/json",
         }
-        return await self._send_request(url, params=params, headers=headers)
+        return await self._send_request(url, params, headers)
+
+    async def get_me_info(self) -> Optional[Dict]:
+        params =  {"languageCode": 'en'}
+
+        url = "https://account.berriz.in/member/v1/members/me"
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/386.1.806391101 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Alt-Used': 'account.berriz.in',
+            'Connection': 'keep-alive',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+        }
+        return await self._send_request(url, params, headers)
 
 class Community(BerrizAPIClient):
     async def community_keys(self) -> Optional[Dict]:
@@ -456,14 +538,38 @@ class Community(BerrizAPIClient):
             **self.headers,
             "Accept": "application/json",
         }
-        return await self._send_request(url, params=params, headers=headers)
+        return await self._send_request(url, params, headers)
     
+    async def create_community(self, communityId:int , name:str) -> Optional[Dict]:
+        params =  {"languageCode": 'en'}
+        if type(communityId) is not int:
+            raise ValueError(f'{communityId} should be int')
+        if len(name) > 15:
+            raise ValueError(f'{name} community name only accept length < 15')
+        json_data = {
+            'communityId': communityId,
+            'name': name,
+            'communityTermsIds': [],
+        }
+        url = 'https://svc-api.berriz.in/service/v1/community/user/create'
+        return await self._send_post(url, json_data, params, self.headers)
+    
+    async def leave_community(self, communityId:int) -> Optional[Dict]:
+        params = {
+            'communityId': communityId,
+            'languageCode': 'en',
+        }
+        if type(communityId) is not int:
+            raise ValueError(f'{communityId} should be int')
+        url = 'https://svc-api.berriz.in/service/v1/community/user/withdraw'
+        return await self._send_post(url, json_data={}, params=params, headers=self.headers)
+
 class MediaList(BerrizAPIClient):
     async def media_list(self, community_id, params) -> Optional[Dict]:
         
         url = f"https://svc-api.berriz.in/service/v1/community/{community_id}/medias/recent"
         
-        return await self._send_request(url, params=params, headers=self.headers)
+        return await self._send_request(url, params, self.headers)
 
 class GetRequest(BerrizAPIClient):
     async def get_request(self, url) -> Optional[Dict]:
@@ -473,4 +579,40 @@ class GetRequest(BerrizAPIClient):
             'Accept-Language': 'en-US,en;q=0.5',
             'Cache-Control': 'no-cache',
         }
-        return await self._send_request_http1(url, headers=headers, usecookie=False)
+        return await self._send_request_http1(url, headers, usecookie=False)
+
+_pw_re = re.compile(
+    r'^'  # Start of string
+    r'(?=.*[A-Za-z])'  # At least one letter
+    r'(?=.*\d)'  # At least one digit
+    r'(?=.*[!"#$%&\'()*+,\-./:;<=>?@\[\]\\^_`{|}~])'  # At least one special character
+    r'[\x20-\x7E]{8,32}'  # Printable ASCII characters, length 8-32
+    r'$'  # End of string
+)
+
+class Password_Change(BerrizAPIClient):
+    def validate_password_regex(self, password) -> bool:
+        return bool(_pw_re.match(password))
+
+    async def update_password(self, currentPassword:str, newPassword:str):
+        if self.validate_password_regex(newPassword) and self.validate_password_regex(currentPassword) is False:
+            logging.warning('Your password must contain 8 to 32 alphanumeric and special characters')
+            raise ValueError('Invaild password formact')
+        
+        if self.validate_password_regex(newPassword) and self.validate_password_regex(currentPassword) is True:
+            params = {'languageCode': 'en'}
+            json_data = {
+                'currentPassword': currentPassword,
+                'newPassword': newPassword,
+            }
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0',
+                'Accept': 'application/json',
+                'Referer': 'https://berriz.in/',
+                'Content-Type': 'application/json',
+                'Origin': 'https://berriz.in',
+                'Alt-Used': 'account.berriz.in',
+                'Connection': 'keep-alive',
+            }
+            url = 'https://account.berriz.in/auth/v1/accounts:update-password'
+            return await self._patch_request(url, json_data, params, headers)
