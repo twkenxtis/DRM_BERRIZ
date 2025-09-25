@@ -1,0 +1,18 @@
+# Netscape HTTP Cookie File
+# http://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file!  Do not edit.
+
+.berriz.in	TRUE	/en	FALSE	0	__T_	1
+.berriz.in	TRUE	/en	TRUE	0	__T_SECURE	1
+berriz.in	FALSE	/	FALSE	1792088343	app_install_confirmed	TRUE
+.berriz.in	TRUE	/	TRUE	0	pacode	fanplatf::app:android:phone:
+.berriz.in	TRUE	/	FALSE	0	NEXT_LOCALE	en
+.berriz.in	TRUE	/	FALSE	0	__T_	1
+.berriz.in	TRUE	/	TRUE	0	__T_SECURE	1
+berriz.in	FALSE	/	FALSE	1792088343	cookie_policy_confirmed	TRUE
+.berriz.in	TRUE	/	TRUE	0	pcid	2a8efaf9a92eadb88b38a0324306edc75fc5fb7688b88a508e66f69d5dff
+berriz.in	FALSE	/	FALSE	0	NEXT_LOCALE	en
+.berriz.in	TRUE	/	TRUE	0	bz_r	RRRRRRRRRRR
+.berriz.in	TRUE	/	TRUE	0	bz_a	AAAAAAAAAA
+berriz.in	FALSE	/	FALSE	1757531775	auth_status	authenticated
+.berriz.in	TRUE	/	TRUE	1792088344	_T_ANO	

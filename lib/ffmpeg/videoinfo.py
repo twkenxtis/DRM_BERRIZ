@@ -7,10 +7,7 @@ class VideoInfo:
         if not os.path.exists(path):
             raise FileNotFoundError(f"File not found: {path}")
         self.path = path
-        try:
-            self._probe_data = ffmpeg.probe(self.path)
-        except ffmpeg.Error as e:
-            raise RuntimeError(f"FFmpeg issuse!: {e.stderr.decode('utf-8')}")
+        self._probe_data = ffmpeg.probe(self.path)
 
         self._format = self._probe_data["format"]
         self._vstreams = self._probe_data["streams"]

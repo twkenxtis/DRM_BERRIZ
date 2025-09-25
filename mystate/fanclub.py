@@ -4,6 +4,7 @@ from unit.http.request_berriz_api import My
 async def fanclub_main():
     if cookie_session == {}:
         await Lock_Cookie.cookie_session()
+        return None
     
     data = await (My().fetch_fanclub())
     if data is None:

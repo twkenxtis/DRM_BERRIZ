@@ -1,0 +1,18 @@
+# Netscape HTTP Cookie File
+# http://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file!  Do not edit.
+
+.berriz.in	TRUE	/en	TRUE	0	__T_SECURE	1
+.berriz.in	TRUE	/en	FALSE	0	__T_	1
+.berriz.in	TRUE	/	TRUE	1780376320	pcid	sPj0iNAHjd7KzbDEBsBUB
+.berriz.in	TRUE	/	TRUE	1780376320	pacode	fanplatf::web:win:pc:
+berriz.in	FALSE	/	FALSE	1791814758	app_install_confirmed	TRUE
+.berriz.in	TRUE	/	TRUE	1791814759	_T_ANO	JMsR7C4QANOfPOD2gbw4DHAK/CTgzqGNU45BGDqopcYfc2V7BDn+UKdXfAy8haXfDjmSLp75/P5BEF7gjT9qAe5rMIcdWu/7/BRQ6+zbX2jZVNFWEXyoVStVxrbssypTg1ZFJ/gtjhBUm9NzTKGQByh+giDB7g9kcM+Rsrcd3Qo7e53lH2PeX2FXkbwA9b9/QpoYIxAG9s9aeKgqAjI9kNOTdTKPCC0frjVmthSakl0vj0E6Y75xzVE+c6FvyDP9+3GJztKC9TYpSx++tgRCF0AHYWnXM4Ce4Zh3Ye4vpWXGhJk2lJKaRyB1yt/qQNvygfPpzoIAGoWV64v8YSOmXQ==
+berriz.in	FALSE	/	FALSE	1791814755	cookie_policy_confirmed	TRUE
+.berriz.in	TRUE	/	FALSE	0	__T_	1
+.berriz.in	TRUE	/	TRUE	0	__T_SECURE	1
+berriz.in	FALSE	/	FALSE	0	NEXT_LOCALE	en
+.berriz.in	TRUE	/	FALSE	0	NEXT_LOCALE	en
+berriz.in	FALSE	/	FALSE	1757258351	auth_status	authenticated
+.berriz.in	TRUE	/	TRUE	0	bz_a	eyJraWQiOiJUUWVSeENZSFhDMkxNQTdFY0Rma1hBQ3loSzBjMlAzajZ6VHZXT2h3Ujl3IiwiYWxnIjoiUlMyNTYifQ.eyJpc3MiOiJhY2NvdW50LmJlcnJpei5pbiIsImlhdCI6MTc1NzI1NDc1MiwiZXhwIjoxNzU3MjU4MzUyLCJzdWIiOiIwMTk1ODA3Zi04NTA3LTFmYTEtMjE5My04ODRjZDQzYzNkYjYiLCJpZHBOYW1lIjoiR09PR0xFIn0.F424FDDWoVustNyAPPcfpD7xP9NsZvp_GNVgzj40SCDCUk09tyTHlANpHtKzjDI9j26gunzlIi9az0dwbl5gDQWDxXiTIezaOKZTQMoMwbOWLuTj-qJljguK4xc-AlRXVIJpE__SZiwKsecB-SlGeWdwVgHDj-PXi0FRvAxgGeWgLXJqPidqsAGj_wTmSpG2m-9oTVKlb1M3xCHJnAjNZUpipONsJdkT1vNVmsdlov1QeXNvy2hBQy-diiCtGtRMYxyo6xwx3gMbqNSZGmJAxLTT8J6d6qOOJ-QCZyMVQ8I6mNv003ipBiHGnrQZ3630RCXuoxstTXWT-mUUOJ78Sg
+.berriz.in	TRUE	/	TRUE	0	bz_r	WUMFPgzoKxrbnLHAowkpREeW26klFOYfUgZepnuTtb03pwWoopK8Exst5FFa94545ByIWmMuARCRbo4PzMbPLDtISUVW

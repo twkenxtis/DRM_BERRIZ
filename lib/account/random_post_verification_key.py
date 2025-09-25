@@ -1,6 +1,8 @@
+import asyncio
 import base64
 from datetime import datetime, timedelta
 import hashlib
+import logging
 from pathlib import Path
 import re
 import secrets
@@ -11,12 +13,22 @@ import aiofiles
 import httpx
 import yaml
 
-from lib.account.unban_account import unban_main
-from static.color import Color
-from unit.handle_log import setup_logging
+import re
 
 
-logger = setup_logging('login', 'flamingo_pink')
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
+)
+
+_pw_re = re.compile(
+    r'^'  # Start of string
+    r'(?=.*[A-Za-z])'  # At least one letter
+    r'(?=.*\d)'  # At least one digit
+    r'(?=.*[!"#$%&\'()*+,\-./:;<=>?@\[\]\\^_`{|}~])'  # At least one special character
+    r'[\x20-\x7E]{8,32}'  # Printable ASCII characters, length 8-32
+    r'$'  # End of string
+)
 
 
 class AuthManager:
@@ -199,29 +211,27 @@ def create_auth_request(
             'data': request_data
         }
     }
-
+    
 
 class Request:
     cookies = {
-        'pcid': '2a8efaf9a92eadb88b38a0324306edc75fc5fb7688b88a508e66f69d5dffdee4',
-        'pacode': 'fanplatf::app:android:phone',
+        'pcid': 'jtDlEb93qRCg8MlrYbb86',
+        'pacode': 'fanplatf::web:win:pc:',
+        'NEXT_LOCALE': 'en',
         '__T_': '1',
         '__T_SECURE': '1',
     }
 
     headers = {
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0',
         'Accept': 'application/json',
-        'Content-Type': 'application/json',
         'Referer': 'https://berriz.in/',
         'Origin': 'https://berriz.in',
         'Connection': 'keep-alive',
         'Pragma': 'no-cache',
-        'Cache-Control': 'no-cache',
     }
-
         
-    async def post(self, url, p, json_data):
+    async def post(self, url, p, json_data={}):
         async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
             response = await client.post(
                 url,
@@ -230,7 +240,12 @@ class Request:
                 headers=Request.headers,
                 json=json_data,
             )
-            return response
+            if response.status_code < 400:
+                return response
+            else:
+                logging.error(f"{response.status_code} - {response.url}")
+                raise RuntimeError(response.status_code)
+
 
     async def get(self, url, p):
         async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
@@ -241,32 +256,140 @@ class Request:
                 headers=Request.headers,
                 
             )
-            return response
+            if response.status_code < 400:
+                return response
+            else:
+                logging.error(f"{response.status_code} - {response.url}")
+                raise RuntimeError(response.status_code)
 R = Request()
 
-async def vaild_email(ENMAIL):
-    params = {
-        'email': ENMAIL,
-    }
-    url = 'https://account.berriz.in/member/v1/members:email-exists'
-    response = await R.get(url, params)
-    return response.json()
-    
 
-async def authorizeKey(challenge, state, CLIENTID):
+async def send_verification_email(email: str):
     params = {
-        'clientId': CLIENTID,
-        'codeChallenge': challenge,
+        'languageCode': 'en',
+    }
+    json_data = {
+        'sendTo': email,
+    }
+    url = 'https://account.berriz.in/member/v1/verification-emails:send/SIGN_UP'
+    logging.info(f'send to {email}')
+    response = await R.post(url, params, json_data)
+    if response.json()['code'] == '0000':
+        return True
+    elif response.json()['code'] != '0000':
+        logging.error(response.json())
+
+async def post_verification_key(email: str, otpInt: str):
+    params = {
+        'languageCode': 'en',
+    }
+
+    json_data = {
+        'email': email,
+        'otpCode': otpInt,
+    }
+    url = 'https://account.berriz.in/member/v1/verification-emails:verify/SIGN_UP'
+    response = await R.post(url, params, json_data)
+    if response.json()['code'] == '0000' and response.json()['message'] == 'OK':
+        verifiedKey = response.json()['data']['verifiedKey']
+        if len(verifiedKey) != 36:
+            logging.error('verifiedKey not vaild uuid')
+            raise ValueError('Check verifiedKey is uuid or not.')
+        elif len(verifiedKey) == 36:
+            return verifiedKey
+    elif response.json()['code'] == 'FS_ME2050':
+        logging.error(f"{response.json()['message']} resend a new code for {email}")
+        await VerifiedKEY.sign_up(email)
+    elif response.json()['code'] != '0000':
+        logging.error(response.json())
+        return None
+    # {"code":"FS_ME2050","message":"The code does not match. Please try again."}
+    # {"code":"0000","message":"OK"}
+
+async def terms(email: str, password:str, verifiedKey: str):
+    params = {
+        'languageCode': 'en',
+    }
+
+    json_data = {
+        'email': email,
+        'password': password,
+        'verifiedKey': verifiedKey,
+        'acceptTermSet': [
+            {
+                'termKey': '0193608e-f5bb-6c0b-6996-ba7a603abe02',
+                'isAccepted': True,
+            },
+            {
+                'termKey': '0193608f-cd05-65e9-b56d-e74dead216b9',
+                'isAccepted': True,
+            },
+        ],
+        'hasAgreedToAgeLimit': True,
+    }
+    url = 'https://account.berriz.in/member/v1/members:sign-up'
+    response = await R.post(url, params, json_data)
+    if response.json()['code'] == '0000' and response.json()['message'] == 'OK':
+        return True
+    elif response.json()['code'] == 'FS_ME1050':
+        logging.error(f"{response.json()['message']}")
+    elif response.json()['code'] == 'FS_ER4010':
+        logging.error('Please enter a combination of alphanumeric and special characters')
+    elif response.json()['code'] != '0000':
+        logging.error(response.json())
+        raise Exception(response.json())
+
+async def authorizeKey(codeChallenge:str, state:str, clientId:str):
+    params = {
+        'clientId': clientId,
+        'codeChallenge': codeChallenge,
         'challengeMethod': 'S256',
         'redirectUri': 'https://berriz.in/auth/token',
-        'postRedirectUri': '/en/',
+        'postRedirectUri': '/',
         'state': state,
         'languageCode': 'en',
     }
     url = 'https://account.berriz.in/auth/v1/authorize:init'
     response = await R.get(url, params)
-    return response.json()
+    if response.json()['code'] == '0000' and response.json()['message'] == 'OK':
+        return response.json()['data']['authorizeKey']
+    elif response.json()['code'] != '0000':
+        logging.error(response.json())
+        raise Exception(response.json())
+    
+async def authenticateKey(authorizeKey, challenge, state_csrf, ENMAIL, PASSWORD, CLIENTID):
+    params = {
+        'languageCode': 'en',
+    }
 
+    json_data = {
+        'password': PASSWORD,
+        'clientId': CLIENTID,
+        'authorizeKey': authorizeKey,
+        'challengeMethod': 'S256',
+        'codeChallenge': challenge,
+        'state': state_csrf,
+        'email': ENMAIL,
+        'redirectUri': 'https://berriz.in/auth/token',
+        'postRedirectUri': '/',
+    }
+    url = 'https://account.berriz.in/auth/v1/authenticate'
+    response = await R.post(url, params, json_data)
+    if response.json()["code"] == "0000":
+        key = response.json()["data"]["authenticateKey"]
+        if not key or len(key) != 30:
+            raise ValueError(f"Bad authenticateKey: {key}")
+        return key
+    elif response.json()["code"] == "FS_AU4002":
+        logging.error(response.json()["message"])
+        raise ValueError('DATA_INVALID')
+    elif response.json()["code"] == "FS_AU4002":
+        logging.error(response.json()["message"])
+        raise ValueError('Enter a valid password')
+    else:
+        response.json()["code"] != '0000'
+        logging.error(response.json())
+        raise Exception(response.json())
 
 async def get_code(CLIENTID, challenge, state_csrf, authenticatekey):
     params = {
@@ -282,26 +405,6 @@ async def get_code(CLIENTID, challenge, state_csrf, authenticatekey):
     response = await R.get(url, params)
     location_header = response.headers.get('location')
     return location_header
-
-async def authenticateKey(authorizeKey, challenge, state_csrf, ENMAIL, PASSWORD, CLIENTID):
-    params = {
-        'languageCode': 'en',
-    }
-
-    json_data = {
-        'password': PASSWORD,
-        'clientId': CLIENTID,
-        'authorizeKey': authorizeKey,
-        'challengeMethod': 'S256',
-        'codeChallenge': challenge,
-        'state': state_csrf,
-        'email': ENMAIL,
-        'redirectUri': 'https://berriz.in/auth/token',
-        'postRedirectUri': '/en/',
-    }
-    url = 'https://account.berriz.in/auth/v1/authenticate'
-    response = await R.post(url, params, json_data)
-    return response.json()
 
 async def token_issue(CLIENTID, code_value, code_verifier):
     params = {
@@ -328,141 +431,17 @@ def extract_url_params(url_string):
     code = query_params.get('code', [None])[0]
     postRedirectUri = query_params.get('postRedirectUri', [None])[0]
     return code, postRedirectUri
-
-
-class LoginManager:
-    EMAIL_REGEX = re.compile(r".+@.+\..+")
-    YAML_PATH   = Path("cookies") / "account.yaml"
-    CLIENTID    = "e8faf56c-575a-42d2-933d-7b2e279ad827"
-
-    def __init__(self):
-        self.account = None
-        self.password = None
-        self.bz_a = None
-        self.bz_r = None
-
-    async def create_empty_yaml(self):
-        data = {
-            "berriz": {
-                "account": "",
-                "password": ""
-            }
-        }
-        yaml_text = yaml.dump(data, sort_keys=False, allow_unicode=True)
-        async with aiofiles.open(LoginManager.YAML_PATH, "w", encoding="utf-8") as f:
-            await f.write(yaml_text)
     
-    async def load_info(self) -> bool:
-        if not LoginManager.YAML_PATH.exists():
-            await self.create_empty_yaml()
 
-        async with aiofiles.open(LoginManager.YAML_PATH, "r", encoding="utf-8") as f:
-            raw = await f.read()
-            data = yaml.safe_load(raw)
-        try:
-            for entry in data.values():
-                acct = entry.get("account", "").strip().lower()
-                pwd  = entry.get("password", "").strip()
-                if LoginManager.EMAIL_REGEX.match(acct) and len(pwd) > 7:
-                    self.account  = acct
-                    self.password = pwd
-                    return await self.run_login()
-            raise ValueError('No valid account/password in YAML')
-        except ValueError as e:
-            logger.error(f"{e} - Fail to use account password re-login in")
+class VerifiedKEY:
+    def __init__(self, email, password):
+        self.account = (email or "").strip().lower()
+        self.password = (password or "").strip()
+        self.CLIENTID = 'e8faf56c-575a-42d2-933d-7b2e279ad827'
 
-    async def run_login(self) -> bool:
-        # 校驗郵箱
-        ok = await self.check_mail()
-        if not ok:
-            return False
-
-        # PKCE 請求
-        challenge, state, verifier = self.get_auth_request()
-        if not all((self.check_challenge(challenge),
-                    self.check_state(state),
-                    self.check_code_verifier(verifier))):
-            return False
-
-        # authorizeKey
-        authkey_data = await authorizeKey(challenge, state, self.CLIENTID)
-        authkey      = self.check_authkey(authkey_data)
-
-        # authenticateKey
-        ak_data = await authenticateKey(
-            authkey, challenge, state,
-            self.account, self.password, self.CLIENTID
-        )
-        authk = await self.check_authenticatekey(ak_data)
-        # 拿到重定向 URL 回應header裡面有資料
-        location = await get_code(self.CLIENTID, challenge, state, authk)
-        if not self.check_location_url(location):
-            return False
-
-        # 提取 code from 回應header的資料
-        code, _ = extract_url_params(location)
-        if not self.check_code_value(code):
-            return False
-
-        # PKCE 發起請求 set-cookie 取得
-        tokens = await token_issue(self.CLIENTID, code, verifier)
-        if not self.check_bz_a_bz_r(tokens):
-            return False
-
-        # 確認 bz_a bz_r 返回 True 到 cookie.py 完成 Login
-        pair = self.sort_bz_a_bz_r(tokens)
-        if not pair:
-            return False
-
-        self.bz_a, self.bz_r = pair
-        return True
-
-    async def check_mail(self) -> bool:
-        info = await vaild_email(self.account)
-        if info["code"] == "0000":
-            if not info["data"]["exists"]:
-                raise ValueError(f"Account does not exist: {self.account}")
-            return True
-        if info["code"] == "FS_ME2120":
-            return False
-        raise Exception("Unknown error at check_mail")
-
-    def get_auth_request(self) -> Tuple[str, str, str]:
-        res = create_auth_request(
-            password=self.password,
-            authorize_key='',
-            email=self.account,
-            challenge_method="S256",
-            post_redirect_uri="https://berriz.in/auth/token&postRedirectUri=/en",
-            clientid=self.CLIENTID,
-        )
-        m = res["auth_manager"]
-        return m.challenge, m.state, m.code_verifier
-
-    def check_authkey(self, data: dict) -> str:
-        if data["code"] != "0000":
-            raise ValueError(f"Auth key error: {data}")
-        key = data["data"]["authorizeKey"]
-        if not key or len(key) != 30:
-            raise ValueError(f"Bad authorizeKey: {key}")
-        return key
-
-    async def check_authenticatekey(self, data: dict) -> str:
-        if data["code"] != "0000":
-            if data["code"] == 'FS_AU4030':
-                logger.info(f"{Color.fg('gold')}{data['message']}{Color.reset()}")
-                """{'code': 'FS_AU4030', 'message': 'Unfortunately, 
-                your account has been suspended. Additional authentication is required to re-enable.'}"""
-                if await unban_main(self.account) is True:
-                    logger.info(f"{Color.fg('light_green')}Account unlocked ! Try login now{Color.reset()}")
-                    await self.run_login()
-            else:
-                raise ValueError(f"Authenticate key error: {data}")
-        key = data["data"]["authenticateKey"]
-        if not key or len(key) != 30:
-            raise ValueError(f"Bad authenticateKey: {key}")
-        return key
-
+    def validate_password_regex(self) -> bool:
+        return bool(_pw_re.match(self.password))
+    
     def check_challenge(self, ch: str) -> bool:
         return len(ch) == 64
 
@@ -475,15 +454,18 @@ class LoginManager:
     def check_location_url(self, url: str) -> bool:
         return (
             url.startswith("https://berriz.in/auth/token?code=")
-            and len(url) >= 110
+            and len(url) > 110
         )
+
+    def check_code_value(self, code: str) -> bool:
+        return code is not None and len(code) == 30
 
     def check_code_value(self, code: str) -> bool:
         return code is not None and len(code) == 30
 
     def check_bz_a_bz_r(self, data: dict) -> bool:
         return data.get("code") == "0000" and isinstance(data.get("data"), dict)
-
+    
     def sort_bz_a_bz_r(self, data: dict) -> Union[Tuple[str, str], None]:
         d = data["data"]
         a = d.get("accessToken")
@@ -492,5 +474,42 @@ class LoginManager:
             return a.strip(), r.strip()
         return None
 
-    async def new_refresh_cookie(self):
-        return self.bz_a, self.bz_r
+    def get_auth_request(email, password, clientId) -> Tuple[str, str, str]:
+        res = create_auth_request(
+            password=password,
+            authorize_key='',
+            email=email,
+            challenge_method="S256",
+            post_redirect_uri="https://berriz.in/auth/token&postRedirectUri=/",
+            clientid=clientId,
+        )
+        m = res["auth_manager"]
+        return m.challenge, m.state, m.code_verifier
+
+    async def sign_up(self):
+            # PKCE 請求
+            codeChallenge, state, verifier = self.get_auth_request(self.password, self.CLIENTID)
+            if not all((self.check_challenge(codeChallenge),
+                        self.check_state(state),
+                        self.check_code_verifier(verifier))):
+                return False
+            print(codeChallenge, state, verifier)
+            if await send_verification_email(self.account) is True:
+                otpInt = self.handle_user_input()
+                verifiedKey = await post_verification_key(self.account, otpInt)
+                logging.info(verifiedKey)
+            else:
+                logging.info(f'{email}: This email address is already registered')
+
+    def handle_user_input(self):
+        prompt = f"Enter the 6-digit code you received via email: {self.account} "
+        while True:
+            logging.info(prompt)
+            otp_code = input(prompt).strip()
+            if otp_code.isdigit() and len(otp_code) == 6:
+                return otp_code
+            logging.warning("Invalid OTP: must be exactly 6 digits")
+
+email = 'akmo5ud@concu.net'
+clientId = 'e8faf56c-575a-42d2-933d-7b2e279ad827'
+asyncio.run(VerifiedKEY(email, clientId).sign_up())

@@ -5,7 +5,8 @@ from lib.account.berriz_create_community import community_join, leave_community_
 from static.args import (
     had_key, clean_dl, skip_merge, fanclub, nofanclub,
     community, _artis, time_date, had_nocookie,
-    join_community, leave_community, change_password
+    join_community, leave_community, change_password,
+    dev
 )
 from unit.parameter import paramstore
 from unit.handle_log import setup_logging
@@ -17,6 +18,9 @@ logger = setup_logging('main', 'orange')
 parameter = {}
 if had_key():
     paramstore._store["key"] = True
+
+if dev():
+    paramstore._store["notify_mod"] = True
 
 if had_nocookie():
     paramstore._store["no_cookie"] = True
@@ -33,14 +37,14 @@ if fanclub():
 if nofanclub():
     paramstore._store["fanclub"] = False
 
+from unit.handle_choice import handle_choice
+from unit.community import get_community, get_community_print
+from unit.data import process_time_inputs 
+
 if time_date():
     time_a, time_b = process_time_inputs()
 else:
     time_a, time_b = None, None
-
-from unit.handle_choice import handle_choice
-from unit.community import get_community, get_community_print
-from unit.data import process_time_inputs 
 
 
 async def run_communoty_join(j):

@@ -1,0 +1,17 @@
+# Netscape HTTP Cookie File
+# http://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file!  Do not edit.
+
+.berriz.in	TRUE	/en	FALSE	0	__T_	1
+.berriz.in	TRUE	/en	TRUE	0	__T_SECURE	1
+berriz.in	FALSE	/	FALSE	1792088189	app_install_confirmed	TRUE
+.berriz.in	TRUE	/	TRUE	0	pacode	'fanplatf::app:android:phone'
+.berriz.in	TRUE	/	FALSE	0	NEXT_LOCALE	en
+.berriz.in	TRUE	/	FALSE	0	__T_	1
+.berriz.in	TRUE	/	TRUE	0	__T_SECURE	1
+berriz.in	FALSE	/	FALSE	1792088189	cookie_policy_confirmed	TRUE
+.berriz.in	TRUE	/	TRUE	0	pcid	sPj0iNAHjd7KzbDEBsBUB
+berriz.in	FALSE	/	FALSE	0	NEXT_LOCALE	en
+.berriz.in	TRUE	/	TRUE	0	bz_r	JIVh72chZVCoOxdc09hi0TE6r0gO9z9B1uBGgEgbHVdXM3zYu6wAcjdH11hM4MFdhTa1IufdB9DTAVxpIvYY2nGYCgYnwUA
+.berriz.in	TRUE	/	TRUE	0	bz_a	eyJraWQiOiJUUWVSeENZSFhDMkxNQTdFY0Rma1hBQ3loSzBjMlAzajZ6VHZXT2h3Ujl3IiwiYWxnIjoiUlMyNTYifQ.eyJpc3MiOiJhY2NvdW50LmJlcnJpei5pbiIsImlhdCI6MTc1Nzk1OTE3MiwiZXhwIjoxNzU3OTYyNzcyLCJzdWIiOiIwMTk5NDRhYS1mNTUwLTljOWEtMDlhNS1jM2Q3MWMyYWM2ODgiLCJpZHBOYW1lIjoiRkFOWiJ9.ipzTAWv8CfLx7xMHfCOWzHF3nANEU6cK2VrciLoc1xk-gnIlkSi0sj5ttuhtE2Vm47ifYaJGrFyLsZaCOUyzMbwTmRrHxU_e06gbFT-7z0k0ZKRNrReGYj8sfxZBBDxLOwtN744_CWsuIOszTBfoUkhjbVBFj-bxfWTvrIa6PGeD6T8BZsil6JtVI-1CTI27wmKoRO5AUCkNhc7B8dlG-BxiexwDVfXINlDKVgvrDC1BQlMvx6qMwXz2Zrwbx1SXE2DQvb-l7QiRvC-n-IBLXRyv8QJsKfHApQE83rdL5lwpJmXiS9J_yp22HZjRw1QQQKbpnyJHPA3w-ZqEPamSmQ
+berriz.in	FALSE	/	FALSE	1757531775	auth_status	authenticated

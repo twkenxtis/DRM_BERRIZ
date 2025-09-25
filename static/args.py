@@ -44,6 +44,12 @@ def parse_args() -> argparse.Namespace:
         help="Show key and skip download"
     )
     parser.add_argument(
+        "--dev",
+        dest="dev",
+        action="store_true",
+        help="DEV"
+    )
+    parser.add_argument(
         "--no_cookie", "--nocookie", "--no-cookie",
         dest="had_nocookie",
         action="store_true",
@@ -160,3 +166,7 @@ def leave_community() -> str:
 def time_date() -> bool:
     args = parse_args()
     return args.time_date
+
+def dev() -> bool:
+    args = parse_args()
+    return args.dev

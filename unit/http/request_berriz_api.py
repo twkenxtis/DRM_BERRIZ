@@ -370,14 +370,7 @@ class Live(BerrizAPIClient):
             return None
         
     async def fetch_mpd(self, url):
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_3_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148; iPhone18.3.2; iPhone14,8',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Alt-Used': 'statics.berriz.in',
-            'Accept-Encoding': 'identity',
-            'Cache-Control': 'no-cache',
-        }
-        return await self._send_request_http1(url, headers, usecookie=False)
+        return await self._send_request_http1(url, usecookie=False)
 
     async def fetch_statics(self) -> Optional[Dict]:
         """Fetch static media information for the given media sequence."""
@@ -574,13 +567,7 @@ class MediaList(BerrizAPIClient):
 
 class GetRequest(BerrizAPIClient):
     async def get_request(self, url) -> Optional[Dict]:
-        headers = {
-            'User-Agent': 'Amazon CloudFront',
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Cache-Control': 'no-cache',
-        }
-        return await self._send_request_http1(url, headers, usecookie=False)
+        return await self._send_request_http1(url, usecookie=False)
 
 _pw_re = re.compile(
     r'^'  # Start of string
@@ -617,3 +604,35 @@ class Password_Change(BerrizAPIClient):
             }
             url = 'https://account.berriz.in/auth/v1/accounts:update-password'
             return await self._patch_request(url, json_data, params, headers)
+        
+class Arits(BerrizAPIClient):
+    def __init__(self):
+        self.headers = self.header()
+        
+    def header(self):
+        return {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Alt-Used': 'svc-api.berriz.in',
+            'Connection': 'keep-alive',
+        }
+        
+    async def artis_list(self, community_id):
+        params = {'languageCode': 'en'}
+        url = f'https://svc-api.berriz.in/service/v1/community/{community_id}/artists'
+        return await self._send_request(url, params, self.headers)
+    
+    async def arits_archive(self, community_name):
+        params = {'languageCode': 'en'}
+        url = f'https://berriz.in/en/{community_name}/archive'
+        return await self._send_request(url, params, self.headers)
+    
+    async def arits_archive(self, community_id):
+        params = {'languageCode': 'en', 'pageSize': 99}
+        url = f'https://svc-api.berriz.in/service/v2/community/{community_id}/artist/archive'
+        return await self._send_request(url, params, self.headers)
+    
+    async def post_detil(self, community_id, post_uuid):
+        params = {'languageCode': 'en'}
+        url = f'https://svc-api.berriz.in/service/v1/community/{community_id}/post/{post_uuid}'
+        return await self._send_request(url, params, self.headers)

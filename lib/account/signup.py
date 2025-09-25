@@ -209,7 +209,7 @@ def create_auth_request(
 
 class Request:
     cookies = {
-        'pcid': 'wf4S_JZtGZ33jkP0Bmntd',
+        'pcid': 'jtDlEb93qRCg8MlrYbb86',
         'pacode': 'fanplatf::web:win:pc:',
         'NEXT_LOCALE': 'en',
         '__T_': '1',
@@ -392,9 +392,6 @@ async def authenticateKey(authorizeKey, challenge, state_csrf, ENMAIL, PASSWORD,
     elif response.json()["code"] == "FS_AU4002":
         logging.error(response.json()["message"])
         raise ValueError('DATA_INVALID')
-    elif response.json()["code"] == "FS_AU4002":
-        logging.error(response.json()["message"])
-        raise ValueError('Enter a valid password')
     else:
         response.json()["code"] != '0000'
         logging.error(response.json())
@@ -518,7 +515,7 @@ class SignupMannger:
                         authkey, codeChallenge, state, self.account, self.password, self.CLIENTID, 
                     )
                     if ak_data:
-                        return f"{ak_data} success"
+                        return f"({ak_data}) Success create account → {self.account}"
                     else:
                         return 'Fail'
             else:
@@ -533,7 +530,7 @@ class SignupMannger:
                 return otp_code
             logging.warning("Invalid OTP: must be exactly 6 digits")
 
-email = 'mrqi7@powerscrews.com'
-password = '$D9AAzFF9js3q3h5f'
+email = 'akmo5ud@concu.net'
+password = 'hkz2Aos9#9DFu%r'
 clientId = 'e8faf56c-575a-42d2-933d-7b2e279ad827'
 print(asyncio.run(SignupMannger(email, password, clientId).sign_up()))

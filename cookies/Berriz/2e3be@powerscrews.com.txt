@@ -1,0 +1,20 @@
+# Netscape HTTP Cookie File
+# http://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file!  Do not edit.
+
+.berriz.in	TRUE	/en/ive	FALSE	0	__T_	1
+.berriz.in	TRUE	/en/ive	TRUE	0	__T_SECURE	1
+.berriz.in	TRUE	/en	FALSE	0	__T_	1
+.berriz.in	TRUE	/en	TRUE	0	__T_SECURE	1
+berriz.in	FALSE	/	FALSE	1792349164	app_install_confirmed	TRUE
+.berriz.in	TRUE	/	TRUE	0	pacode	fanplatf::web:win:pc:
+.berriz.in	TRUE	/	FALSE	0	NEXT_LOCALE	en
+.berriz.in	TRUE	/	FALSE	0	__T_	1
+.berriz.in	TRUE	/	TRUE	0	__T_SECURE	1
+berriz.in	FALSE	/	FALSE	1792349163	cookie_policy_confirmed	TRUE
+.berriz.in	TRUE	/	TRUE	0	pcid	sPj0iNAHjd7KzbDEBsBUB
+berriz.in	FALSE	/	FALSE	0	NEXT_LOCALE	en
+.berriz.in	TRUE	/	TRUE	0	bz_r	BHa3aVusMCfNJdQTQjtfqDOe3onkgjnNwk6FANLMRqOT8ZvHt4vshq5HgKDiVt7aV4zCoTNbLoMVYUgFSo
+.berriz.in	TRUE	/	TRUE	0	bz_a	eyJraWQiOiJUUWVSeENZSFhDMkxNQTdFY0Rma1hBQ3loSzBjMlAzajZ6VHZXT2h3Ujl3IiwiYWxnIjoiUlMyNTYifQ.eyJpc3MiOiJhY2NvdW50LmJlcnJpei5pbiIsImlhdCI6MTc1Nzc4OTEzMywiZXhwIjoxNzU3NzkyNzMzLCJzdWIiOiIwMTk5NDQ1Yi1iNjI5LWUxM2ItZDMwNC01NGJmNDI4MjRmYjIiLCJpZHBOYW1lIjoiRkFOWiJ9.dJcTvqZF5eEwJ_aahA2CrjUnITrLIUcE_kL5hTACaY0rBlklAU44AXti8oZA4bjNG93ZpGkInOUZLmSPgM0ZlYjkBw0-o0v0zV6M5fQidDhze8GrzPZ1fuGzndSlHRDe5c-bHgqkuEioQy5QhuwiyQGhseNWVby2E_TCIBS3Es8ImCp7-lRDh0Nzbv3z8G-hul_y7IU8H_VZ7vEYR2WI7mlA5kTr4Pefr8LhNoxgasineiyb_yAe1HBZ2B44DLKlbWNgfkAW1vh4wd7cHxCTRAn5n__StsjMipF8iC4wa8Ph1paFczPdnDfzRgDehg9fM1OfgkXNqbO5homfN8n5RA
+berriz.in	FALSE	/	FALSE	1757792732	auth_status	authenticated
+.berriz.in	TRUE	/	TRUE	1792349230	_T_ANO	VeIBAZqvEdjQd16oG5mi4XCpdPypGcs3GdOp8K81tuThy86Ixsdht6XC1q6dBOc+OfbB8JQwE+QHEb0wNFeQHDAJr3aP7GanOwYA2DA3TDTQT1TSoUApCHW7190vktigWEfwe/JugFY2SCgdq9AIE7pfu0stJeLyi9sfZ6QXYDEXoJRNIJUbqsgswnslwHMdIM1tyhpvQ28SbRvOu+gqWuLgexkrFhZbACJpLNWSHw1+JJ0w5fM04eV3dNSt661O/SnqiKhcEYIVj2ogdLqMvGt2Mu8OOcUmxoaO08K+4M0FJB1w1uMIX1sq8FYz4SC2yFJOwN4hcNYR27PI0KG9Dw==

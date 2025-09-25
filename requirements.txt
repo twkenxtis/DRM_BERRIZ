@@ -1,0 +1,7 @@
+PyJWT>=2.10.1
+requests>=2.32.3
+lxml>=5.2.1
+aiohttp>=3.12.14
+httpx>=0.24.1
+ffmpeg-python>=0.2.0
+pyplayready

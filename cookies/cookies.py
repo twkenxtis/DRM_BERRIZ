@@ -417,7 +417,6 @@ class Berriz_cookie:
         if not hasattr(self, "_cookies"):
             self._cookies = {}
         self.rwt = None
-        self._session = None
 
     async def load_cookies(self) -> None:
         """Load cookies from disk."""
@@ -472,7 +471,6 @@ class Berriz_cookie:
             logger.critical(e)
             sys.exit(1)
 
-    
     @staticmethod
     def default_json() -> dict:
         return {

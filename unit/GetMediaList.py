@@ -143,7 +143,6 @@ class MediaParser:
                     photo_list.append(media)
                 case "LIVE":
                     live_list.append(media)
-
         return vod_list, photo_list, live_list
     
     @staticmethod

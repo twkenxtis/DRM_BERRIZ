@@ -20,6 +20,7 @@ PRELOADED_COMMUNITIES = [
     {'communityId': 9, 'communityKey': 'wjsn'},
     {'communityId': 10, 'communityKey': 'woodz'},
     {'communityId': 11, 'communityKey': 'tempest'},
+    {'communityId': 13, 'communityKey': 'theballadofus'},
     {'communityId': 804223749, 'communityKey': 'prod_test1'},
     {'communityId': 814223749, 'communityKey': 'prod_test2'},
     {'communityId': 824223749, 'communityKey': 'prod_test3'},
@@ -122,7 +123,10 @@ async def get_community(query: str | int | None = None):
     return result
 
 async def get_community_print():
-    data = await get_community()
+    data = await Community().community_keys()
+    if data.get("code") != '0000':
+        return None
+    data = data.get("data", {}).get("contents", [])
     for i in data:
         Community_id = i.get("communityId")
         communityKey = i.get("communityKey")

@@ -1,0 +1,13 @@
+# Netscape HTTP Cookie File
+# http://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file!  Do not edit.
+
+.berriz.in	TRUE	/	TRUE	1789303048	pcid	GQma6k782BYD43AaGvpkS
+.berriz.in	TRUE	/	TRUE	1789303048	pacode	fanplatf::web:win:pc:
+.berriz.in	TRUE	/	FALSE	0	NEXT_LOCALE	en
+berriz.in	FALSE	/	FALSE	1792327154	app_install_confirmed	TRUE
+.berriz.in	TRUE	/	FALSE	0	__T_	1
+.berriz.in	TRUE	/	TRUE	0	__T_SECURE	1
+.berriz.in	TRUE	/	TRUE	0	bz_a	eyJraWQiOiJUUWVSeENZSFhDMkxNQTdFY0Rma1hBQ3loSzBjMlAzajZ6VHZXT2h3Ujl3IiwiYWxnIjoiUlMyNTYifQ.eyJpc3MiOiJhY2NvdW50LmJlcnJpei5pbiIsImlhdCI6MTc1Nzc2NzE0NywiZXhwIjoxNzU3NzcwNzQ3LCJzdWIiOiIwMTk5NDMxNi0xOWUzLTI3NmQtOWVlYy1mMmRhNDA0NGYxMzMiLCJpZHBOYW1lIjoiRkFOWiJ9.HB7KZFvFgvBoUEOsaPUvZ2FvXP5__sgY71PvBAgnvukOOO-DWCHAe43X9Wt4Zqai47GD4Yu2Qe98kizWw79l9RY7G8amgvpnWnEevxXGthsfLcmAvnlSDv6zdfICE85hp0nOFH21WKVqiMd-6k_aOSkDgGtvBBx1BKYEy2TXFUVJUjfZ0DkDd2BnHIaSVVTHhlW1HQqozqih0alHquXLhPur_I2jAjorXF-fYKVGvnlsTpHUWn811ZzydSiOfQRBqk7GftGbD1YRtrU01-rnbgx89ilrb7lulenuCckf3yS_M3TZMGaQldC1kcIuA4I2HQ_Oh5jUQms8ojHG_XD6eA
+.berriz.in	TRUE	/	TRUE	0	bz_r	ibDTF5EUgHlZxgsWh84H1C3Eb5Iw9TVKOfCMdMKUXIxY4xwMHUlJk9DR9sRqlKr2gGf0UFWXH12wKcyGZtbpWPfR7d
+berriz.in	FALSE	/	FALSE	1757770745	auth_status	authenticated
