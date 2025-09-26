@@ -1,4 +1,11 @@
 import asyncio
+import re
+
+from datetime import datetime
+import pytz
+import orjson
+
+from typing import Dict, List
 
 from static.Board_from import Board_from
 from static.color import Color
@@ -6,11 +13,10 @@ from unit.handle_log import setup_logging
 from unit.community import get_community
 from unit.http.request_berriz_api import Translate
 
-from datetime import datetime
-import pytz
-import orjson
 
-from typing import Dict, List, Optional, Union, Any, Tuple
+
+logger = setup_logging('handle_board_from', 'midnight_blue')
+
 
 
 class DataFormatter:
@@ -20,6 +26,16 @@ class DataFormatter:
         seoul_time = utc_time.astimezone(seoul_timezone)
         return seoul_time.strftime('%Y%m%d %H-%M')
     
+
+class FilenameSanitizer:
+    """Handles sanitization of filenames to remove invalid characters."""
+
+    @staticmethod
+    def sanitize_filename(name: str) -> str:
+        """Remove invalid characters from a filename and strip whitespace."""
+        cleaned = re.sub(r'[\\/:\*\?"<>|]', "", name)
+        return cleaned.strip()
+
 
 class BoardFetcher:
     def __init__(self, index: Dict):
@@ -95,7 +111,6 @@ class BoardFetcher:
 
 class BoardMain:
     def __init__(self, board_list: List[Dict]):
-        self.translate = Translate()
         self.board_list = board_list
         self.boardfetcher = BoardFetcher
         self.time_formatter = DataFormatter.format_time_for_seoul
@@ -112,49 +127,29 @@ class BoardMain:
             board_name = fetcher.get_board_name()
             fanclub_only = fetcher.get_board_is_fanclub_only()
             ISO8601 = fetcher.get_createdAt()
-            title = fetcher.get_plainbody()[:20].replace('\n', ' ').replace('\r', ' ').strip()
+            title = fetcher.get_plainbody()[:45].replace('\n', ' ').replace('\r', ' ').strip()
             mediaid = image_info[0]
-
+            safe_title = FilenameSanitizer.sanitize_filename(title)
             folder_name, formact_time_str = self.get_folder_name(
-                writer_name, board_name, ISO8601, postid
+                writer_name, board_name, ISO8601, safe_title
             )
 
             community_name = await self.fetch_community_name(community_id)
 
-            #json_data = await self.build_translated_json(index, postid)
             return_data = [
                 {
                 'publishedAt':ISO8601, 'title':title, 'mediaType':'POST',
                 'communityId':community_id, 'isFanclubOnly':fanclub_only,
                 'communityName':community_name, 'folderName':folder_name,
                 'timeStr':formact_time_str, 'postId':postid, 'imageInfo':image_info,
-                "mediaId":mediaid
+                "mediaId":mediaid, 'board_name':board_name, 'writer_name':writer_name,
+                'index':index
                 }
             ]
             task.append(return_data)
         return_data = [item for sublist in task for item in sublist]
         return return_data
 
-    async def build_translated_json(self, index, postid: str) -> str:
-        translations = await self.fetch_translations(postid)
-
-        eng = translations.get("en")
-        zhHant = translations.get("zh-Hant")
-        zhHans = translations.get("zh-Hans")
-
-        return self.get_json_formact(index, eng, zhHant, zhHans)
-
-    async def fetch_translations(self, postid: str) -> dict:
-        async with asyncio.TaskGroup() as tg:
-            t_en = tg.create_task(self.translate.translate_post(postid, "en"))
-            t_zhHant = tg.create_task(self.translate.translate_post(postid, "zh-Hant"))
-            t_zhHans = tg.create_task(self.translate.translate_post(postid, "zh-Hans"))
-
-        return {
-            "en": t_en.result(),
-            "zh-Hant": t_zhHant.result(),
-            "zh-Hans": t_zhHans.result(),
-        }
 
     async def fetch_community_name(self, community_id: int) -> str:
         return await self.get_commnity_name(community_id)
@@ -167,14 +162,46 @@ class BoardMain:
     async def get_commnity_name(self, community_id:int) -> str:
         group_name = await get_community(community_id)
         return group_name
+
+
+class JsonBuilder:
+    def __init__(self, index:Dict, postid: str):
+        self.translate = Translate()
+        self.index = index
+        self.postid = postid
     
-    def get_json_formact(self, index, eng: str, zhHant: str, zhHans: str) -> str:
+    async def build_translated_json(self) -> str:
+        translations = await self.fetch_translations()
+
+        eng = translations.get("en")
+        jp = translations.get("jp")
+        zhHant = translations.get("zh-Hant")
+        zhHans = translations.get("zh-Hans")
+
+        return self.get_json_formact(eng, jp, zhHant, zhHans)
+
+    def get_json_formact(self, eng: str, jp:str, zhHant: str, zhHans: str) -> str:
         payload = {
-            "index": index,
+            "index": self.index,
             "translations": {
                 "en": eng,
+                "jp": jp,
                 "zh-Hant": zhHant,
                 "zh-Hans": zhHans,
             }
         }
-        return orjson.dumps(payload, option=orjson.OPT_INDENT_2).decode()
+        return payload
+    
+    async def fetch_translations(self) -> dict:
+        async with asyncio.TaskGroup() as tg:
+            t_en = tg.create_task(self.translate.translate_post(self.postid, "en"))
+            t_jp = tg.create_task(self.translate.translate_post(self.postid, "ja"))
+            t_zhHant = tg.create_task(self.translate.translate_post(self.postid, "zh-Hant"))
+            t_zhHans = tg.create_task(self.translate.translate_post(self.postid, "zh-Hans"))
+
+        return {
+            "en": t_en.result(),
+            "jp": t_jp.result(),
+            "zh-Hant": t_zhHant.result(),
+            "zh-Hans": t_zhHans.result(),
+        }

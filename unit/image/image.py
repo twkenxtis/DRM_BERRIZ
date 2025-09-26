@@ -5,29 +5,19 @@ import string
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import aiofiles
-import httpx
-from fake_useragent import UserAgent
-
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List
 
 from mystate.fanclub import fanclub_main
-from static.color import Color
 from unit.community import custom_dict, get_community
 from unit.handle_log import setup_logging
 from unit.http.request_berriz_api import Playback_info, Public_context
+from unit.image.class_ImageDownloader import ImageDownloader
 from unit.image.parse_playback_contexts import parse_playback_contexts
 from unit.image.parse_public_contexts import parse_public_contexts
 
 
 logger = setup_logging('image', 'mint')
 
-
-class FanClubFilter:
-    async def is_fanclub():
-        context = await fanclub_main()
-        """None - not fanclub"""
-        return context
     
 class FilenameSanitizer:
     """Handles sanitization of filenames to remove invalid characters."""
@@ -55,150 +45,106 @@ class DateTimeFormatter:
 
 class FolderManager:
     """Manages folder creation for image downloads."""
-    def __init__(self):
-        pass
 
+    def __init__(self, *, logger=None):
+        self.logger = logger
+
+    # Chunk 1: 入口
     async def create_image_folder(self, title: str, publishedAt: str, community_id: int) -> str | None:
         """Create a folder for images. If exists, append random 5-letter suffix."""
-        time_str = await DateTimeFormatter.format_published_at(publishedAt)
-        safe_title = await FilenameSanitizer.sanitize_filename(title)
-        
-        community_name = await self.get_community_name(community_id)
-        if type(community_name) == str:
-            community_name = custom_dict(community_name)
-        if community_name is None:
-            community_name = await self.get_community_name(community_id)
-        
-        base_dir: Path = Path.cwd() / "downloads" / community_name / "images"
-        base_folder_name = f"{time_str} {community_name} - {safe_title}"
-        folder_path = base_dir / base_folder_name
+        time_str, safe_title = await self._format_time_and_title(publishedAt, title)
+        community_name = await self._resolve_community_name(community_id)
+
+        base_dir, base_folder_name, folder_path = self._compute_base_paths(
+            time_str, safe_title, community_name
+        )
 
         try:
-            await asyncio.to_thread(base_dir.mkdir, parents=True, exist_ok=True)
-            while await asyncio.to_thread(folder_path.exists):
-                random_suffix = "".join(random.choices(string.ascii_lowercase, k=5))
-                folder_path = base_dir / f"{base_folder_name} [{random_suffix}]"
-            await asyncio.to_thread(folder_path.mkdir)
-            return str(folder_path.resolve())
-        except Exception as e:
-            if isinstance(e, OSError) and e.winerror == 183:
-                logger.warning(f"Folder already exists, retrying with new suffix: {folder_path!r}")
+            # 嘗試創建唯一資料夾（若存在則在內部選新名稱）
+            folder_path = await self._ensure_unique_folder(base_dir, base_folder_name, folder_path)
+            # 回傳絕對路徑字串
+            return str((await asyncio.to_thread(folder_path.resolve)))
+        except OSError as e:
+            # Windows 183: 已存在（可能是 exists 與 mkdir 之間的競態）
+            if getattr(e, "winerror", None) == 183:  # ERROR_ALREADY_EXISTS
+                if self.logger:
+                    self.logger.warning(f"Folder exists, retrying with suffix: {folder_path!r}")
                 try:
-                    # Retry with new suffix
-                    while await asyncio.to_thread(folder_path.exists):
-                        suffix = "".join(random.choices(string.ascii_lowercase, k=5))
-                        folder_path = base_dir / f"{base_folder_name} [{suffix}]"
-                    await asyncio.to_thread(folder_path.mkdir)
-                    return str(folder_path.resolve())
+                    folder_path = await self._retry_unique_folder(base_dir, base_folder_name)
+                    return str((await asyncio.to_thread(folder_path.resolve)))
                 except Exception as retry_error:
-                    logger.error(f"Retry failed: {folder_path!r}, reason: {retry_error}")
+                    if self.logger:
+                        self.logger.error(f"Retry failed: {folder_path!r}, reason: {retry_error}")
                     return None
-            else:
-                logger.error(f"Failed to create folder: {folder_path!r}, reason: {e}")
-                return 
-        
-    async def get_community_name(self, community_id:int):
+            # 其他系統錯誤
+            if self.logger:
+                self.logger.error(f"Failed to create folder: {folder_path!r}, reason: {e}")
+            return None
+
+    # Chunk 2: 時間字串與標題清理
+    async def _format_time_and_title(self, published_at: str, title: str) -> tuple[str, str]:
+        time_str = await DateTimeFormatter.format_published_at(published_at)
+        safe_title = await FilenameSanitizer.sanitize_filename(title)
+        return time_str, safe_title
+
+    # Chunk 3: 社羣名稱解析（規範化成字串）
+    async def _resolve_community_name(self, community_id: int) -> str:
+        community_name = await self.get_community_name(community_id)
+        if isinstance(community_name, str):
+            mapped = custom_dict(community_name)
+            community_name = mapped
+        if community_name is None:
+            # 簡單重試一次（資料來源暫時失敗時）
+            community_name = await self.get_community_name(community_id)
+        return str(community_name)
+
+    async def get_community_name(self, community_id: int):
+        # 外部 async API 呼叫
         n = await get_community(community_id)
         return n
 
+    # Chunk 4: 路徑計算（跨平臺）
+    def _compute_base_paths(self, time_str: str, safe_title: str, community_name: str):
+        base_dir: Path = Path.cwd() / "downloads" / community_name / "images"
+        base_folder_name = f"{time_str} {community_name} - {safe_title}"
+        folder_path = base_dir / base_folder_name
+        return base_dir, base_folder_name, folder_path
 
-class ImageDownloader:
-    """Handles downloading images from URLs."""
-    def get_header():
-        return {
-        "User-Agent": UserAgent().chrome,
-        "Cache-Control": "no-cache",
-        "Accept-Encoding": "identity",
-        "Accept": "image/avif,image/webp,image/png,image/jpeg,image/gif,image/svg+xml,*/*",
-        "Connection": "keep-alive",
-        "Sec-Fetch-Dest": "image",
-        'Connection': 'keep-alive'
-    }
+    # Chunk 5: 唯一資料夾建立與重試
+    async def _ensure_unique_folder(self, base_dir: Path, base_folder_name: str, folder_path: Path) -> Path:
+        # 先建立父目錄（冪等）：parents=True, exist_ok=True，避免父層競態
+        await asyncio.to_thread(base_dir.mkdir, parents=True, exist_ok=True)
 
-    _headers = get_header()
-    _timeout = httpx.Timeout(connect=5.0, read=30.0, write=30.0, pool=30.0)
-    _limits = httpx.Limits(max_keepalive_connections=20, max_connections=50)
-        
-    @staticmethod
-    async def _write_to_file(resp: httpx.Response, file_path: Union[str, Path]) -> None:
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-        write_queue = asyncio.Queue()
-        async def writer_task():
-            async with aiofiles.open(file_path, "wb") as f:
-                while True:
-                    data = await write_queue.get()
-                    if data is None:
-                        break
-                    await f.write(data)
-                    write_queue.task_done()
-        writer = asyncio.create_task(writer_task())
-        try:
-            async for chunk in resp.aiter_bytes(25565):
-                await write_queue.put(chunk)
-            await write_queue.join()
-            
-        finally:
-            await write_queue.put(None)
-            await writer
+        # 嘗試先挑一個可用名稱
+        while await asyncio.to_thread(folder_path.exists):
+            random_suffix = "".join(random.choices(string.ascii_lowercase, k=5))
+            folder_path = base_dir / f"{base_folder_name}  [{random_suffix}]"
 
-    @staticmethod
-    async def download_image(url: str, file_path: Union[str, Path]) -> None:
-        for attempt in range(1, 11):
+        # 建立資料夾；若 exists 與 mkdir 間被搶先，Windows 可能丟 183 [web:9]
+        await asyncio.to_thread(folder_path.mkdir)
+        return folder_path
+
+    async def _retry_unique_folder(self, base_dir: Path, base_folder_name: str) -> Path:
+        # 一直嘗試，直到成功建立
+        while True:
+            suffix = "".join(random.choices(string.ascii_lowercase, k=5))
+            candidate = base_dir / f"{base_folder_name}  [{suffix}]"
             try:
-                async with httpx.AsyncClient(
-                    headers=ImageDownloader._headers,
-                    timeout=ImageDownloader._timeout,
-                    limits=ImageDownloader._limits,
-                    http2=True,
-                ) as client:
-                    async with client.stream("GET", url) as resp:
-                        resp.raise_for_status()
-
-                        write_task = asyncio.create_task(
-                            ImageDownloader._write_to_file(resp, file_path)
-                        )
-                        await write_task
-
-                logger.info(f"{Color.fg('periwinkle')}{file_path}{Color.reset()}")
-                return
-
-            except (httpx.RequestError, httpx.HTTPStatusError) as e:
-                logger.warning(f"[Attempt {attempt}/10] Failed to download {url}: {e}")
-                if attempt == 10:
-                    logger.error(f"{url} download failed after 10 attempts")
-                    raise
-
-            except asyncio.CancelledError:
-                logger.warning(f"File write cancelled for {Color.fg('light_gray')}{url}{Color.reset()}")
-                try:
-                    if await aiofiles.os.path.exists(file_path):
-                        await aiofiles.os.remove(file_path)
-                        logger.info(f"Removed partial file: {file_path}")
-                except OSError as e:
-                    logger.warning(f"Failed to remove file {file_path}: {e}")
+                if not await asyncio.to_thread(candidate.exists):
+                    await asyncio.to_thread(candidate.mkdir)
+                    return candidate
+            except OSError as e:
+                # 被搶先建立則重試新的後綴
+                if getattr(e, "winerror", None) == 183:
+                    continue
                 raise
-
-    @staticmethod
-    async def download_images_batch(
-        tasks: List[Tuple[str, Union[str, Path]]], max_concurrency: int = 25
-    ) -> None:
-        semaphore = asyncio.Semaphore(max_concurrency)
-
-        async def safe_download(url: str, path: Union[str, Path]):
-            async with semaphore:
-                try:
-                    await ImageDownloader.download_image(url, path)
-                except Exception as e:
-                    logger.warning(f"Download failed for {url}: {e}")
-
-        await asyncio.gather(*(safe_download(url, path) for url, path in tasks))
 
 
 class ImageUrlParser:
     """Parses image URLs and manages their download."""
 
-    def __init__(self, downloader: ImageDownloader, max_concurrent: int = 23):
-        self.downloader = downloader
+    def __init__(self, max_concurrent: int = 23):
+        self.downloader = ImageDownloader()
         self.semaphore = asyncio.Semaphore(max_concurrent)
 
     async def parse_and_download(
@@ -226,48 +172,52 @@ class ImageUrlParser:
             await self.downloader.download_image(url, file_path)
 
 
-async def run_image_dl(media_ids: list, max_concurrent: int = 23):
-    semaphore = asyncio.Semaphore(max_concurrent)
+class IMGmediaDownloader:
+    def __init__(self, max_concurrent: int = 23):
+        self.semaphore = asyncio.Semaphore(max_concurrent)
+        self.folder_manager = FolderManager()
 
-    async with httpx.AsyncClient(
-        headers=ImageDownloader._headers,
-        timeout=ImageDownloader._timeout,
-        limits=ImageDownloader._limits,
-        http2=True,
-    ) as client:
-        downloader = ImageDownloader()
+    async def process_single_media(self, media_id: str):
+        async with self.semaphore:
+            try:
+                async with asyncio.TaskGroup() as tg:
+                    context_task = tg.create_task(self.get_all_context(media_id))
+                public_ctxs, playback_ctxs = await context_task
 
-        image_parser = ImageUrlParser(downloader)
-        folder_manager = FolderManager()
+                async with asyncio.TaskGroup() as tg:
+                    images_task = tg.create_task(parse_playback_contexts(playback_ctxs))
+                    public_info_task = tg.create_task(parse_public_contexts(public_ctxs))
 
-        async def process_single_media(media_id: str):
-            async with semaphore:
-                try:
-                    public_ctxs, playback_ctxs = await asyncio.gather(
-                        Public_context().get_public_context(media_id),
-                        Playback_info().get_playback_context(media_id),
-                        return_exceptions=True,
-                    )
+                images, public_info = await asyncio.gather(images_task, public_info_task)
+                _, title, publishedAt, community_id = public_info
 
-                    if isinstance(public_ctxs, Exception) or isinstance(
-                        playback_ctxs, Exception
-                    ):
-                        logger.error(f"Failed to fetch contexts for {media_id}")
-                        return
+                folder = await self.folder_manager.create_image_folder(title, publishedAt, community_id)
+                await ImageUrlParser().parse_and_download(images, folder)
 
-                    _, title, publishedAt, community_id = await parse_public_contexts(public_ctxs)
-                    images = await parse_playback_contexts(playback_ctxs)
+            except* Exception as eg:
+                for exc in eg.exceptions:
+                    logger.error(f"Task group error in media {media_id}: {exc}")
 
-                    folder = await folder_manager.create_image_folder(
-                        title, publishedAt, community_id
-                    )
-                    await image_parser.parse_and_download(images, folder)
-
-                except Exception as e:
-                    logger.error(f"Failed to process media {media_id}: {e}")
-
-        chunks = [media_ids[i : i + 25] for i in range(0, len(media_ids), 25)]
-
+    async def run_image_dl(self, media_ids: list[str]):
+        chunks = [media_ids[i : i + 13] for i in range(0, len(media_ids), 13)]
         for chunk in chunks:
-            tasks = [process_single_media(media_id) for media_id in chunk]
+            tasks = [self.process_single_media(mid) for mid in chunk]
             await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def get_all_context(self, media_id: str):
+        public_ctxs, playback_ctxs = await asyncio.gather(
+            self.get_public_context(media_id),
+            self.get_playback_context(media_id),
+            return_exceptions=True,
+        )
+        if isinstance(public_ctxs, Exception) or isinstance(playback_ctxs, Exception):
+            logger.error(f"Failed to fetch contexts for {media_id}")
+            return None, None
+        return public_ctxs, playback_ctxs
+
+    def get_public_context(self, media_id: str):
+        return Public_context().get_public_context(media_id)
+
+    def get_playback_context(self, media_id: str):
+        return Playback_info().get_playback_context(media_id)
+    

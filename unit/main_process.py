@@ -11,10 +11,9 @@ from lib.media_queue import MediaQueue
 from lib.lock_cookie import cookie_session
 from lock.donwnload_lock import UUIDSetStore
 from static.color import Color
-from unit.http.request_berriz_api import BerrizAPIClient
 from unit.berriz_drm import BerrizProcessor
 from unit.handle_log import setup_logging
-from unit.image.image import run_image_dl
+from unit.image.image import IMGmediaDownloader
 from unit.post.post import run_post_dl
 from unit.parameter import paramstore
 
@@ -70,7 +69,6 @@ post_dup = DuplicateConfig.get_post_dup("setting.json")
 logger.info(f"Loaded duplicates → {Color.fg('coral')}image: {image_dup}, video: {video_dup}, post: {post_dup}{Color.reset()}")
 
 
-
 class MediaProcessor:
     """A class to process media items from a queue, handling VOD and photo items."""
 
@@ -107,7 +105,7 @@ class MediaProcessor:
             else:
                 logger.info(f"{Color.fg('light_gray')}Processing Photo IDs:{Color.reset()} {Color.fg('periwinkle')}{media_ids[-13:]} ...{Color.reset()}")
             # Assuming run_image_dl can handle a list of media_ids
-            await run_image_dl(media_ids)
+            await IMGmediaDownloader().run_image_dl(media_ids)
             if image_dup is False:
                 for media_id in media_ids:
                     self.store.add(media_id)
@@ -122,7 +120,7 @@ class MediaProcessor:
             else:
                 logger.info(f"{Color.fg('light_gray')}Processing Post IDs:{Color.reset()} {Color.fg('periwinkle')}{post_ids[-13:]} ...{Color.reset()}")
             # Assuming run_post_dl can handle a list of post_ids
-            await run_post_dl(post_ids, selected_media['post'])
+            await run_post_dl(selected_media['post'])
             if post_dup is False:
                 for post_id in post_ids:
                     self.store.add(post_id)

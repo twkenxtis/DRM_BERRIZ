@@ -4,7 +4,7 @@
     "overrides": {
       "image": true,
       "video": true,
-      "post": true
+      "post": false
     }
   }
 }
