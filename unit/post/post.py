@@ -2,6 +2,7 @@ import asyncio
 import random
 import re
 import string
+from itertools import islice
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from unit.image.parse_playback_contexts import parse_playback_contexts
 from unit.image.parse_public_contexts import parse_public_contexts
 
 
-logger = setup_logging('image', 'mint')
+logger = setup_logging('image', 'maroon')
 
 
 class FanClubFilter:
@@ -197,7 +198,7 @@ class ImageDownloader:
 class ImageUrlParser:
     """Parses image URLs and manages their download."""
 
-    def __init__(self, downloader: ImageDownloader, max_concurrent: int = 23):
+    def __init__(self, downloader: ImageDownloader, max_concurrent: int = 7):
         self.downloader = downloader
         self.semaphore = asyncio.Semaphore(max_concurrent)
 
@@ -225,9 +226,33 @@ class ImageUrlParser:
         async with self.semaphore:
             await self.downloader.download_image(url, file_path)
 
+def filter_post_data(
+    selected_media: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    image_data, none_image_data = [], []
 
-async def run_image_dl(media_ids: list, max_concurrent: int = 23):
+    for item in selected_media:
+        info = item.get("imageInfo", ())
+        if isinstance(info, (list, tuple)) and any(info):
+            image_data.append(item)
+        else:
+            none_image_data.append(item)
+    return image_data, none_image_data
+
+def chunked(seq: List[str], size: int):
+    for i in range(0, len(seq), size):
+        yield seq[i:i + size]
+
+def chunked_iter(iterable, size: int):
+    it = iter(iterable)
+    while chunk := list(islice(it, size)):
+        yield chunk
+
+async def run_post_dl(post_ids: List[str], selected_media, max_concurrent: int = 7, chunk_size: int = 10):
     semaphore = asyncio.Semaphore(max_concurrent)
+
+    image_data, none_image_data = filter_post_data(selected_media)
+    print(image_data, none_image_data)
 
     async with httpx.AsyncClient(
         headers=ImageDownloader._headers,
@@ -236,38 +261,23 @@ async def run_image_dl(media_ids: list, max_concurrent: int = 23):
         http2=True,
     ) as client:
         downloader = ImageDownloader()
+        downloader._client = client
 
         image_parser = ImageUrlParser(downloader)
         folder_manager = FolderManager()
 
         async def process_single_media(media_id: str):
-            async with semaphore:
+            async with semaphore:  # limits concurrent work
                 try:
-                    public_ctxs, playback_ctxs = await asyncio.gather(
-                        Public_context().get_public_context(media_id),
-                        Playback_info().get_playback_context(media_id),
-                        return_exceptions=True,
-                    )
-
-                    if isinstance(public_ctxs, Exception) or isinstance(
-                        playback_ctxs, Exception
-                    ):
-                        logger.error(f"Failed to fetch contexts for {media_id}")
-                        return
-
-                    _, title, publishedAt, community_id = await parse_public_contexts(public_ctxs)
-                    images = await parse_playback_contexts(playback_ctxs)
-
-                    folder = await folder_manager.create_image_folder(
-                        title, publishedAt, community_id
-                    )
+                    folder = await folder_manager.create_image_folder(title, publishedAt, community_id)
                     await image_parser.parse_and_download(images, folder)
-
                 except Exception as e:
                     logger.error(f"Failed to process media {media_id}: {e}")
 
-        chunks = [media_ids[i : i + 25] for i in range(0, len(media_ids), 25)]
-
-        for chunk in chunks:
+        # Choose one of the chunkers:
+        # for chunk in chunked(post_ids, chunk_size):
+        for chunk in chunked_iter(post_ids, chunk_size):
             tasks = [process_single_media(media_id) for media_id in chunk]
+            # schedule current batch; semaphore also caps in-flight concurrency
             await asyncio.gather(*tasks, return_exceptions=True)
+

@@ -9,7 +9,7 @@ class MediaJsonProcessor:
         selected_media: Dict[str, Any],
     ) -> Dict[str, List[Dict[str, Any]]]:
         """Process the selected media dictionary and return categorized media items."""
-        processed = {"vods": [], "photos": []}
+        processed = {"vods": [], "photos": [], "lives": [], "post": []}
 
         # Process VODs
         if "vods" in selected_media and selected_media["vods"]:
@@ -32,6 +32,14 @@ class MediaJsonProcessor:
             processed["photos"] = [
                 item
                 for item in selected_media["photos"]
+                if "mediaId" in item and "mediaType" in item
+            ]
+            
+        # Process Post
+        if "post" in selected_media and selected_media["post"]:
+            processed["post"] = [
+                item
+                for item in selected_media["post"]
                 if "mediaId" in item and "mediaType" in item
             ]
 

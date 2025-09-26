@@ -15,11 +15,18 @@ class MediaQueue:
             self._queue.append((media_id, media_type))
             self._processed_items.add(media_id)
 
-    def enqueue_batch(self, media_items: List[Dict[str, Any]]) -> None:
+    def enqueue_batch(self, media_items: List[Dict[str, Any]], Type:str) -> None:
         """Add multiple media items to the queue."""
-        for item in media_items:
-            if "mediaId" in item and "mediaType" in item:
-                self.enqueue(item["mediaId"], item["mediaType"])
+        if Type != 'POST':
+            for item in media_items:
+                if "mediaId" in item and "mediaType" in item:
+                    self.enqueue(item["mediaId"], item["mediaType"])
+        elif Type == 'POST':
+            for item in media_items:
+                if "postId" in item:
+                    self.enqueue(item["postId"], item["mediaType"])
+        else:
+            raise TabError("Type must be POST LIVE VOD PHOTO")
 
     def dequeue(self) -> Optional[tuple[str, str]]:
         """Remove and return the next media ID and type from the queue."""

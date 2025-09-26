@@ -20,6 +20,7 @@ PRELOADED_COMMUNITIES = [
     {'communityId': 9, 'communityKey': 'wjsn'},
     {'communityId': 10, 'communityKey': 'woodz'},
     {'communityId': 11, 'communityKey': 'tempest'},
+    {'communityId': 12, 'communityKey': 'ke_actors_audition'},
     {'communityId': 13, 'communityKey': 'theballadofus'},
     {'communityId': 804223749, 'communityKey': 'prod_test1'},
     {'communityId': 814223749, 'communityKey': 'prod_test2'},

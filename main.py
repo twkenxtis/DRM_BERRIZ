@@ -1,16 +1,18 @@
 # v1.1.1
 import asyncio
+import sys
 
 from lib.account.berriz_create_community import community_join, leave_community_main
 from static.args import (
     had_key, clean_dl, skip_merge, fanclub, nofanclub,
-    community, _artis, time_date, had_nocookie,
+    community, _group, time_date, had_nocookie,
     join_community, leave_community, change_password,
-    dev
+    dev, board
 )
 from unit.parameter import paramstore
 from unit.handle_log import setup_logging
 from lib.account.change_pawword import Change_Password
+
 
 logger = setup_logging('main', 'orange')
 
@@ -65,8 +67,8 @@ try:
             pass
         else:
             raise RuntimeError('Something fail')
-    if _artis():
-        a = asyncio.run(get_community(_artis()))
+    if _group():
+        a = asyncio.run(get_community(_group()))
         community_id = a
     if join_community():
         j = asyncio.run(get_community(join_community()))
@@ -75,7 +77,14 @@ try:
         j = asyncio.run(get_community(leave_community()))
         asyncio.run(run_leave_communoty(j))
     if not community():
-        asyncio.run(handle_choice(community_id, time_a, time_b))
+        if board():
+            paramstore._store["board"] = True
+            asyncio.run(handle_choice(community_id, time_a, time_b))
+            sys.exit(0)
+        else:
+            paramstore._store["board"] = False
+            asyncio.run(handle_choice(community_id, time_a, time_b))
+            
     else:
         asyncio.run(get_community_print())
 except KeyboardInterrupt:

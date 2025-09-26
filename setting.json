@@ -3,7 +3,8 @@
     "default": false,
     "overrides": {
       "image": true,
-      "video": true
+      "video": true,
+      "post": true
     }
   }
 }

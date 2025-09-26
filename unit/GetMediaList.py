@@ -126,7 +126,6 @@ class MediaParser:
                 raise ValueError("The 'media' field is missing in the media item")
             
             published_at_str = media.get("publishedAt")
-            
             # 進行時間範圍篩選
             if should_filter_by_time and published_at_str:
                 try:

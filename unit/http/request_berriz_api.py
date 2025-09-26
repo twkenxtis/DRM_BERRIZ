@@ -6,7 +6,7 @@ import re
 import threading
 from functools import lru_cache
 from logging.handlers import TimedRotatingFileHandler
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from unit.parameter import paramstore
 
 import httpx
@@ -533,6 +533,19 @@ class Community(BerrizAPIClient):
             "Accept": "application/json",
         }
         return await self._send_request(url, params, headers)
+
+    async def community_menus(self, communityId:int) -> Optional[Dict]:
+        params =  {"languageCode": 'en'}
+        if type(communityId) is not int:
+            raise ValueError(f'{communityId} should be int')
+
+        url = f"https://svc-api.berriz.in/service/v1/community/info/{communityId}/menus"
+
+        headers = {
+            **self.headers,
+            "Accept": "application/json",
+        }
+        return await self._send_request(url, params, headers)
     
     async def create_community(self, communityId:int , name:str) -> Optional[Dict]:
         params =  {"languageCode": 'en'}
@@ -617,22 +630,47 @@ class Arits(BerrizAPIClient):
             'Connection': 'keep-alive',
         }
         
-    async def artis_list(self, community_id):
+    async def artis_list(self, community_id:int):
         params = {'languageCode': 'en'}
         url = f'https://svc-api.berriz.in/service/v1/community/{community_id}/artists'
         return await self._send_request(url, params, self.headers)
+
+    async def _board_list(self, board_id:str, community_id:str, params:Dict):
+        url = f'https://svc-api.berriz.in/service/v1/community/{community_id}/boards/{board_id}/feed'
+        return await self._send_request(url, params, self.headers)
     
-    async def arits_archive(self, community_name):
+    async def arits_archive(self, community_name:str):
         params = {'languageCode': 'en'}
         url = f'https://berriz.in/en/{community_name}/archive'
         return await self._send_request(url, params, self.headers)
     
-    async def arits_archive(self, community_id):
+    async def arits_archive(self, community_id:int):
         params = {'languageCode': 'en', 'pageSize': 99}
         url = f'https://svc-api.berriz.in/service/v2/community/{community_id}/artist/archive'
         return await self._send_request(url, params, self.headers)
     
-    async def post_detil(self, community_id, post_uuid):
+    async def post_detil(self, community_id:int, post_uuid):
         params = {'languageCode': 'en'}
         url = f'https://svc-api.berriz.in/service/v1/community/{community_id}/post/{post_uuid}'
         return await self._send_request(url, params, self.headers)
+    
+
+class Translate(BerrizAPIClient):
+    async def translate_post(self, post_id: str, target_lang: str) -> Optional[Dict]:
+        if not post_id:
+            logger.error("Text to translate cannot be empty.")
+            return None
+        params = {'languageCode': 'en'}
+        url = "https://svc-api.berriz.in/service/v1/translate/post"
+        json_data = {
+            'postId': post_id,
+            'translateLanguageCode': target_lang,
+        }
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 15; V2350 Build/AP3A.240905.015.A2; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/139.0.7258.143 Mobile Safari/537.36 Mobile/065f9b15',
+            'Accept': 'application/json',
+        }
+        data =  await self._send_post(url, json_data, params, headers)
+        if data.get('code') != '0000':
+            raise RuntimeError(f"Translation API error: {data.get('message', 'Unknown error')}")
+        return data.get('data', {}).get('result').strip()

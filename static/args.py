@@ -109,11 +109,17 @@ def parse_args() -> argparse.Namespace:
         dest="skip_merge",
         type=str_to_bool,
         required=False,
-        help="Whether to delete after completion (true/false)"
+        help="Whether to skep merge after completion (true/false)"
+    )
+    parser.add_argument(
+        "--board", "-board",
+        dest="board",
+        action="store_true",
+        help="Choese board"
     )
     parser.add_argument(
         "--g", "--group",
-        dest="artis",
+        dest="group",
         required=False,
         help="group"
     )
@@ -151,9 +157,13 @@ def change_password() -> bool:
     args = parse_args()
     return args.change_password
 
-def _artis() -> str:
+def _group() -> str:
     args = parse_args()
-    return args.artis if args.artis is not None else 'ive'
+    return args.group if args.group is not None else 'ive'
+
+def board() -> str:
+    args = parse_args()
+    return args.board if args.board is not None else 'ive'
 
 def join_community() -> str:
     args = parse_args()
