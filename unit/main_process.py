@@ -148,6 +148,10 @@ class MediaProcessor:
                     title = item.get("title", "Unknown Title")
                     logger.info(f"{Color.bg('crimson')}Already exists{Color.reset()}{Color.fg('light_gray')}, skip download.{Color.reset()}{Color.bg('amber')} {title}{Color.reset()}")
                     return
+                elif item.get("postId") == skip_media_id:
+                    title = item.get("title", "Unknown Title")
+                    logger.info(f"{Color.bg('crimson')}Already exists{Color.reset()}{Color.fg('light_gray')}, skip download.{Color.reset()}{Color.bg('amber')} {title}{Color.reset()}")
+                    return
 
     async def process_media_queue(
         self, media_queue: MediaQueue, selected_media: dict
