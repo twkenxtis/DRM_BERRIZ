@@ -35,6 +35,7 @@ class MediaParser:
     async def parse(
         data: Dict[str, Any], time_a, time_b
     ) -> Tuple[List[Dict], List[Dict], List[Dict], Optional[str], bool]:
+        pref = paramstore.get("fanclub")
         # Chunk 1: extract core
         contents, cursor, has_next = await MediaParser._extract_core(data)
         if contents is None:
@@ -54,23 +55,21 @@ class MediaParser:
         if cookie_session == {}:
             v_fc = p_fc = l_fc = []
 
-        
         # Fanclub 身份檢查
         t = await FanClubFilter.is_fanclub()
-        if t is None:
+        if t is None and pref is None:
             # 非會員 → 回傳非付費
             return v_nfc, p_nfc, l_nfc, cursor, has_next
+        elif pref is True:
+            # --fanclub-only
+            return v_fc, p_fc, l_fc, cursor, has_next
+        elif pref is False:
+            return v_nfc, p_nfc, l_nfc, cursor, has_next
 
-        # 會員：取社羣專屬內容並解析一次
+        # 會員 fanclub only content
         cid = await get_community(t)
         p_contents = await MediaParser.parse_fanclub_community(contents, cid)
         v2, p2, l2 = MediaParser._extract_media_items(p_contents, time_a, time_b)
-
-        pref = paramstore.get("fanclub")
-        if pref is None:
-            return vods, photos, lives, cursor, has_next
-        if pref is False:
-            return v_nfc, p_nfc, l_nfc, cursor, has_next
         return v2, p2, l2, cursor, has_next
 
     @staticmethod

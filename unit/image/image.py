@@ -7,6 +7,8 @@ from pathlib import Path
 
 from typing import Any, Dict, List
 
+from static.color import Color
+from static.api_error_handle import api_error_handle
 from mystate.fanclub import fanclub_main
 from unit.community import custom_dict, get_community
 from unit.handle_log import setup_logging
@@ -183,7 +185,7 @@ class IMGmediaDownloader:
                 async with asyncio.TaskGroup() as tg:
                     context_task = tg.create_task(self.get_all_context(media_id))
                 public_ctxs, playback_ctxs = await context_task
-
+                
                 async with asyncio.TaskGroup() as tg:
                     images_task = tg.create_task(parse_playback_contexts(playback_ctxs))
                     public_info_task = tg.create_task(parse_public_contexts(public_ctxs))
@@ -213,6 +215,16 @@ class IMGmediaDownloader:
         if isinstance(public_ctxs, Exception) or isinstance(playback_ctxs, Exception):
             logger.error(f"Failed to fetch contexts for {media_id}")
             return None, None
+        media = public_ctxs[0]['data']['media']
+        communityArtists = public_ctxs[0]['data']['communityArtists']
+        logger.info(
+            f"{Color.fg('light_magenta')}{media['title']} "
+            f"{Color.fg('light_cyan')}{communityArtists[0]['name']} "
+            f"{Color.fg('light_gray')}{media['mediaId']}"
+            f"{Color.reset()}"
+            )
+        if playback_ctxs[0]['code'] != '0000':
+            logger.warning(f"{Color.bg('maroon')}{api_error_handle(playback_ctxs[0]['code'])}{Color.reset()}")
         return public_ctxs, playback_ctxs
 
     def get_public_context(self, media_id: str):

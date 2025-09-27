@@ -194,14 +194,19 @@ class BerrizProcessor:
                 )
             self.all_playback_infos.append((playback_info, public_info))
             
+            logger.info(
+                f"{Color.fg('light_magenta')}{public_info.title} {Color.fg('light_cyan')}"
+                f"{public_info.artists[0]['name']} {Color.fg('light_gray')}{public_info.media_id}{Color.reset()}"
+            )
             key, dash_playback_url, raw_mpd, hls_playback_url, raw_hls = await asyncio.create_task(self.drm_handle(playback_info))
-            await self.create_task(public_info, key, raw_mpd, dash_playback_url, hls_playback_url, raw_hls)
+            if not any(not v for v in (key, dash_playback_url, raw_mpd, hls_playback_url, raw_hls)):
+                await self.create_task(public_info, key, raw_mpd, dash_playback_url, hls_playback_url, raw_hls)
 
     async def drm_handle(self, playback_info):
         # Handle DRM and obtain information needed for download
         if playback_info.code != "0000":
             logger.warning(f"{Color.bg('maroon')}{api_error_handle(playback_info.code)}{Color.reset()}")
-            return
+            return '', '', '', '', ''
 
         if playback_info.dash_playback_url:
             raw_mpd = await Live().fetch_mpd(playback_info.dash_playback_url)

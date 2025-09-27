@@ -14,7 +14,9 @@ def print_help():
     options = [
         "-h, --help", "--dev", "--no_cookie, --nocookie, --no-cookie", "",
         "--community", "--join 'COMMUNITY_NAME'", "--leave 'COMMUNITY_NAME'", 
-        "--group 'ive'(default)", "--board", "--fanclub-only", "--no-fanclub", "",
+        "--group 'ive'(default)", 
+        "--board -b", "--live --live-only -l", "--media --media-only -m", "--photo -photo-only -p", "",
+        "--fanclub-only --fanclub --fc", "--no-fanclub --nfc", "",
         "--t, --time", "--change-password", "",
         "--del-after-done 'True'(default)", "--skip-merge 'False'(default)", "--key, --keys"
     ]
@@ -28,7 +30,10 @@ def print_help():
         "加入社群 / Join a community",
         "離開社群 / Leave a community",
         "哪位藝人的社區 'ive' or 7 / Which artist's community 'ive' or 7",
-        "選擇看板內容 only / Choose board content only",
+        "選擇看板內容 / Choose board content",
+        "選擇Live內容 / Choose live content",
+        "選擇Media區影片內容 / Choose media chunk video content",
+        "選擇Media區相片內容 / Choose media chunk photo content", "",
         "僅顯示粉絲俱樂部內容 / Show only fanclub only content",
         "僅顯示非Fanclub內容 / Show only none fanclub only content", "",
         "依時間篩選內容 / Filter content by date & time",

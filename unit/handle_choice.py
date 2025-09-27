@@ -16,6 +16,34 @@ from unit.parameter import paramstore
 logger = setup_logging('handle_choice', 'light_slate_gray')
 
 
+async def fetch_filtered_media(community_id, time_a, time_b):
+    # Fetch all media lists concurrently
+    vod_list, photo_list, live_list = await asyncio.create_task(
+        MediaFetcher(community_id).get_all_media_lists(time_a, time_b)
+    )
+    post_list = await Board(community_id, time_a, time_b).get_artis_board_list()
+
+    # Get the parameter flags with default False
+    liveonly = paramstore.get('liveonly')
+    mediaonly = paramstore.get('mediaonly')
+    photoonly = paramstore.get('photoonly')
+    boardonly = paramstore.get('board')
+
+    # Count how many conditions are True
+    active_conditions = sum([liveonly, mediaonly, photoonly, boardonly])
+
+    # If no conditions are True, return all lists
+    if active_conditions == 0:
+        return vod_list, photo_list, live_list, post_list
+
+    # Initialize result lists based on corresponding flags
+    result_vod_list = vod_list if mediaonly else []
+    result_photo_list = photo_list if photoonly else []
+    result_live_list = live_list if liveonly else []
+    result_post_list = post_list if boardonly else []
+
+    return result_vod_list, result_photo_list, result_live_list, result_post_list
+
 async def handle_choice(community_id: int, time_a, time_b):
     
     if paramstore.get('no_cookie') is not True:
@@ -28,15 +56,12 @@ async def handle_choice(community_id: int, time_a, time_b):
                     f"{Color.fg('sand')}{time_b}{Color.reset()}"
                     )
     try:
-        if paramstore.get('notify_mod') is not True and paramstore.get('board') is False:
-            vod_list, photo_list, live_list = await asyncio.create_task(MediaFetcher(community_id).get_all_media_lists(time_a, time_b))
-            post_list = []
-        elif paramstore.get('board') is False and paramstore.get('board') is False:
+        vod_list, photo_list, live_list, post_list = await fetch_filtered_media(community_id, time_a, time_b)
+        if paramstore.get('notify_mod') is True:
+            # notify_only
             live_list = await NotifyFetcher().get_all_notify_lists(time_a, time_b)
             vod_list, photo_list, post_list = [], [], []
-        elif paramstore.get('board') is True:
-            post_list = await Board(community_id, time_a, time_b).get_artis_board_list()
-            vod_list, photo_list, live_list = [], [], []
+
     except TypeError as e:
         logger.error(e)
         return

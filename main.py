@@ -5,9 +5,9 @@ import sys
 from lib.account.berriz_create_community import community_join, leave_community_main
 from static.args import (
     had_key, clean_dl, skip_merge, fanclub, nofanclub,
-    community, _group, time_date, had_nocookie,
+    community, group, time_date, had_nocookie,
     join_community, leave_community, change_password,
-    dev, board, show_help
+    dev, board, show_help, mediaonly, liveonly, photoonly
 )
 from static.help import print_help
 from unit.parameter import paramstore
@@ -43,6 +43,21 @@ if fanclub():
     
 if nofanclub():
     paramstore._store["fanclub"] = False
+    
+if mediaonly():
+    paramstore._store["mediaonly"] = True
+else:
+    paramstore._store["mediaonly"] = False
+    
+if liveonly():
+    paramstore._store["liveonly"] = True
+else:
+    paramstore._store["liveonly"] = False
+
+if photoonly():
+    paramstore._store["photoonly"] = True
+else:
+    paramstore._store["photoonly"] = False
 
 from unit.handle_choice import handle_choice
 from unit.community import get_community, get_community_print
@@ -72,8 +87,8 @@ try:
             pass
         else:
             raise RuntimeError('Something fail')
-    if _group():
-        a = asyncio.run(get_community(_group()))
+    if group():
+        a = asyncio.run(get_community(group()))
         community_id = a
     if join_community():
         j = asyncio.run(get_community(join_community()))
