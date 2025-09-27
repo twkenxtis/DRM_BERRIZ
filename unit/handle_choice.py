@@ -24,7 +24,7 @@ async def handle_choice(community_id: int, time_a, time_b):
     if time_a is not None or time_b is not None:
         logger.info(f"{Color.fg('tomato')}choese "
                     f"{Color.fg('sand')}{time_a} "
-                    f"{Color.fg('light_gray')}~"
+                    f"{Color.fg('light_gray')}- "
                     f"{Color.fg('sand')}{time_b}{Color.reset()}"
                     )
     try:
@@ -35,7 +35,7 @@ async def handle_choice(community_id: int, time_a, time_b):
             live_list = await NotifyFetcher().get_all_notify_lists(time_a, time_b)
             vod_list, photo_list, post_list = [], [], []
         elif paramstore.get('board') is True:
-            post_list = await Board(community_id).get_artis_board_list()
+            post_list = await Board(community_id, time_a, time_b).get_artis_board_list()
             vod_list, photo_list, live_list = [], [], []
     except TypeError as e:
         logger.error(e)

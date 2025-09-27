@@ -64,7 +64,7 @@ async def request_my():
             )
 
             if keys:
-                logger.info(f"{Color.fg('gray')}My joined communities: {Color.fg('pink')}{' | '.join(keys)}")
+                logger.info(f"{Color.fg('gray')}My joined community: {Color.fg('pink')}{' | '.join(keys)}")
     except AttributeError as e:
         if "NoneType" in str(e):
             pass

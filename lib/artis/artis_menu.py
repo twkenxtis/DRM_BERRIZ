@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 
 from static.color import Color
 from unit.community import get_community
@@ -7,13 +8,15 @@ from unit.http.request_berriz_api import Arits
 from unit.handle_log import setup_logging
 from unit.handle_board_from import BoardMain
 
-from typing import Dict, List, Optional, Union, Any, Tuple
+from typing import Dict, Optional, Any, Tuple
 
 
 class Board:
-    def __init__(self, communityId: int):
+    def __init__(self, communityId: int, time_a: Optional[datetime] = None, time_b: Optional[datetime] = None):
         self.communityId = communityId
         self.json_data = None
+        self.time_a = time_a
+        self.time_b = time_b
 
     async def get_artis_board_list(self):
         CM_id, group_name = await self.get_community_id(self.communityId)
@@ -29,7 +32,7 @@ class Board:
     async def handle_artist_board(self, menu, CM_id):
         board_list = await self.sort_board_list(menu, CM_id)
         if board_list:
-            return await BoardMain(board_list).main()
+            return await BoardMain(board_list, self.time_a, self.time_b).main()
     
     async def get_community_id(self, group_name):
         if isinstance(group_name, int):
@@ -67,7 +70,6 @@ class Board:
     async def get_all_board_content_lists(self, boards_id, community_id):
         params = {"pageSize": 100, "languageCode": "en"}
         all_contents = []
-
         while True:
             self.json_data = await self._fetch_data(boards_id, community_id, params)
             if not self.json_data:

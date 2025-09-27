@@ -3,9 +3,8 @@ import re
 
 from datetime import datetime
 import pytz
-import orjson
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from static.Board_from import Board_from
 from static.color import Color
@@ -14,9 +13,7 @@ from unit.community import get_community
 from unit.http.request_berriz_api import Translate
 
 
-
 logger = setup_logging('handle_board_from', 'midnight_blue')
-
 
 
 class DataFormatter:
@@ -110,14 +107,16 @@ class BoardFetcher:
 
 
 class BoardMain:
-    def __init__(self, board_list: List[Dict]):
+    def __init__(self, board_list: List[Dict], time_a: Optional[datetime] = None, time_b: Optional[datetime] = None):
         self.board_list = board_list
         self.boardfetcher = BoardFetcher
         self.time_formatter = DataFormatter.format_time_for_seoul
+        self.time_a = time_a
+        self.time_b = time_b
 
     async def main(self):
         task = []
-        for index in self.board_list:
+        for index in self.sort_by_time():
             fetcher = self.boardfetcher(index)
 
             postid = fetcher.get_postid()
@@ -150,7 +149,32 @@ class BoardMain:
         return_data = [item for sublist in task for item in sublist]
         return return_data
 
-
+    def sort_by_time(self):
+        sort_list = []
+        # 檢查是否需要進行時間篩選 -> bool
+        should_filter_by_time = (isinstance(self.time_a, datetime) and isinstance(self.time_b, datetime))
+        # 確保時間範圍順序正確
+        if should_filter_by_time and self.time_a > self.time_b:
+            self.time_a, self.time_b = self.time_b, self.time_a
+            
+        for index in self.board_list:
+            fetcher = self.boardfetcher(index)
+            
+            ISO8601 = fetcher.get_createdAt()
+            if should_filter_by_time and ISO8601:
+                try:
+                    # 將字串轉換為 datetime 物件，並處理時區
+                    published_at = datetime.fromisoformat(ISO8601.replace('Z', '+00:00'))
+                    if not (self.time_a <= published_at <= self.time_b):
+                        continue
+                except (ValueError, TypeError):
+                    continue
+                sort_list.append(index)
+                
+        if sort_list == []:
+            return self.board_list
+        elif sort_list != []:
+            return sort_list
     async def fetch_community_name(self, community_id: int) -> str:
         return await self.get_commnity_name(community_id)
             

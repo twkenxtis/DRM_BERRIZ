@@ -1,4 +1,4 @@
-# v1.1.1
+# v1.3
 import asyncio
 import sys
 
@@ -7,8 +7,9 @@ from static.args import (
     had_key, clean_dl, skip_merge, fanclub, nofanclub,
     community, _group, time_date, had_nocookie,
     join_community, leave_community, change_password,
-    dev, board
+    dev, board, show_help
 )
+from static.help import print_help
 from unit.parameter import paramstore
 from unit.handle_log import setup_logging
 from lib.account.change_pawword import Change_Password
@@ -16,6 +17,10 @@ from lib.account.change_pawword import Change_Password
 
 logger = setup_logging('main', 'orange')
 
+
+if show_help():
+    print_help()
+    sys.exit(0)
 
 parameter = {}
 if had_key():

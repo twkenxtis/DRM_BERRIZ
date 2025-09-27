@@ -530,7 +530,7 @@ class SignupMannger:
                 return otp_code
             logging.warning("Invalid OTP: must be exactly 6 digits")
 
-email = 'akmo5ud@concu.net'
-password = 'hkz2Aos9#9DFu%r'
+email = 'omenbibi97@gmail.com'
+password = 'stbqobjE9h@jk93ht3j4'
 clientId = 'e8faf56c-575a-42d2-933d-7b2e279ad827'
 print(asyncio.run(SignupMannger(email, password, clientId).sign_up()))
