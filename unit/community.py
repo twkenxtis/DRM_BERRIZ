@@ -189,7 +189,7 @@ async def get_community_print() -> None:
                     f"{Color.fg('plum')}{communityKey}"
                     )
         
-async def request_community_community_keys(self) -> Dict[str, Any]:
+async def request_community_community_keys() -> Dict[str, Any]:
     try:
         data: Dict[str, Any] = await Community().community_keys()
         if data.get("code") == '0000':
