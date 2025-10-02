@@ -106,8 +106,11 @@ async def custom_dict(input_str: Union[str, int]) -> Optional[str]:
                 return 'The Ballad of Us'
             case _:
                 merged_dict = {}
-                resp: dict = await My().fetch_home()
-                if resp.get("code") != '0000':
+                try:
+                    resp: dict = await My().fetch_home()
+                    if resp.get("code") != '0000':
+                        return None
+                except AttributeError:
                     return None
                 for i in resp['data']['active']:
                     name = i['title']
@@ -149,9 +152,8 @@ async def get_community(query: Union[str, int, None] = None) -> ReturnType:
     
     # 查不到再發 API
     # 假設 Community().community_keys() 返回 Dict[str, Any]
-    data: Dict[str, Any] = await Community().community_keys()
-    if data.get("code") != '0000':
-        return None
+    data = await request_community_community_keys()
+    if data == {}: return None
 
     # 假設 contents 是 List[CommunityDict]
     contents: List[CommunityDict] = data.get("data", {}).get("contents", [])
@@ -171,9 +173,8 @@ async def get_community(query: Union[str, int, None] = None) -> ReturnType:
 
 async def get_community_print() -> None:
     # 假設 Community().community_keys() 返回 Dict[str, Any]
-    data: Dict[str, Any] = await Community().community_keys()
-    if data.get("code") != '0000':
-        return None
+    data = await request_community_community_keys()
+    if data == {}: return None
         
     # 假設 data.get("data", {}).get("contents", []) 返回 List[CommunityDict]
     contents: List[CommunityDict] = data.get("data", {}).get("contents", [])
@@ -187,3 +188,12 @@ async def get_community_print() -> None:
                     f"{Color.fg('light_gray')}communityKey: "
                     f"{Color.fg('plum')}{communityKey}"
                     )
+        
+async def request_community_community_keys(self) -> Dict[str, Any]:
+    try:
+        data: Dict[str, Any] = await Community().community_keys()
+        if data.get("code") == '0000':
+            return data
+    except AttributeError:
+        return {}
+            
