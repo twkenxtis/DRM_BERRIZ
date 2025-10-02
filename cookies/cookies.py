@@ -12,14 +12,14 @@ from typing import Any, Dict, List, Optional
 from unit.parameter import paramstore
 
 import jwt
-import aiohttp
+import httpx
 import aiofiles
 from aiofiles import os as aioos
 import orjson
 
-from lib.account.login import LoginManager
 from static.color import Color
-from lib.load_yaml_config import CFG
+from lib.account.login import LoginManager
+from unit.__init__ import USERAGENT
 from unit.handle_log import setup_logging
 
 DEFAULT_COOKIE: Path = Path("cookies/Berriz/default.txt")
@@ -34,7 +34,7 @@ class CookieUtils:
     REQUIRED_COOKIES: List[str] = ["pcid"]
     
     def __init__(self):
-        self._session: Optional[aiohttp.ClientSession] = None
+        pass
 
     async def _retry_with_action(self, action, error_log_cb, max_retries: int = 5) -> Optional[Any]:
         retry_count: int = 0
@@ -115,7 +115,7 @@ class CookieUtils:
             
             # default.txt 讀取失敗 沒有bz_r 嘗試用fsau4021 觸發login.py 來刷新default.txt
             if not bz_r2:
-                await Refresh_JWT(await self.session()).fsau4021()
+                await Refresh_JWT().fsau4021()
             else:
                 # 讀取到default.txt 內的 bz_r 寫入到json並返回作為請求結果
                 await self.save_bz_r(bz_r2)
@@ -148,7 +148,7 @@ class CookieUtils:
     async def get_initial_headers(self) -> Dict[str, str]:
         bz_r: str = await self.get_bz_r()
         headers: Dict[str, str] = {
-            "User-Agent": f"{CFG['headers']['User-Agent']}",
+            "User-Agent": f"{USERAGENT}",
             "Accept": "application/json",
             "Content-Type": "application/json",
             "Accept-Encoding": "gzip, deflate, br, zstd",
@@ -161,11 +161,6 @@ class CookieUtils:
         }
         return headers
 
-    async def session(self) -> aiohttp.ClientSession:
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession()
-        return self._session
-
 
 class Refresh_JWT:
     no_expires_log: bool = False
@@ -174,25 +169,20 @@ class Refresh_JWT:
     fsau4021_log: bool = True
     no_LOGIN_log: bool = True
 
-    def __init__(self, session: aiohttp.ClientSession):
-        self.session: aiohttp.ClientSession = session
-        self.headers: Optional[Dict[str, str]] = None
+    def __init__(self):
+        pass
 
     async def refresh_token(self) -> Optional[str]:
         """Refresh the JWT token and save it to bz_a"""
         url: str = "https://account.berriz.in/auth/v1/token:refresh?languageCode=en"
         headers: Dict[str, str] = await Refresh_JWT.CU.get_initial_headers()
-        self.headers = headers
         json_data: Dict[str, str] = {"clientId": "e8faf56c-575a-42d2-933d-7b2e279ad827"}
-
-        async with self.session.post(url, headers=headers, json=json_data) as resp:
-            data: Dict[str, Any] = await resp.json()
-        if resp.status != 200:
-            if data['code'] == 'FS_AU4021': 
-                if Refresh_JWT.fsau4021_log == True:
-                    Refresh_JWT.fsau4021_log = False
-                    logger.warning(f"{data['code']} - {data['message']}")
-                await self.fsau4021()
+        data: httpx.Response = await _send_post_http1(url, json_data, headers)
+        if data['code'] == 'FS_AU4021': 
+            if Refresh_JWT.fsau4021_log == True:
+                Refresh_JWT.fsau4021_log = False
+                logger.warning(f"{data['code']} - {data['message']}")
+            await self.fsau4021()
         access_token: str = data["data"]["accessToken"]
         try:
             decoded: Dict[str, Any] = jwt.decode(access_token, options={"verify_signature": False})
@@ -309,6 +299,7 @@ class Refresh_JWT:
             logger.warning(f"時間格式無效：{ve}，強製刷新")
             return True
 
+
     async def write_next_refresh_time(self) -> None:
         next_time: datetime = datetime.now() + timedelta(minutes=50)
 
@@ -355,7 +346,7 @@ class Refresh_JWT:
     async def main(self) -> Optional[bool]:
         """Main method to handle token refresh if needed."""
         if (os.path.exists(DEFAULT_COOKIE) and os.path.getsize(DEFAULT_COOKIE) > 0) is False:
-            return None
+            return await Refresh_JWT().fsau4021()
         if await self.should_refresh():
             k: Optional[str] = await self.refresh_and_test()
             if k:
@@ -437,7 +428,6 @@ class Berriz_cookie:
                 default_task = tg.create_task(Berriz_cookie.CU.get_default_cookies())
                 bz_a_task = tg.create_task(Berriz_cookie.CU.read_bz_a())
                 bz_r_task = tg.create_task(Berriz_cookie.CU.get_bz_r())
-
             self._cookies = default_task.result()  # type: ignore[assignment]
             self._cookies["bz_a"] = bz_a_task.result()
             self._cookies["bz_r"] = bz_r_task.result()
@@ -483,7 +473,7 @@ class Berriz_cookie:
             "cache_cookie": {
                 "bz_a": "",
                 "bz_r": "",
-                "pcid": "",
+                "pcid": "ijJSuDryGDdgE-JmRUhAK",
                 "refresh_time": 0
             }
         }
@@ -495,15 +485,16 @@ class Berriz_cookie:
             payload: Dict[str, Any] = json.loads(self.b64url_decode(payload_b64))
             sub: Optional[str] = payload.get("sub")
             if not sub:
-                logger.error("JWT Payload 中沒有 'sub' 欄位")
+                logger.error("JWT Payload had not 'sub'?")
                 return
             try:
                 uuid.UUID(sub)
             except ValueError:
-                logger.error(f"sub 不是合法 UUID：{sub}")
+                logger.error(f"UUID invaild：{sub}")
                 await self.jwt_error_handle()
         except Exception as e:
-            logger.error(f"JWT Token 結構錯誤或解析失敗：{e}")
+            logger.error(f"JWT Token bz_a Structural error or parsing failure：{e}")
+            await self.get_cookies()
             await self.jwt_error_handle()
 
     async def jwt_error_handle(self) -> None:
@@ -523,9 +514,8 @@ class Berriz_cookie:
         if retry_count == max_retries:
             raise Exception("無法處理cookie cache josn")
         else:
-            async with aiohttp.ClientSession() as session:
-                await Refresh_JWT(session).refresh_token()
-                await self.get_cookies()
+            await Refresh_JWT().refresh_token()
+            await self.get_cookies()
 
     def b64url_decode(self, data: str) -> bytes:
         padding: str = '=' * (-len(data) % 4)
@@ -536,14 +526,14 @@ class Berriz_cookie:
             # 觸發 token 重新整理
             if Berriz_cookie.count_rwt < 2:
                 Berriz_cookie.count_rwt +=1
-                async with aiohttp.ClientSession() as session:
-                    bool_result: Optional[bool] = await Refresh_JWT(session).main()
-                    return bool_result
+                bool_result: Optional[bool] = await Refresh_JWT().main()
+                return bool_result
         else:
             return False
         return None
     
     async def create_empty_cookie(self) -> None:
+        os.makedirs(Path(DEFAULT_COOKIE).parent, exist_ok=True)
         cookie_text: str = textwrap.dedent("""\
         # Netscape HTTP Cookie File
         # [http://curl.haxx.se/rfc/cookie_spec.html](http://curl.haxx.se/rfc/cookie_spec.html)
@@ -606,3 +596,21 @@ class Berriz_cookie:
                 return {}
         
         return self._cookies
+
+
+async def _send_post_http1(url: str, json_data: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Optional[httpx.Response]:
+    try:
+        params: Dict[str, str] = {"languageCode": 'en'}
+        async with httpx.AsyncClient(http2=True, timeout=7, verify=True) as client:
+            response: httpx.Response = await client.post(
+                url,
+                params=params,
+                cookies={},
+                headers=headers,
+                json=json_data,
+            )
+        if response.status_code not in range(200, 300):
+            logger.error(f"HTTP error for {url}: {response.status_code}")
+        return response.json()
+    except httpx.ConnectTimeout:
+        logger.warning(f"{Color.fg('light_gray')}Request timeout:{Color.reset()} {Color.fg('periwinkle')}{url}{Color.reset()}")
