@@ -6,11 +6,12 @@
 .sqlite3
 cookie_temp.json
 default.txt
-/Berriz
+Berriz/*.txt
+
 download_info.pkl
 .env
-.wvd
-.prd
+*.wvd
+*.prd
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
