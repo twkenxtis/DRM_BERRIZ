@@ -9,6 +9,8 @@ default.txt
 /Berriz
 download_info.pkl
 .env
+.wvd
+.prd
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
