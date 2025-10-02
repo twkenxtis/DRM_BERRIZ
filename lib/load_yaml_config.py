@@ -194,8 +194,23 @@ class ConfigLoader:
                 case _:
                     ConfigLoader.print_warning('DRM-Key Service', ks.get("source"), "CDRM Widevine")
                     ks["KeyService"] = 'cdrm_wv'
+                    
+        # 9. CDM
+        cdm = config.get("CDM", {})
+        if not isinstance(cdm, dict):
+            raise TypeError("CDM must be a dict")
+        if not isinstance(cdm.get("widevine"), str):
+            raise ValueError("CDM.widevine must be a string")
+        elif isinstance(cdm.get("widevine"), str):
+            if not cdm.get("widevine").strip().lower().endswith(".wvd"):
+                raise ValueError("CDM.widevine must be a wvd file")
+        if not isinstance(cdm.get("playready"), str):
+            raise ValueError("CDM.playready must be a string")
+        elif isinstance(cdm.get("playready"), str):
+            if not cdm.get("playready").strip().lower().endswith(".prd"):
+                raise ValueError("CDM.widevine must be a prd file")
 
-        # 9. berriz 區段
+        # 10. berriz 區段
         user = config.get("berriz", {})
         if not isinstance(user, dict):
             raise TypeError("berriz must be a dict")
