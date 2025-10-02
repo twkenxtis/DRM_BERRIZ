@@ -6,7 +6,7 @@
 *.sqlite3
 cookie_temp.json
 default.txt
-Berriz/*.txt
+cookies/Berriz/*.txt
 
 download_info.pkl
 .env
