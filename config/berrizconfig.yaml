@@ -30,8 +30,8 @@ Donwload_Dir_Name:
 Container:
   # ffmpeg or mkvtoolnix
   mux: ffmpeg
-  # [if choese mkvtoolnix enforce .mkv] ts, mp4, mov, m4v, mkv, avi
-  video: ts
+  # [if choese mkvtoolnix enforce .mkv ts, mp4, mov, m4v, mkv, avi
+  video: mp4
   # MP4DECRYPT, SHAKA_PACKAGER
   decryption-engine: shaka-packager
 
@@ -48,14 +48,14 @@ TimeZone:
 
 KeyService:
   # mspr wv watora_wv cdrm_wv cdrm_mspr
-  source: mspr
+  source: wv
 
 
 CDM:
   # WVD \\ device \\ {name}
   widevine: google_aosp_on_ia_emulator_14.0.0_13cea62a_4464_l3.wvd
-  # LARLEY_PR \\ device \\ {name}
-  playready: contoso_cool_device_name_abc-xyz-123_sl150.prd
+  # LARLEY_PR \\ pyplayready \\ device \\ {name}
+  playready: realtek_semiconductor_corp_coolnewdevice_xr-700_sl2000.prd
 
 
 berriz:
