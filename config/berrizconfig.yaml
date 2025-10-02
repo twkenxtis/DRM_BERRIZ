@@ -48,7 +48,14 @@ TimeZone:
 
 KeyService:
   # mspr wv watora_wv cdrm_wv cdrm_mspr
-  source: wv
+  source: mspr
+
+
+CDM:
+  # WVD \\ device \\ {name}
+  widevine: google_aosp_on_ia_emulator_14.0.0_13cea62a_4464_l3.wvd
+  # LARLEY_PR \\ device \\ {name}
+  playready: contoso_cool_device_name_abc-xyz-123_sl150.prd
 
 
 berriz:
