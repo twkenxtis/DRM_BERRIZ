@@ -1,0 +1,29 @@
+[project]
+name = "Berriz-DRM"
+version = "1.3.0"
+requires-python = "==3.12.*"
+dependencies = [
+    "PyJWT",
+    "aiofiles",
+    "aiohttp",
+    "bs4",
+    "ffmpeg-python",
+    "httpx",
+    "httpx[http2]",
+    "InquirerPy",
+    "lxml",
+    "orjson",
+    "pyplayready",
+    "pywidevine",
+    "python-dateutil",
+    "pytz",
+    "requests",
+    "rich",
+    "tqdm",
+    "tzdata",
+    "httpagentparser",
+    "dotenv",
+    "pip-system-certs",
+    "certifi",
+    "email_validator"
+]

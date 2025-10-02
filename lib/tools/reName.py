@@ -1,0 +1,188 @@
+import asyncio
+import os
+import shutil
+import string
+from pathlib import Path
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Union, Tuple
+
+import aiofiles
+import aiofiles.os as aios
+import httpx
+
+from lib.__init__ import container, FilenameSanitizer, OutputFormatter
+from lib.mux.videoinfo import VideoInfo
+from lib.mux.mux import FFmpegMuxer
+from static.color import Color
+from static.PublicInfo import PublicInfo_Custom
+from unit.http.request_berriz_api import GetRequest
+from lib.load_yaml_config import CFG
+from unit.data.data import get_timestamp_formact
+from unit.community import custom_dict, get_community
+from unit.handle_log import setup_logging
+from unit.parameter import paramstore
+
+
+logger = setup_logging('reName', 'violet')
+
+
+class SUCCESS:
+    def __init__(self, downloader: Any, json_data: Dict[str, Any], community_name: str) -> None:
+        self.downloader: Any = downloader
+        self.json_data: Dict[str, Any] = json_data
+        self.publicinfo: PublicInfo_Custom = PublicInfo_Custom(json_data)
+        self.community_name: str = community_name
+        self.base_dir: Path = self.downloader.base_dir
+        self.tempname: str = f"temp_output_DO_NOT_DEL.{container}"
+        self.path: Path = self.base_dir / self.tempname
+
+    async def when_success(self, success: bool, decryption_key: Optional[Union[bytes, str]], merge_type: str) -> str:
+        """處理下載成功後的邏輯：下載縮圖、混流、重新命名與清理檔案"""
+        if success:
+            logger.info(f"{Color.fg('light_gray')}Video file: {self.base_dir / f'video.{container}'}{Color.reset()}")
+            logger.info(f"{Color.fg('light_gray')}Audio file: {self.base_dir / f'audio.{container}'}{Color.reset()}")
+            await self.dl_thumbnail()
+        
+        # Mux video and audio with FFmpeg
+        muxer: FFmpegMuxer = FFmpegMuxer(self.base_dir, decryption_key)
+        video_file_name = ''
+        if await muxer.mux_main(merge_type, self.tempname) and paramstore.get('skip_mux') is not True:
+            video_file_name = await SUCCESS.re_name(self)
+            # 傳遞給 clean_file 的 had_drm 實際上是 decryption_key
+            if paramstore.get('clean_dl') is not False:
+                await SUCCESS.clean_file(self, decryption_key, merge_type) # type: ignore[arg-type] # 傳遞了 decryption_key
+            else:
+                logger.info(f"{Color.fg('yellow')}Skipping file cleaning, keep segments after done{Color.reset()}")
+        elif paramstore.get('skip_merge') is True: 
+            logger.info(f"{Color.fg('yellow')}Skipping file cleaning, keep segments after done{Color.reset()}")
+        match video_file_name:
+            case '':
+                if paramstore.get('skip_merge'):
+                    return '[ User choese SKIP MERGE ]'
+                if paramstore.get('skip_mux'):
+                    return '[ User choese SKIP MUX ]'
+            case _:
+                return video_file_name
+
+    async def clean_file(self, had_drm: Optional[Union[bytes, str]], merge_type: str) -> None:
+        """清理下載過程中的暫存檔案、加密檔案和暫存目錄"""
+        base_dir: Path = self.base_dir
+        if os.path.exists(base_dir / f"audio.{container}"):
+            file_paths: List[Path] = []
+            # Files to delete
+            if had_drm is None:
+                file_paths = [
+                    base_dir / f"video.{container}",
+                    base_dir / f"audio.{container}",
+                ]
+            elif merge_type == 'mpd':
+                file_paths = [
+                    base_dir / f"video_decrypted.{container}",
+                    base_dir / f"video.{container}",
+                    base_dir / f"audio_decrypted.{container}",
+                    base_dir / f"audio.{container}",
+                ]
+            elif merge_type == 'hls' and os.path.exists(base_dir / f"audio.{container}"):
+                file_paths = [
+                    base_dir / f"video.{container}",
+                    base_dir / f"audio.{container}",
+                ]
+            elif merge_type == 'hls' and not os.path.exists(base_dir / f"audio.{container}"):
+                file_paths = [
+                    base_dir / f"video.{container}",
+                ]
+
+            for fp in file_paths:
+                try:
+                    await asyncio.to_thread(fp.unlink)
+                    logger.info(f"{Color.fg('light_gray')}Removed file: {fp}{Color.reset()}")
+                except FileNotFoundError:
+                    logger.warning(f"File not found, skipping: {fp}")
+                except Exception as e:
+                    logger.error(f"Error removing file {fp}: {e}")
+
+            for subfolder in ["audio", "video"]:
+                dir_path: Path = base_dir / subfolder
+                try:
+                    await asyncio.to_thread(shutil.rmtree, dir_path)
+                    logger.info(f"{Color.fg('light_gray')}Force-removed directory: {dir_path}{Color.reset()}")
+                except FileNotFoundError:
+                    logger.warning(f"Directory not found, skipping: {dir_path}")
+                except Exception as e:
+                    logger.error(f"Error force-removing directory {dir_path}: {e}")
+
+    async def re_name(self) -> str:
+        """根據影片元數據和命名規則重新命名最終的 MP4 檔案"""
+        fmt = CFG['output_template']['date_formact']
+        fm:str = get_timestamp_formact(fmt) # %y%m%d_%H-%M
+        dt: datetime = datetime.strptime(self.publicinfo.formatted_published_at, fm)
+        d:str = dt.strftime(fm)
+        safe_title: str = FilenameSanitizer.sanitize_filename(self.publicinfo.media_title)
+        video_codec: str
+        video_quality_label: str
+        video_audio_codec: str
+        video_codec, video_quality_label, video_audio_codec = await self.extract_video_info()
+        community_name = (
+            # 嘗試取得並處理社羣名稱這個表達式會先被執行
+            # 1. 呼叫 get_community_name() 取得原始資料
+            # 2. 呼叫 custom_dict() 處理原始資料
+            #    如果 custom_dict() 的結果是「有值的」（即非 None, 非 False, 非 0, 非空容器），
+            #    則整個 or 運算式結束，將結果賦值給 community_name
+            #    如果 custom_dict() 的結果是「無值的」（例如 None 或空字串），
+            #    則執行 or 後面的部分
+            await custom_dict(self.community_name) 
+        ) or (
+            # 只有當 or 之前的表達式結果為「無值」時，這個部分才會被執行
+            # 目的：作為一個備用方案 (Fallback)，重新執行一次 get_community_name()，
+            #      並將這次的結果（未經 custom_dict 處理）賦值給 community_name
+            self.community_name
+        )
+        video_meta: Dict[str, str] = {
+            "date": d,
+            "title": safe_title,
+            "community_name": community_name,
+            "quality": video_quality_label,
+            "source": "Berriz",
+            "video": video_codec,
+            "audio": video_audio_codec,
+            "tag": CFG['output_template']['tag']
+        }
+        filename = OutputFormatter(f"{CFG['output_template']['video']}").format(video_meta) + f'.{container}'
+        # 重新命名並移動到上級目錄
+        await aios.rename(self.path, Path(self.base_dir).parent / filename)
+        return filename
+
+    async def extract_video_info(self) -> Tuple[str, str, str]:
+        """異步提取最終 MP4 檔案的編解碼器、畫質標籤和音頻編解碼器"""
+        vv: VideoInfo = VideoInfo(self.path)
+        
+        # 使用 TaskGroup 並將 FFmpeg 探針的同步操作包裝成異步
+        async with asyncio.TaskGroup() as tg:
+            codec_task: asyncio.Task[str] = tg.create_task(asyncio.to_thread(lambda: vv.codec))
+            quality_task: asyncio.Task[str] = tg.create_task(asyncio.to_thread(lambda: vv.quality_label))
+            audio_task: asyncio.Task[str] = tg.create_task(asyncio.to_thread(lambda: vv.audio_codec))
+
+        video_codec: str = codec_task.result()
+        video_quality_label: str = quality_task.result()
+        video_audio_codec: str = audio_task.result()
+
+        return video_codec, video_quality_label, video_audio_codec
+
+
+    async def dl_thumbnail(self) -> None:
+        """下載影片縮圖到上級目錄"""
+        thumbnail_url: Optional[str] = self.publicinfo.media_thumbnail_url
+        if not thumbnail_url:
+            logger.warning("No thumbnail URL found")
+            return
+        
+        response: httpx.Response = await GetRequest().get_request(thumbnail_url)
+
+        thumbnail_name: str = os.path.basename(thumbnail_url)
+        save_path: Path = Path(self.base_dir).parent / thumbnail_name
+
+        if response.status_code == 200:
+            async with aiofiles.open(save_path, "wb") as f:
+                await f.write(response.content)
+        else:
+            logger.error(f"{response.status_code} {thumbnail_url} Thumbnail download failed")

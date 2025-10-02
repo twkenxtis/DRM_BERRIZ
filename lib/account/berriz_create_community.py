@@ -1,0 +1,164 @@
+import asyncio
+import sys
+
+from typing import Optional, Dict, Any, Union, Tuple
+
+from static.color import Color
+from unit.community import get_community
+from unit.http.request_berriz_api import Community
+from unit.handle_log import setup_logging
+
+
+logger = setup_logging('berriz_create_community', 'chocolate')
+
+
+async def community_id_name(communityId: Union[int, str]) -> Tuple[Optional[int], Optional[str]]:
+    community_id: Optional[int] = None
+    communityname: Optional[str] = None
+    
+    if isinstance(communityId, int):
+        community_id = communityId
+        communityname = await get_community(communityId)
+    elif isinstance(communityId, str):
+        communityname = communityId
+        community_id = await get_community(communityId)
+    else:
+        logger.error(f"Wrong community id, please re-try!")
+        
+    if not isinstance(community_id, int) and community_id is not None:
+         community_id = None
+    if not isinstance(communityname, str) and communityname is not None:
+         communityname = None
+         
+    return community_id, communityname
+
+def print_data_with_fstring(data: Dict[str, Any]) -> None:
+    for key, value in data.items():
+        logger.info(f"{Color.fg('violet')}{key}:  {Color.fg('pink')}{value}{Color.reset()}")
+
+
+async def community_join(communityId: Union[int, str]) -> bool:
+    community_id: Optional[int]
+    communityname: Optional[str]
+    
+    community_id, communityname = await community_id_name(communityId)
+    
+    try:
+        if communityname is None:
+            logger.error(f"Failed to resolve community name for input: {communityId}")
+            raise ValueError(f'{communityId} could not be resolved to a community name.')
+
+        if community_id is None:
+            logger.error(f"Failed to resolve community ID for name: {communityname}")
+            return False
+
+        name: str
+        while True:
+            logger.info(f"{Color.fg('light_gray')}try join to {Color.fg('aquamarine')}{communityname}{Color.reset()}")
+            name = input(f"{Color.fg('light_yellow')}Please enter name for your {Color.fg('aquamarine')}[{communityname}]{Color.fg('light_yellow')} community's nickname:{Color.reset()} ").strip()
+            
+            if len(name) > 15:
+                logger.warning(f'{name} community name only accept length < 15')
+            else:
+                break
+                
+        data: Dict[str, Any] = await Community().create_community(community_id, name)
+        
+        if data.get('code') == '0000':
+            logger.info(f'{Color.fg("light_gray")}Welcome to {Color.fg("aquamarine")}{communityname} {Color.fg("light_gray")}community{Color.reset()}')
+            if 'data' in data and isinstance(data['data'], dict):
+                print_data_with_fstring(data['data'])
+            return True
+        else:
+            code: str = str(data.get('code'))
+            message: str = str(data.get('message', 'Unknown error'))
+            
+            if code == 'FS_CJ1011':
+                logger.info(
+                    f"{Color.fg('gold')}{message}{Color.reset()} "
+                    f"{Color.fg('light_gray')}in community "
+                    f"{Color.fg('aquamarine')}{communityname}{Color.reset()}"
+                )
+                return True
+            elif code == 'FS_CJ1017':
+                """"You cannot join again within 24 hours you leave"""
+                logger.warning(
+                    f'{message} {Color.fg("light_gray")}→ '
+                    f'{Color.fg("aquamarine")}{communityname} {Color.fg("light_gray")}community{Color.reset()}'
+                )
+                return True
+            else:
+                logger.error(f"Fail to join {communityname}. Response data: {data}")
+                return False
+                
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except EOFError:
+        sys.exit(1)
+    except ValueError:
+        sys.exit(1)
+    except Exception:
+        return False
+
+
+async def leave_community_main(communityId: Union[int, str]) -> bool:
+    community_id: Optional[int]
+    communityname: Optional[str]
+    
+    community_id, communityname = await community_id_name(communityId)
+    
+    try:
+        if communityname is None:
+            logger.error(f"Failed to resolve community name for input: {communityId}")
+            raise ValueError(f'{communityId} could not be resolved to a community name.')
+
+        if community_id is None:
+            logger.error(f"Failed to resolve community ID for name: {communityname}")
+            return False
+
+        userinput: str
+        while True:
+            logger.info(f"{Color.fg('light_gray')}try leave to {Color.fg('aquamarine')}{communityname}{Color.reset()}")
+            print(
+                f"{Color.bold()}{Color.fg('plum')}Note:\n{Color.reset()}"
+                f"{Color.fg('mint')}Leave this community?\n"
+                f"You won’t be able to edit or delete posts and comments made with this profile. "
+                f"Even if you rejoin, your previous activity cannot be restored.{Color.reset()}"
+            )
+            await asyncio.sleep(0.65)
+            userinput = input(f'{Color.fg("gold")}typing YES to accept: {Color.reset()}').strip()
+            
+            if userinput == 'YES':
+                break
+            elif userinput == 'yes':
+                logger.warning('Try typing in all caps')
+                
+        data: Dict[str, Any] = await Community().leave_community(community_id)
+        
+        if data.get('code') == '0000':
+            logger.info(
+                f"{Color.fg('rose')}Successfully left the "
+                f"{Color.fg('aquamarine')}{communityname} {Color.fg('light_gray')}"
+                f"community.{Color.reset()}"
+            )
+            return True
+        else:
+            code: str = str(data.get('code'))
+            message: str = str(data.get('message', 'Unknown error'))
+            
+            if code == 'FS_CM1010':
+                logger.info(f"{Color.fg('light_gray')}{message}{Color.reset()}")
+                logger.info(f"{Color.fg('gold')}You are already leave {Color.fg('aquamarine')}{communityname}{Color.reset()}")
+                return True
+            else:
+                logger.critical(f"Failed to leave community. Response data: {data}")
+                return False
+                
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except EOFError:
+        sys.exit(0)
+    except ValueError:
+        sys.exit(1)
+    except Exception:
+        return False
