@@ -219,7 +219,6 @@ class MediaProcessor:
             media_id: str
             media_type: str
             media_id, media_type = item
-            
             skip_media_id: str | None = await self._check_download_pkl(media_id) if await self.check_duplicate(media_type) else None
             
             if skip_media_id:

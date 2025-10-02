@@ -83,34 +83,47 @@ class MainProcessor:
                 await self.process(self.post_media, False)
         except Exception as e:
             logger.error(f"Error during parse_and_download: {e}")
-                
+                    
     async def process(self, data: List[Dict[str, Any]], TYPE: bool) -> None:
         image_list: List[URL] = []
-        if data is None:
+        if not data or len(data) < 2:
+            logger.warning("Invalid or insufficient data provided.")
             return
         try:
             if TYPE:
                 logger.info("Processing image-type media...")
 
-                image_list = [img for img in data[1] if img]
+                raw_images = data[1]
+                if not isinstance(raw_images, list):
+                    logger.warning("data[1] is not a list.")
+                    raw_images = []
+
+                image_list = [img for img in raw_images if img]
                 if not image_list:
                     logger.warning("No valid image URLs found in data[1]")
 
-                await self.download_images_concurrently(image_list, self.folder_path)
+                try:
+                    await self.download_images_concurrently(image_list, self.folder_path)
+                except Exception as e:
+                    logger.warning(f"Image download failed: {e}")
 
-                # JSON 儲存路徑根據第一張圖片命名（或 fallback）
                 first_name = Path(str(image_list[0])).name.split("?")[0] if image_list else "image-media"
                 file_path = self.folder_path / f"{first_name}.json"
             else:
                 logger.info("Processing non-image media...")
                 file_path = self.folder_path / "non-image-media.json"
-                tasks = [
-                    asyncio.create_task(self.json_data_obj.save_json_file_to_folder(file_path, self.folder_path)),
-                    asyncio.create_task(make_html(self.post_media, self.folder_path, image_list, self.new_file_name).process_html(TYPE))
-                ]
-                await asyncio.gather(*tasks)
+            await self.process_and_save(file_path, image_list, TYPE)
+
         except Exception as e:
             logger.exception(f"Error during media processing: {e}")
+
+            
+    async def process_and_save(self, file_path: Path, image_list: List[URL], TYPE: bool) -> None:
+        tasks = [
+            asyncio.create_task(self.json_data_obj.save_json_file_to_folder(file_path, self.folder_path)),
+            asyncio.create_task(make_html(self.post_media, self.folder_path, image_list, self.new_file_name).process_html(TYPE))
+        ]
+        await asyncio.gather(*tasks)
 
     def safe_filename_from_url(url: str, fallback: str = "image") -> str:
         name = Path(url).name or fallback
@@ -199,7 +212,6 @@ async def run_post_dl(selected_media, max_concurrent: int = 13):
     semaphore = asyncio.Semaphore(max_concurrent)
     completed = 0
     total = len(selected_media)
-    
     async def process_single_media(post_media: dict):
         async with semaphore:
             try:

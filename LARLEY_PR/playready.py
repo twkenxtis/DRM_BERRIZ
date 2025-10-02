@@ -52,7 +52,8 @@ class PlayReadyDRM:
                     data=challenge,
                 )
                 response.raise_for_status()
-
+            if response.status_code not in range(200, 299):
+                logger.error(f"Invalid response status code: {response.status_code} {response.text}")
             self.cdm.parse_license(self.session_id, response.text)
 
             keys: List = self.cdm.get_keys(self.session_id)

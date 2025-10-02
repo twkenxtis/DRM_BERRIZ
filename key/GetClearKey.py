@@ -1,6 +1,6 @@
 from static.color import Color
 from unit.handle_log import setup_logging
-
+from pathlib import Path
 from typing import Optional, List, Union, Any
 
 # DRM modules
@@ -9,6 +9,7 @@ from key.watora import Watora_wv
 from LARLEY_PR.playready import PlayReadyDRM
 from WVD.widevine import WidevineDRM
 
+from lib.load_yaml_config import CFG
 
 logger = setup_logging('GetClearKey', 'honeydew')
 
@@ -20,8 +21,8 @@ DRM_Client = Union[PlayReadyDRM, WidevineDRM, Watora_wv, CDRM]
 logger = setup_logging('GetClearKey', 'honeydew')
 
 # 定義設備路徑變數的型別
-prd_device_path: str = r"LARLEY_PR\\pyplayready\\device\\realtek_semiconductor_corp_coolnewdevice_xr-700_sl2000.prd"
-wv_device_path: str = r"WVD\\device\\google_aosp_on_ia_emulator_14.0.0_13cea62a_4464_l3.wvd"
+prd_device_path: str = Path(__file__).parent.parent.joinpath("LARLEY_PR\\pyplayready\\device\\" + CFG['CDM']['playready'])
+wv_device_path: str = Path(__file__).parent.parent.joinpath("WVD\\device\\" + CFG['CDM']['widevine'])
 
 # get_clear_key 是一個異步函式，回傳值為 List[str]（Clear Key 列表）或 None
 async def get_clear_key(pssh_input: str, acquirelicenseassertion_input: str, drm_type: str) -> Optional[List[str]]:

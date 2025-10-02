@@ -196,4 +196,3 @@ async def request_community_community_keys() -> Dict[str, Any]:
             return data
     except AttributeError:
         return {}
-            

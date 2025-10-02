@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from datetime import datetime
 
 from typing import Optional, List, Dict, Any, Tuple
@@ -160,8 +161,7 @@ class Handle_Choice:
 
     async def user_selected_media(self, selected_media: Dict[str, List[Dict[str, Any]]]) -> SelectedMediaDict:
         if selected_media is None:
-            logger.info(f"{Color.fg('light_gray')}No items selected. Exiting...{Color.reset()}")
-            return
+            sys.exit(0)
         self.selected_media = selected_media
         return self.selected_media
     

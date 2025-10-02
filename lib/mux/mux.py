@@ -5,6 +5,7 @@ from typing import List, Optional, Any, Union
 
 from lib.__init__ import container
 from lib.load_yaml_config import CFG, ConfigLoader
+from lib.mux.tools_path import ToolsPath
 from static.color import Color
 from unit.handle_log import setup_logging
 from unit.parameter import paramstore
@@ -23,8 +24,6 @@ class FFmpegMuxer:
         self.key = None
         self.input_path = None
         self.output_path = None        
-        current_dir: Path = Path(__file__).parent
-        self.parent_tools_dir: Path = current_dir.parent / "tools"
 
     async def _prepare_track(self, track_type: str) -> Optional[Path]:
         """Handle decryption if needed and return final file path"""
@@ -80,7 +79,7 @@ class FFmpegMuxer:
                 return await self._decrypt_file_packager()
 
     async def _decrypt_file_mp4decrypt(self) -> bool:
-        mp4decrypt_path: Path = self.parent_tools_dir / "mp4decrypt.exe"
+        mp4decrypt_path = ToolsPath().mp4decrypt_path
 
         if not mp4decrypt_path.exists():
             logger.error(f"mp4decrypt.exe not found at: {mp4decrypt_path}")
@@ -112,7 +111,7 @@ class FFmpegMuxer:
             return False
     
     async def _decrypt_file_packager(self) -> bool:
-        packager_path: Path = self.parent_tools_dir / "packager.exe"
+        packager_path = ToolsPath().packager_path
         packager_output_path = Path(self.output_path).with_suffix(".m4v")
 
         if not packager_path.exists():
@@ -200,7 +199,7 @@ class FFmpegMuxer:
         except AttributeError:
             ConfigLoader.print_warning('MUX', mux_tool, 'ffmpeg')
             mux_tool = 'FFMPEG'
-        MKVTOOLNIX_path: Path = self.parent_tools_dir / "mkvmerge.exe"
+        MKVTOOLNIX_path: Path = ToolsPath().mkvmerge_path
         if not MKVTOOLNIX_path.exists():
             logger.error(f"shaka-packager.exe not found at: {MKVTOOLNIX_path}")
             return False
@@ -226,7 +225,7 @@ class FFmpegMuxer:
                     logger.error(f"FFmpeg mixing error: {str(e)}")
                     return False
             case 'MKVTOOLNIX':
-                print(cmd, 'windows 32 觸發檔案已存在時無法錯誤')
+                #print(cmd, 'windows 32 觸發檔案已存在時無法錯誤')
                 cmd = [
                     MKVTOOLNIX_path,
                     "-o", str(temp_file_path),
