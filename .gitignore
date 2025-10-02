@@ -16,7 +16,7 @@ download_info.pkl
 __pycache__/
 *.py[codz]
 *$py.class
-
+*.pyc
 # C extensions
 *.so
 
