@@ -1,9 +1,9 @@
 /.venv
 /downloads
 /logs
-.env
-.db
-.sqlite3
+*.env
+*.db
+*.sqlite3
 cookie_temp.json
 default.txt
 Berriz/*.txt
