@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sys
 from functools import cache
 from typing import Any, List, Tuple, Optional, Dict
 
@@ -249,7 +250,7 @@ class BerrizProcessor:
         # Handle DRM and obtain information needed for download
         if getattr(playback_info, "code", None) != "0000":
             logger.warning(f"{Color.bg('maroon')}{api_error_handle(playback_info.code)}{Color.reset()}")
-            return '', '', '', '', ''
+            sys.exit(1)
 
         raw_mpd: Any = None
         raw_hls: Optional[str] = None
