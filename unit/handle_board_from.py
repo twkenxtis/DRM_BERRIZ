@@ -19,14 +19,6 @@ from unit.http.request_berriz_api import Arits
 logger = setup_logging('handle_board_from', 'midnight_blue')
 
 
-class DataFormatter:
-    def format_time_for_seoul(iso_timestamp: str) -> str:
-        seoul_timezone = pytz.timezone('Asia/Seoul')
-        utc_time = datetime.fromisoformat(iso_timestamp.replace('Z', '+00:00'))
-        seoul_time = utc_time.astimezone(seoul_timezone)
-        return seoul_time.strftime('%Y%m%d %H-%M')
-    
-
 class BoardFetcher:
     def __init__(self, index: Dict[str, Any]):
         self.json_data: Optional[Dict[str, Any]] = None
@@ -144,7 +136,6 @@ class BoardMain:
     def __init__(self, board_list: List[Dict[str, Any]], time_a: Optional[datetime] = None, time_b: Optional[datetime] = None):
         self.board_list: List[Dict[str, Any]] = board_list
         self.boardfetcher: Any = BoardFetcher
-        self.time_formatter: Any = DataFormatter.format_time_for_seoul
         self.time_a: Optional[datetime] = time_a
         self.time_b: Optional[datetime] = time_b
         self.fm:str = get_timestamp_formact(CFG['Donwload_Dir_Name']['date_formact']) # %y%m%d_%H-%M
@@ -196,12 +187,8 @@ class BoardMain:
                         continue
                 except (ValueError, TypeError):
                     continue
-                sort_list.append(index)
-                
-        if sort_list == []:
-            return self.board_list
-        elif sort_list != []:
-            return sort_list
+            sort_list.append(index)
+        return sort_list
 
     async def fetch_community_name(self, community_id: int) -> str:
         return await self.get_commnity_name(community_id)
@@ -232,24 +219,22 @@ class BoardNotice(BoardMain):
         super().__init__(notice_list, time_a, time_b)
         self.notice: List[Dict[str, Any]] = notice_list
         self.noticefetcher: Any = NoticeFetcher
-        self.time_formatter: Any = DataFormatter.format_time_for_seoul
         self.community_id: int = Community_id
 
     def sort_by_time(self) -> List[Dict[str, Any]]:
-        should_filter: bool = isinstance(self.time_a, datetime) and isinstance(self.time_b, datetime)
-        filtered: List[Dict[str, Any]] = []
-
+        sort_list: List[Dict[str, Any]] = []
+        should_filter_by_time: bool = (isinstance(self.time_a, datetime) and isinstance(self.time_b, datetime))
         for index in self.notice:
-            if not should_filter or not index.get('reservedAt'):
-                continue
-            try:
-                dt: datetime = datetime.fromisoformat(index['reservedAt'].replace('Z', '+00:00'))
-                if self.time_a <= dt <= self.time_b:
-                    filtered.append(index)
-            except Exception:
-                continue
-
-        return filtered or self.notice
+            ISO8601 = index.get('reservedAt')
+            if should_filter_by_time and ISO8601:
+                try:
+                    published_at: datetime = datetime.fromisoformat(ISO8601.replace('Z', '+00:00'))
+                    if not (self.time_a <= published_at <= self.time_b):
+                        continue
+                except (ValueError, TypeError):
+                    continue
+            sort_list.append(index)
+        return sort_list
 
     async def notice_list(self) -> List[Dict[str, Any]]:
         notices: List[Dict[str, Any]] = self.sort_by_time()
@@ -274,7 +259,6 @@ class BoardNoticeINFO(BoardMain):
         self.notice: Dict[str, Any] = notice_list
         self.noticefetcher: Any = NoticeFetcher
         self.noticeinfofetcher: Any = NoticeINFOFetcher
-        self.time_formatter: Any = DataFormatter.format_time_for_seoul
 
     async def call_notice_page(self, communityNoticeId: int, communityId: int, retry: int = 3) -> Optional[Dict[str, Any]]:
         for _ in range(retry):
