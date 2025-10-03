@@ -7,7 +7,8 @@
 cookie_temp.json
 default.txt
 cookies/Berriz/*.txt
-
+*Berriz downloads/
+/Berriz downloads/
 download_info.pkl
 .env
 *.wvd
