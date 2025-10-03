@@ -132,9 +132,6 @@ async def main():
             await get_community_print()
     except KeyboardInterrupt:
         pass
-    except asyncio.CancelledError:
-        #print('catch asyncio.CancelledError')
-        pass
     except Exception as e:
         logger.critical(f"Main program execution error: {e}", exc_info=True)
 
@@ -142,7 +139,3 @@ try:
     asyncio.run(main())
 except KeyboardInterrupt:
     logger.info(f"{Color.fg('orange')}Program interrupted by user{Color.reset()}")
-    sys.exit(0)
-except asyncio.CancelledError:
-    logger.info(f"{Color.fg('orange')}Program interrupted by user{Color.reset()}")
-    sys.exit(0)

@@ -1,19 +1,21 @@
 import asyncio
 import os
 import shutil
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import aiofiles
 import aiohttp
-from tqdm.asyncio import tqdm_asyncio
+from contextlib import AsyncExitStack
 
 from lib.__init__ import container
 from unit.__init__ import USERAGENT
 from lib.load_yaml_config import CFG
 from lib.mux.parse_hls import HLS_Paser
 from lib.mux.parse_mpd import MPDContent, MPDParser, MediaTrack
+from lib.processbar import ProgressBar
 from lib.video_folder import start_download_queue
 from static.color import Color
 from unit.handle_log import setup_logging
@@ -65,6 +67,7 @@ class MediaDownloader:
         progress_callback: Optional[Callable[[int], Any]] = None
     ) -> bool:
         retries: int = 0
+        save_path.parent.mkdir(parents=True, exist_ok=True)
         while retries <= max_retries:
             await self._ensure_session()
             try:
@@ -75,16 +78,17 @@ class MediaDownloader:
                         retries += 1
                         await asyncio.sleep(1 ** retries)
                         continue
-
-                    save_path.parent.mkdir(parents=True, exist_ok=True)
-
-                    async with aiofiles.open(save_path, "wb") as f:
-                        downloaded: int = 0
-                        async for chunk in response.content.iter_chunked(chunk_size):
-                            await f.write(chunk)
-                            downloaded += len(chunk)
-                            if progress_callback:
-                                progress_callback(len(chunk))
+                    try:
+                        async with AsyncExitStack() as stack:
+                            f = await stack.enter_async_context(aiofiles.open(save_path, "wb"))
+                            async for chunk in response.content.iter_chunked(chunk_size):
+                                await f.write(chunk)
+                                if progress_callback:
+                                    progress_callback(len(chunk))
+                    except asyncio.CancelledError:
+                        await self.session.close()
+                        await self.force_remove_with_retry(save_path.parents[2])
+                        return False
                     return True
 
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
@@ -95,14 +99,13 @@ class MediaDownloader:
                 else:
                     logger.error(f"Download failed after {max_retries} retries: {url}")
                     if save_path.exists():
-                        save_path.unlink()
+                        try:
+                            shutil.rmtree(save_path, ignore_errors=True)
+                        except Exception as e:
+                            logger.error(f"Failed to remove failed download: {e}")
                     return False
             except Exception as e:
                 logger.error(f"Unexpected error: {e}")
-                if save_path.exists():
-                    save_path.unlink()
-                return False
-
         return False
 
     async def download_track(self, track: MediaTrack, track_type: str, merge_type: str) -> bool:
@@ -138,31 +141,31 @@ class MediaDownloader:
         return await self.task_and_dl(slice_parameters, track_dir, file_ext, track_type)
 
     async def task_and_dl(self, slice_parameters: Any, track_dir: Path, file_ext: str, track_type: str) -> bool:
-        # Download media segments with progress bar
-        tasks: List["asyncio.Task[bool]"] = []
+        total = len(slice_parameters)
+        success_count = 0
+
+        tasks = []
         for i, url in enumerate(slice_parameters):
-            seg_path: Path = track_dir / f"seg_{i}{file_ext}"
-            tasks.append(asyncio.create_task(self._download_file(url, seg_path)))
+            seg_path = track_dir / f"seg_{i}{file_ext}"
+            tasks.append(self._download_file(url, seg_path))
 
-        # 使用 tqdm 包裝 gather
-        results: List[bool] = await tqdm_asyncio.gather(
-            *tasks,
-            ascii="-#",
-            desc=f"{track_type} process",
-            unit="file",
-            bar_format="{desc:6}: {percentage:1.0f} % {n_fmt:>2}/{total_fmt:<2} files",
-            ncols=150,
-            colour='MAGENTA',
-            leave=True
-        )
-
-        success_count: int = sum(results)
+        progress_bar = ProgressBar(total, prefix=track_type)
+        try:
+            for i, coro in enumerate(asyncio.as_completed(tasks), 1):
+                result = await coro
+                success_count += int(result)
+                progress_bar.update(i)
+        except asyncio.CancelledError:
+            await self.session.close()
+            return False
+        
+        progress_bar.finish()
 
         logger.info(
             f"{Color.fg('plum')}{track_type} Split download complete: Success "
-            f"{Color.fg('light_yellow')}{success_count}{Color.reset()}/{len(results)}{Color.reset()}"
+            f"{Color.fg('light_yellow')}{success_count}{Color.reset()}/{total}{Color.reset()}"
         )
-        return success_count == len(results)
+        return success_count == total
 
     async def _merge_track(self, track_type: str, merge_type: str) -> bool:
         track_dir: Path = self.base_dir / track_type
@@ -327,6 +330,19 @@ class MediaDownloader:
             if self.session:
                 await self.session.close()
 
+    async def force_remove_with_retry(self, path: Path) -> bool:
+        max_retries: int = 20
+        delay: float = 0.05
+        for attempt in range(1, max_retries + 1):
+            try:
+                if path.exists():
+                    shutil.rmtree(path, ignore_errors=False)
+                    logger.info(f"{Color.fg('yellow_ochre')}Successfully removed{Color.fg('denim')} {path}{Color.reset()}")
+                return True
+            except Exception:
+                await asyncio.sleep(delay)
+        logger.error(f"Failed to remove after {max_retries} attempts: {path}")
+        return False
 
 async def run_dl(mpd_uri: str, decryption_key: Optional[str], json_data: Dict[str, Any], raw_mpd: str, hls_playback_url: str, raw_hls: str) -> None:
     parser: MPDParser = MPDParser(raw_mpd, mpd_uri)
