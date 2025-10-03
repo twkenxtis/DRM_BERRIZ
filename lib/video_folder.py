@@ -13,12 +13,12 @@ import orjson
 
 from lib.__init__ import dl_folder_name, OutputFormatter
 from lib.load_yaml_config import CFG
-from lib.tools.reName import SUCCESS
+from lib.rename import SUCCESS
 from static.color import Color
 from static.PublicInfo import PublicInfo_Custom
-from unit.community import custom_dict, get_community
-from unit.handle_log import setup_logging
-from unit.parameter import paramstore
+from unit.community.community import custom_dict, get_community
+from unit.handle.handle_log import setup_logging
+from static.parameter import paramstore
 
 
 logger = setup_logging('video_folder', 'chocolate')

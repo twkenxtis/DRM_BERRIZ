@@ -12,8 +12,8 @@ from typing import Any, Dict, List, Union, Tuple, Optional
 from static.color import Color
 from static.api_error_handle import api_error_handle
 from lib.__init__ import dl_folder_name
-from unit.community import custom_dict, get_community
-from unit.handle_log import setup_logging
+from unit.community.community import custom_dict, get_community
+from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import Playback_info, Public_context
 from unit.image.class_ImageDownloader import ImageDownloader
 from unit.image.parse_playback_contexts import parse_playback_contexts

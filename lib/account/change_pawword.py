@@ -8,7 +8,7 @@ from cookies.cookies import Refresh_JWT, Berriz_cookie
 from static.color import Color
 from mystate.parse_my import request_my
 from unit.http.request_berriz_api import Password_Change
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('change_pawword', 'magenta_pink')

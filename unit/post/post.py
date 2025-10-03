@@ -17,10 +17,10 @@ from lib.load_yaml_config import CFG
 from lib.artis.request_artis import ArtisManger
 from static.color import Color
 from unit.post.save_html import SaveHTML
-from unit.handle_board_from import JsonBuilder, BoardFetcher
+from unit.handle.handle_board_from import JsonBuilder, BoardFetcher
 from unit.image.class_ImageDownloader import ImageDownloader
 from unit.community import custom_dict, get_community
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('post', 'maroon')

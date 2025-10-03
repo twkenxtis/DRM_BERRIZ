@@ -9,7 +9,7 @@ import textwrap
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from unit.parameter import paramstore
+from static.parameter import paramstore
 
 import jwt
 import httpx
@@ -20,7 +20,7 @@ import orjson
 from static.color import Color
 from lib.account.login import LoginManager
 from unit.__init__ import USERAGENT
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 
 DEFAULT_COOKIE: Path = Path("cookies/Berriz/default.txt")
 TEMP_JSON: Path = Path("cookies/cookie_temp.json")

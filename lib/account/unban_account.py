@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 
 from static.color import Color
 from unit.__init__ import USERAGENT
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('unban_account', 'linen')

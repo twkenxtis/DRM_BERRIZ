@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse, urlunparse
 
 from static.color import Color
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import GetRequest
 
 logger = setup_logging('parse_hls', 'periwinkle')

@@ -18,8 +18,8 @@ from lib.mux.parse_mpd import MPDContent, MPDParser, MediaTrack
 from lib.processbar import ProgressBar
 from lib.video_folder import start_download_queue
 from static.color import Color
-from unit.handle_log import setup_logging
-from unit.parameter import paramstore
+from unit.handle.handle_log import setup_logging
+from static.parameter import paramstore
 
 
 logger = setup_logging('download', 'peach')

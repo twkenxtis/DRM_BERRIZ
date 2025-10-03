@@ -4,7 +4,7 @@ import requests
 from lxml import etree
 
 from static.color import Color
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('msprpro', 'aquamarine')

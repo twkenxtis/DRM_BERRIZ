@@ -7,7 +7,7 @@ import orjson
 
 from static.color import Color
 from unit.http.request_berriz_api import Community, My
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('community', 'ivory')

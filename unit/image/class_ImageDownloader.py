@@ -6,7 +6,7 @@ import aiofiles
 import httpx
 
 from static.color import Color
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 from lib.load_yaml_config import CFG
 
 

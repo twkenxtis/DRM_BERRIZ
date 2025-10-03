@@ -7,7 +7,7 @@ from pywidevine.device import Device
 from pywidevine.pssh import PSSH
 
 from lib.load_yaml_config import CFG
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('widevine', 'navy')

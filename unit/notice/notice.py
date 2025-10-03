@@ -9,10 +9,9 @@ from typing import Any, Dict, List, Optional
 from lib.__init__ import dl_folder_name
 from static.color import Color
 from unit.post.post import File_date_time_formact
-from unit.handle_board_from import BoardNoticeINFO
-from unit.handle_board_from import NoticeINFOFetcher
+from unit.handle.handle_board_from import BoardNoticeINFO, NoticeINFOFetcher
 from unit.community import custom_dict, get_community
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 from unit.notice.save_html import SaveHTML
 from unit.notice.get_body_images import DownloadImage
 

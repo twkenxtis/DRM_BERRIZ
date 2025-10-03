@@ -9,9 +9,9 @@ from static.api_error_handle import api_error_handle
 from unit.community import get_community
 from unit.http.request_berriz_api import Community
 from unit.http.request_berriz_api import Arits
-from unit.handle_log import setup_logging
-from unit.handle_board_from import BoardMain, BoardNotice
-from unit.parameter import paramstore
+from unit.handle.handle_log import setup_logging
+from unit.handle.handle_board_from import BoardMain, BoardNotice
+from static.parameter import paramstore
 
 from typing import Dict, Optional, Any, List, Tuple, Union
 

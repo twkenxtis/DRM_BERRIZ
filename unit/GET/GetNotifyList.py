@@ -3,7 +3,7 @@ import inspect
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union, Callable, Awaitable, Iterator
 
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import Notify
 
 

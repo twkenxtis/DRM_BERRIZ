@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, Union, Tuple
 from static.color import Color
 from unit.community import get_community
 from unit.http.request_berriz_api import Community
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('berriz_create_community', 'chocolate')

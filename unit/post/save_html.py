@@ -7,8 +7,8 @@ from bs4.element import Tag
 from httpx import URL
 
 from static.color import Color
-from unit.handle_board_from import FilenameSanitizer
-from unit.handle_log import setup_logging
+from unit.handle.handle_board_from import FilenameSanitizer
+from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('save_html', 'crimson')

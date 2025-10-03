@@ -6,7 +6,7 @@ from typing import List, Optional, Any
 import httpx
 from dotenv import load_dotenv
 
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('watora', 'foggy')

@@ -4,7 +4,7 @@ import aiohttp
 
 from typing import Any, Dict, List, Optional, Tuple, Union, Type
 
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 from unit.__init__ import USERAGENT
 
 MediaItem = Dict[str, Union[str, Dict[str, Any], bool]]

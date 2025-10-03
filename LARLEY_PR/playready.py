@@ -2,7 +2,7 @@ from typing import List, Optional
 
 import httpx
 
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 from pyplayready.cdm import Cdm
 from pyplayready.device import Device
 from pyplayready.system.pssh import PSSH

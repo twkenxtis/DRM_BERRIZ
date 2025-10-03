@@ -8,15 +8,15 @@ from lib.artis.artis_menu import Board
 from lib.media_queue import MediaQueue
 from mystate.parse_my import request_my
 from static.color import Color
-from unit.GetMediaList import MediaFetcher
+from unit.GET.GetMediaList import MediaFetcher
 from unit.http.request_berriz_api import Community
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 from unit.main_process import MediaProcessor
-from unit.media_json_process import MediaJsonProcessor
+from unit.media.media_json_process import MediaJsonProcessor
 from unit.user_choice import InquirerPySelector
 from unit.community import get_community
-from unit.GetNotifyList import NotifyFetcher
-from unit.parameter import paramstore
+from unit.GET.GetNotifyList import NotifyFetcher
+from static.parameter import paramstore
 
 
 logger = setup_logging('handle_choice', 'light_slate_gray')

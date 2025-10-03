@@ -1,7 +1,7 @@
 from typing import Dict, Union, List, Optional
 
 from unit.http.request_berriz_api import Arits
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 from static.color import Color
 
 logger = setup_logging('request_artis', 'lemon')

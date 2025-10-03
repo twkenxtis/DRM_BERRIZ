@@ -8,9 +8,9 @@ from lib.lock_cookie import cookie_session
 from mystate.fanclub import fanclub_main
 from static.color import Color
 from unit.community import get_community, get_community_print
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import Live, MediaList
-from unit.parameter import paramstore
+from static.parameter import paramstore
 
 MediaItem = Dict[str, Union[str, Dict, bool]]
 SelectedMedia = Dict[str, List[Dict]]
