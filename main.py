@@ -12,8 +12,8 @@ from static.args import (
 )
 from static.color import Color
 from static.help import print_help
-from unit.parameter import paramstore
-from unit.handle_log import setup_logging
+from static.parameter import paramstore
+from unit.handle.handle_log import setup_logging
 from lib.account.change_pawword import Change_Password
 from lib.account.signup import run_signup
 
@@ -83,8 +83,8 @@ else:
 if signup():
     asyncio.run(run_signup())
     
-from unit.handle_choice import Handle_Choice
-from unit.community import get_community, get_community_print
+from unit.handle.handle_choice import Handle_Choice
+from unit.community.community import get_community, get_community_print
 from unit.data.data import process_time_inputs 
 
 if time_date():

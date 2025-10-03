@@ -4,7 +4,7 @@ import sys
 from typing import Optional, Dict, Any, Union, Tuple
 
 from static.color import Color
-from unit.community import get_community
+from unit.community.community import get_community
 from unit.http.request_berriz_api import Community
 from unit.handle.handle_log import setup_logging
 

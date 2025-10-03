@@ -20,6 +20,7 @@ CommunityDict = Dict[str, Union[int, str]]
 BASE_COMMUNITY_KEY_DICT = Path('static') / 'community_keys.json'
 BASE_COMMUNITY_NAME_DICT = Path('static') /'community_name.json'
 
+
 async def file_Check() -> None:
     if not BASE_COMMUNITY_KEY_DICT.exists():
         async with aiofiles.open(BASE_COMMUNITY_KEY_DICT, 'w') as f:
