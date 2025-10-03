@@ -202,9 +202,14 @@ class Refresh_JWT:
                 if await LM.load_info() is True:
                     bz_a, bz_r = await LM.new_refresh_cookie()
                     if all([bz_a, bz_r]) is not None and await self.update_cookie_file(bz_a, bz_r) is True:
-                        logger.info(f"{Color.fg('light_gray')}Token refresh failed, "
-                                    f"{Color.fg('light_red')}try auto re-login {Color.fg('olive')}success!{Color.reset()}")
-                    return True
+                        if await self.update_json_file(bz_a, bz_r) is True:
+                            logger.info(
+                                f"{Color.fg('light_gray')}Token refresh failed, "
+                                f"{Color.fg('light_red')}try auto re-login {Color.fg('olive')}success!{Color.reset()}"
+                            )
+                            return True
+                        else:
+                            pass
                 else:
                     logger.info(f"{Color.fg('light_gray')}Token refresh failed, "
                                 f"{Color.fg('light_red')}try auto re-login stil {Color.fg('gold')}Fail{Color.reset()}")
@@ -240,6 +245,27 @@ class Refresh_JWT:
                 return True
         except Exception as e:
             logger.error(f"Failed to update cookie file: {e}")
+            return False
+        
+    async def update_json_file(self, bz_a_new: str, bz_r_new: str) -> bool:
+        try:
+            async with aiofiles.open(TEMP_JSON, 'r') as f:
+                content: str = await f.read()
+            data: Dict[str, Any] = orjson.loads(content)
+
+            data['cache_cookie']['bz_a'] = bz_a_new
+            data['cache_cookie']['bz_r'] = bz_r_new
+
+            updated_content = orjson.dumps(data).decode()
+
+            async with aiofiles.open(TEMP_JSON, 'w') as f:
+                await f.write(updated_content)
+            return True
+        except (FileNotFoundError, orjson.JSONDecodeError) as e:
+            logger.error(f"Failed to read temp.json file: {e}")
+            return False
+        except Exception as e:
+            logger.error(e)
             return False
         
     async def refresh_and_test(self) -> Optional[str]:
