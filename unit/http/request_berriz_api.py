@@ -1,5 +1,7 @@
+import asyncio
 import concurrent.futures
 import logging
+import random
 import os
 import re
 import sys
@@ -136,6 +138,12 @@ def is_valid_uuid(uuid_str: str) -> bool:
         return False
 
 
+base_sleep: float = 0.5
+max_sleep: float = 5.0
+max_retries: int = 5
+retry_http_status: set[int] = frozenset({400, 401, 500, 502, 503, 504})
+
+
 class BerrizAPIClient:
     
     _re_request_cookie: bool = True
@@ -177,20 +185,38 @@ class BerrizAPIClient:
         ck: Dict[str, str] = await self.cookie()
         if paramstore.get('no_cookie') is not True and ck in (None, {}):
             raise RuntimeError('Cookie is empty! cancel request')
-        try:   
-            async with httpx.AsyncClient(http2=True, timeout=4, verify=True) as client:
-                response: httpx.Response = await client.get(
-                    url,
-                    params=params,
-                    cookies = ck,
-                    headers=headers or self.headers,
-                )
-                if response.status_code not in range(200, 300):
-                    logger.error(f"HTTP error for {url}: {response.status_code}")
-                    return None
-                return response.json()
-        except httpx.ConnectTimeout:
-            logger.warning(f"{Color.fg('light_gray')}Request timeout:{Color.reset()} {Color.fg('periwinkle')}{url}{Color.reset()}")
+        async with httpx.AsyncClient(http2=True, timeout=4, verify=True) as client:
+            attempt: int = 0
+            while attempt < max_retries:
+                try:
+                    response: httpx.Response = await client.get(
+                        url,
+                        params=params,
+                        cookies = ck,
+                        headers=headers or self.headers,
+                    )
+                    if response.status_code in retry_http_status:
+                        raise httpx.HTTPStatusError(
+                            f"Retryable server error: {response.status_code}",
+                            request=response.request,
+                            response=response,
+                        )
+                    response.raise_for_status()
+                    return response.json()
+                except (httpx.TimeoutException, httpx.ConnectError) as e:
+                    logger.warning(f"Network exception, retry {attempt + 1}/{max_retries}: {e}")
+                except httpx.HTTPStatusError as e:
+                    if e.response is not None and e.response.status_code in retry_http_status:
+                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{max_retries}")
+                    else:
+                        logger.error(f"HTTP error for {url}: {e}")
+                        return None
+                attempt += 1
+                sleep: float = min(max_sleep, base_sleep * (2 ** attempt))
+                sleep *= (0.5 + random.random())
+                await asyncio.sleep(sleep)
+        logger.error(f"Retry exceeded for {url}")
+        return None
             
     async def _patch_request(self, url: str, json_data: Dict[str, Any], params: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None) -> Optional[Dict[str, Any]]:
         ck: Dict[str, str] = await self.cookie()
@@ -212,26 +238,43 @@ class BerrizAPIClient:
         except httpx.ConnectTimeout:
             logger.warning(f"{Color.fg('light_gray')}Request timeout:{Color.reset()} {Color.fg('periwinkle')}{url}{Color.reset()}")
 
-
     async def _send_post(self, url: str, json_data: Dict[str, Any], params: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None) -> Optional[Dict[str, Any]]:
         ck: Dict[str, str] = await self.cookie()
         if paramstore.get('no_cookie') is not True and ck in (None, {}):
             raise RuntimeError('Cookie is empty! cancel request')
-        try:    
-            async with httpx.AsyncClient(http2=True, timeout=3, verify=True) as client:
-                response: httpx.Response = await client.post(
-                    url,
-                    params=params,
-                    cookies = ck,
-                    headers=headers or self.headers,
-                    json=json_data,
-                )
-                if response.status_code not in range(200, 300):
-                    logger.error(f"HTTP error for {url}: {response.status_code}")
-                    return None
-                return response.json()
-        except httpx.ConnectTimeout:
-            logger.warning(f"{Color.fg('light_gray')}Request timeout:{Color.reset()} {Color.fg('periwinkle')}{url}{Color.reset()}")
+        async with httpx.AsyncClient(http2=True, timeout=3, verify=True) as client:
+            attempt: int = 0
+            while attempt < max_retries:
+                try:
+                    response: httpx.Response = await client.post(
+                        url,
+                        params=params,
+                        cookies=ck,
+                        headers=headers or self.headers,
+                        json=json_data,
+                    )
+                    if response.status_code in retry_http_status:
+                        raise httpx.HTTPStatusError(
+                            f"Retryable server error: {response.status_code}",
+                            request=response.request,
+                            response=response,
+                        )
+                    response.raise_for_status()
+                    return response.json()
+                except (httpx.TimeoutException, httpx.ConnectError) as e:
+                    logger.warning(f"Network exception, retry {attempt + 1}/{max_retries}: {e}")
+                except httpx.HTTPStatusError as e:
+                    if e.response is not None and e.response.status_code in retry_http_status:
+                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{max_retries}")
+                    else:
+                        logger.error(f"HTTP error for {url}: {e}")
+                        return None
+                attempt += 1
+                sleep: float = min(max_sleep, base_sleep * (2 ** attempt))
+                sleep *= (0.5 + random.random())
+                await asyncio.sleep(sleep)
+        logger.error(f"Retry exceeded for {url}")
+        return None
 
     async def _send_options(self, url: str, params: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None) -> Optional[Dict[str, Any]]:
         ck: Dict[str, str] = await self.cookie()
@@ -259,26 +302,45 @@ class BerrizAPIClient:
         ck: Dict[str, str] = await self.cookie()
         if paramstore.get('no_cookie') is not True and ck in (None, {}):
             raise RuntimeError('Cookie is empty! cancel request')
-        
         c: Dict[str, str]
         if usecookie is False:
             c = {}
         else:
             c = ck
-        try:
+        attempt: int = 0
+        while attempt < max_retries:
             async with httpx.AsyncClient(http2=False, timeout=4, verify=True) as client:
-                response: httpx.Response = await client.get(
-                    url,
-                    params=params,
-                    cookies=c,
-                    headers=headers or self.headers,
-                )
-            if response.status_code not in range(200, 300):
-                logger.error(f"HTTP error for {url}: {response.status_code}")
-                return None
-            return response
-        except httpx.ConnectTimeout:
-            logger.warning(f"{Color.fg('light_gray')}Request timeout:{Color.reset()} {Color.fg('periwinkle')}{url}{Color.reset()}")
+                try:
+                    response: httpx.Response = await client.get(
+                        url,
+                        params=params,
+                        cookies=c,
+                        headers=headers or self.headers,
+                    )
+                    # 可選：對 5xx 進行重試
+                    if response.status_code in retry_http_status:
+                        raise httpx.HTTPStatusError(
+                            f"Retryable server error: {response.status_code}",
+                            request=response.request,
+                            response=response,
+                        )
+                    response.raise_for_status()
+                    return response
+                except (httpx.TimeoutException, httpx.ConnectError) as e:
+                    logger.warning(f"Network exception, retry {attempt + 1}/{max_retries}: {e}")
+                except httpx.HTTPStatusError as e:
+                    # 預設：非 2xx 直接返回；若屬於可重試的 5xx，已在上方轉成 HTTPStatusError 進入此處
+                    if e.response is not None and e.response.status_code in retry_http_status:
+                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{max_retries}")
+                    else:
+                        logger.error(f"HTTP error for {url}: {e}")
+                        return None
+                attempt += 1
+                sleep: float = min(max_sleep, base_sleep * (2 ** attempt))
+                sleep *= (0.5 + random.random())
+                await asyncio.sleep(sleep)
+        logger.error(f"Retry exceeded for {url}")
+        return None
 
 class Playback_info(BerrizAPIClient):
     async def get_playback_context(self, media_ids: Union[str, List[str]]) -> List[Dict[str, Any]]:
