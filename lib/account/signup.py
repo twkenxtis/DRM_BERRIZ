@@ -331,9 +331,7 @@ async def post_verification_key(email: str, otpInt: str) -> Optional[str]:
 
     elif response_json.get('code') == 'FS_ME2050':
         logger.error(f"{response_json.get('message')} resend a new code for {email}")
-        # 這裡會導致循環引用，通常會將 SignupManager 傳入或在外部處理
-        # 為了保持原邏輯，這裡假設 SignupManager 已定義
-        await SignupManager(email, '', '').sign_up()  # 假設密碼不重要，只為觸發重送
+        await SignupManager(email, '', '').sign_up()
         return None
     else:
         logger.error(response_json)
