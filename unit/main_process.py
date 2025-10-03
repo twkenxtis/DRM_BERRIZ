@@ -52,20 +52,20 @@ class DuplicateConfig:
             sys.exit(1)
 
     @classmethod
-    def get_image_dup(cls, path: str = "config/berrizconfig.yaml") -> bool:
-        return cls.load(path)[0]
+    def get_image_dup(cls) -> bool:
+        return cls.load(DuplicateConfig.path)[0]
 
     @classmethod
-    def get_video_dup(cls, path: str = "config/berrizconfig.yaml") -> bool:
-        return cls.load(path)[1]
+    def get_video_dup(cls) -> bool:
+        return cls.load(DuplicateConfig.path)[1]
 
     @classmethod
-    def get_post_dup(cls, path: str = "config/berrizconfig.yaml") -> bool:
-        return cls.load(path)[2]
+    def get_post_dup(cls) -> bool:
+        return cls.load(DuplicateConfig.path)[2]
 
     @classmethod
-    def get_notice_dup(cls, path: str = "config/berrizconfig.yaml") -> bool:
-        return cls.load(path)[3]
+    def get_notice_dup(cls) -> bool:
+        return cls.load(DuplicateConfig.path)[3]
 
 
 image_dup = DuplicateConfig.get_image_dup()
@@ -138,7 +138,9 @@ class MediaProcessor:
                 ]
                 await asyncio.gather(*tasks)
             case None:
+                media_id_list = []
                 for media_id, media_type in media_ids:
+                    media_id_list.append(media_id)
                     self.print_process_items(media_ids, media_type)
                     skip_media_id = await self._check_download_pkl(media_id)
                     if skip_media_id:
@@ -148,7 +150,7 @@ class MediaProcessor:
                         processor: BerrizProcessor = BerrizProcessor(media_id, media_type, self.selected_media)
                         await processor.run()
                 if video_dup is False and paramstore.get('key') is None:
-                    self.store.add(media_ids)
+                    self.add_to_duplicate(media_id_list)
 
     async def _process_photo_items(self, media_ids: List[str]) -> None:
         """Process a list of photo items concurrently."""
@@ -214,8 +216,6 @@ class MediaProcessor:
 
         while not media_queue.is_empty():
             item: Tuple[str, str] | None = media_queue.dequeue()
-            if item is None:
-                continue
             media_id: str
             media_type: str
             media_id, media_type = item
@@ -229,13 +229,6 @@ class MediaProcessor:
                 photo_ids.append(media_id)  # Collect PHOTO media IDs
             elif media_type in("VOD", "LIVE"):
                 live_ids.append((media_id, media_type))
-                """
-                processor: MediaProcessor.ProcessorFunc | None
-                if processor := self.media_processors.get(media_type):
-                    await processor(media_id, media_type)
-                else:
-                    logger.warning(f"Unknown media type {media_type} for ID {media_id}")
-                """
             elif media_type == "POST":
                 post_ids.append(media_id)  # Collect POST media IDs
             elif media_type == "NOTICE":
@@ -246,15 +239,15 @@ class MediaProcessor:
             task: asyncio.Task = asyncio.create_task(self._process_vod_items(live_ids))
             tasks.append(task)
         # Process all collected PHOTO media IDs concurrently
-        if photo_ids:
+        elif photo_ids:
             task: asyncio.Task = asyncio.create_task(self._process_photo_items(photo_ids))
             tasks.append(task)
         # Process all collected POST media IDs concurrently
-        if post_ids:
+        elif post_ids:
             task: asyncio.Task = asyncio.create_task(self._process_post_items(post_ids))
             tasks.append(task)
         # Process all collected NOTICE media IDs concurrently
-        if notice_ids:
+        elif notice_ids:
             task: asyncio.Task = asyncio.create_task(self._process_notice_items(notice_ids))
             tasks.append(task)
 
@@ -265,10 +258,10 @@ class MediaProcessor:
     async def check_duplicate(self, media_type: str) -> bool:
         if image_dup is False and media_type == "PHOTO":
             return True
-        if video_dup is False and media_type == "VOD" and paramstore.get('key') is None:
+        elif video_dup is False and media_type == "VOD" and paramstore.get('key') is None:
             return True
-        if post_dup is False and media_type == "POST" and paramstore.get('key') is None:
+        elif post_dup is False and media_type == "POST":
             return True
-        if notice_dup is False and media_type == "NOTICE" and paramstore.get('key') is None:
+        elif notice_dup is False and media_type == "NOTICE":
             return True
         return False
