@@ -21,7 +21,9 @@ __pycache__/
 *.pyc
 # C extensions
 *.so
-
+request_berriz_api.cpython-312.pyc
+data.cpython*.pyc
+*cpython*
 # Distribution / packaging
 .Python
 build/
