@@ -1,6 +1,7 @@
 import asyncio
 import re
 import sys
+import os
 import yaml
 
 from pathlib import Path
@@ -11,7 +12,7 @@ from email_validator import validate_email, EmailNotValidError
 
 from static.color import Color
 from unit.handle_log import setup_logging
-import sys
+from key.drm.cdm_path import CDM_PATH
 
 
 logger = setup_logging('load_yaml_config', 'fresh_chartreuse')
@@ -204,11 +205,16 @@ class ConfigLoader:
         elif isinstance(cdm.get("widevine"), str):
             if not cdm.get("widevine").strip().lower().endswith(".wvd"):
                 raise ValueError("CDM.widevine must be a wvd file")
+            cdm_path = CDM_PATH({"CDM":{"widevine": cdm.get("widevine"), "playready": cdm.get("playready")}})
+            if not os.path.exists(cdm_path.wv_device_path):
+                raise ValueError(f"CDM.widevine not found {cdm_path.wv_device_path}")
         if not isinstance(cdm.get("playready"), str):
             raise ValueError("CDM.playready must be a string")
         elif isinstance(cdm.get("playready"), str):
             if not cdm.get("playready").strip().lower().endswith(".prd"):
                 raise ValueError("CDM.widevine must be a prd file")
+            if not os.path.exists(cdm_path.prd_device_path):
+                raise ValueError(f"CDM.playready not found {cdm_path.prd_device_path}")
 
         # 10. berriz 區段
         user = config.get("berriz", {})

@@ -8,8 +8,8 @@ from key.cdrm import CDRM
 from key.watora import Watora_wv
 from LARLEY_PR.playready import PlayReadyDRM
 from WVD.widevine import WidevineDRM
-
 from lib.load_yaml_config import CFG
+from key.drm.cdm_path import CDM_PATH
 
 logger = setup_logging('GetClearKey', 'honeydew')
 
@@ -21,8 +21,9 @@ DRM_Client = Union[PlayReadyDRM, WidevineDRM, Watora_wv, CDRM]
 logger = setup_logging('GetClearKey', 'honeydew')
 
 # 定義設備路徑變數的型別
-prd_device_path: str = Path(__file__).parent.parent.joinpath("LARLEY_PR\\pyplayready\\device\\" + CFG['CDM']['playready'])
-wv_device_path: str = Path(__file__).parent.parent.joinpath("WVD\\device\\" + CFG['CDM']['widevine'])
+cdm_path = CDM_PATH(CFG)
+prd_device_path: str = cdm_path.prd_device_path
+wv_device_path: str = cdm_path.wv_device_path
 
 # get_clear_key 是一個異步函式，回傳值為 List[str]（Clear Key 列表）或 None
 async def get_clear_key(pssh_input: str, acquirelicenseassertion_input: str, drm_type: str) -> Optional[List[str]]:

@@ -52,9 +52,9 @@ KeyService:
 
 
 CDM:
-  # WVD \\ device \\ {name}
+  # WVD
   widevine: google_aosp_on_ia_emulator_14.0.0_13cea62a_4464_l3.wvd
-  # LARLEY_PR \\ pyplayready \\ device \\ {name}
+  # LARLEY_PR
   playready: realtek_semiconductor_corp_coolnewdevice_xr-700_sl2000.prd
 
 
