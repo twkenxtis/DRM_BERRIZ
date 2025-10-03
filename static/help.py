@@ -20,7 +20,7 @@ def print_help() -> None:
         "--board -B", "--live --live-only -L", "--media --media-only -M",
         "--photo --photo-only -P", "--notice --notice-only -N", "",
         "--fanclub-only --fanclub --fc", "--no-fanclub --nfc", "",
-        "--t, --time, -T", "--change-password", "",
+        "--t, --time, -T", "--signup", "--change-password", "",
         "--hls", "--del-after-done 'True'(default)", "--skip-merge 'False'(default)",
         "--skip-mux 'False'(default)", "--key, --keys"
     ]
@@ -42,6 +42,7 @@ def print_help() -> None:
         "僅顯示粉絲俱樂部內容 / Show only fanclub only content",
         "僅顯示非Fanclub內容 / Show only none fanclub only content", "",
         "依時間篩選內容 / Filter content by date & time",
+        "註冊Berriz帳戶 / Berriz account registration",
         "更改當前帳戶密碼 / Change current account password", "",
         "僅使用HLS下載 / Download with HLS only",
         "完成後是否刪除 (true/false) / Whether to delete after completion (true/false)",

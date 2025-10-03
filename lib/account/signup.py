@@ -8,11 +8,12 @@ import secrets
 from typing import List, Tuple, Union, Optional, Dict, Any, Literal
 
 import httpx
-from unit.__init__ import USERAGENT
 from urllib.parse import parse_qs, urlparse
 
+from unit.__init__ import USERAGENT
 
 logger = logging.getLogger(__name__)
+
 
 # 密碼強度正則表達式檢查
 _pw_re: re.Pattern[str] = re.compile(
@@ -24,6 +25,7 @@ _pw_re: re.Pattern[str] = re.compile(
     r'$'  # End of string
 )
 
+clientid: str = 'e8faf56c-575a-42d2-933d-7b2e279ad827'
 
 class AuthManager:
     """
@@ -501,7 +503,7 @@ class SignupManager:
     處理會員註冊和密碼相關檢查的管理器
     (修正了類別名稱 typo: SignupMannger -> SignupManager)
     """
-    def __init__(self, email: str, password: str, clientid: str) -> None:
+    def __init__(self, email: str, password: str) -> None:
         self.account: str = (email or "").strip().lower()
         self.password: str = (password or "").strip()
         self.CLIENTID: str = clientid
@@ -628,8 +630,14 @@ class SignupManager:
             logger.warning("Invalid OTP: must be exactly 6 digits")
 
 
-# 測試代碼（保持不變，用於驗證流程）
-email: str = 'omenbibi97@gmail.com'
-password: str = 'stbqobjE9h@jk93ht3j4'
-clientId: str = 'e8faf56c-575a-42d2-933d-7b2e279ad827'
-print(asyncio.run(SignupManager(email, password, clientId).sign_up()))
+async def run_signup() -> Union[str, bool]:
+    email = input("Enter your email: ")
+    password = input("Enter your password: ")
+    resp = await SignupManager(email, password).sign_up()
+    logging.info(resp)
+
+
+if __name__ == '__main__':
+    email: str = 'lelovo@denipl.net'
+    password: str = '%kmq4jCg#5Dd3^rsC4m=7gtsE'
+    print(asyncio.run(SignupManager(email, password).sign_up()))

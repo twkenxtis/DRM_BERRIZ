@@ -198,6 +198,12 @@ def parse_args() -> argparse.Namespace:
         help="Change password"
     )
     parser.add_argument(
+        "--signup",
+        dest="signup",
+        action="store_true",
+        help="Signup"
+    )
+    parser.add_argument(
         "--del-after-done",
         dest="clean_dl",
         type=str_to_bool,
@@ -317,3 +323,6 @@ def noticeonly() -> bool:
 
 def hls_only_dl() -> bool:
     return args.hls_only_dl
+
+def signup() -> bool:
+    return args.signup

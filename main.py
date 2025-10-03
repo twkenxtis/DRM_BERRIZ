@@ -8,14 +8,14 @@ from static.args import (
     community, group, time_date, had_nocookie,
     join_community, leave_community, change_password,
     dev, board, show_help, mediaonly, liveonly, photoonly,
-    noticeonly, hls_only_dl, skip_mux
+    noticeonly, hls_only_dl, skip_mux, signup
 )
 from static.color import Color
 from static.help import print_help
 from unit.parameter import paramstore
 from unit.handle_log import setup_logging
 from lib.account.change_pawword import Change_Password
-
+from lib.account.signup import run_signup
 
 logger = setup_logging('main', 'orange')
 
@@ -80,6 +80,9 @@ if hls_only_dl():
 else:
     paramstore._store["hls_only_dl"] = False
 
+if signup():
+    asyncio.run(run_signup())
+    
 from unit.handle_choice import Handle_Choice
 from unit.community import get_community, get_community_print
 from unit.data.data import process_time_inputs 
