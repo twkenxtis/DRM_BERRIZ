@@ -29,7 +29,7 @@ Donwload_Dir_Name:
 
 Container:
   # ffmpeg or mkvtoolnix
-  mux: ffmpeg
+  mux: MKVTOOLNIX
   # [if choese mkvtoolnix enforce .mkv ts, mp4, mov, m4v, mkv, avi
   video: mp4
   # MP4DECRYPT, SHAKA_PACKAGER

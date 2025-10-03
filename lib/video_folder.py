@@ -2,6 +2,7 @@ import asyncio
 import re
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional, Union, List
 
@@ -55,7 +56,7 @@ class Video_folder:
             await self.get_community_name(self.cmid)
         )
         base_dir: Path = Path(dl_folder_name) / community_name / "videos"
-        temp_folder_name: str = f"{self.time_str} {self.media_id}"
+        temp_folder_name: str = f"{self.time_str} {self.media_id} [{str(uuid.uuid1())[:17]}]"
         temp_name: str = self._sanitize_filename(temp_folder_name)
         temp_dir: Path = base_dir / temp_name / "temp"
         temp_dir.mkdir(parents=True, exist_ok=True)

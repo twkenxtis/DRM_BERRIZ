@@ -1,7 +1,6 @@
 import asyncio
 import json
 import sys
-from functools import cache
 from typing import Any, List, Tuple, Optional, Dict
 
 from lib.download import run_dl
