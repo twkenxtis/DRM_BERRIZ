@@ -1,7 +1,11 @@
 import asyncio
+import os
 import random
 import string
+import shutil
 from pathlib import Path
+
+import aiofiles
 
 from typing import Any, Dict, List, Optional
 
@@ -92,7 +96,6 @@ class MainProcessor:
         title: str = self.fetcher.get_title()
         ISO8601: str = self.fetcher.get_reservedAt()
         body: str = self.fetcher.get_body()
-        file_name = self.notice_media.get('folderName')
         await SaveHTML(title, ISO8601, body, self.folder_path, self.new_file_name).update_template_file()
 
     async def process_image(self) -> None:
@@ -107,16 +110,28 @@ class RunNotice:
 
     async def run_notice_dl(self):
         """Top Async ENTER"""
-        tasks = [
-            asyncio.create_task(self._process_one(index))
-            for index in self.selected_media
-        ]
+        semaphore = asyncio.Semaphore(7)
+        async def process(index: Dict[str, Any]) -> str:
+            async with semaphore:
+                try:
+                    notice_media: dict = await self.notice_media(index)
+                    folder: str = await self.folder(notice_media)
+                    await MainProcessor(notice_media, folder).parse_and_download()
+                    return "ok"
+                except asyncio.CancelledError:
+                    try:
+                        if await aiofiles.os.path.exists(folder):
+                            shutil.rmtree(folder, ignore_errors=True)
+                            logger.info(f"Removed partial file: {folder}")
+                    except OSError as e:
+                        logger.warning(f"Failed to remove file {folder}: {e}")
+                    raise
+                except Exception as e:
+                    if folder and os.path.isdir(folder):
+                        shutil.rmtree(folder, ignore_errors=True)
+                        logger.exception(f"Unexpected error during download: {e}")
+        tasks = [asyncio.create_task(process(index)) for index in self.selected_media]
         await asyncio.gather(*tasks)
-
-    async def _process_one(self, index: Dict[str, Any]) -> None:
-        notice_media: dict = await self.notice_media(index)
-        folder: str = await self.folder(notice_media)
-        await MainProcessor(notice_media, folder).parse_and_download()
 
     async def notice_media(self, index: Dict[str, Any]) -> Dict[str, Any]:
         return await self.get_notice_info(

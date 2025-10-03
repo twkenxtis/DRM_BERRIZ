@@ -1,5 +1,7 @@
 import asyncio
+import os
 import random
+import shutil
 import string
 from datetime import datetime
 from itertools import islice
@@ -182,6 +184,9 @@ class PostJsonDate:
 
 
 class make_html:
+    
+    created_folders = set()
+    
     def __init__(self, post_media: Dict[str, Any], folder_path: Path, image_list: List[str: URL], new_file_name:str):
         self.new_file_name: str = new_file_name
         self.folder_path: Path = folder_path
@@ -212,25 +217,39 @@ async def run_post_dl(selected_media, max_concurrent: int = 13):
     semaphore = asyncio.Semaphore(max_concurrent)
     completed = 0
     total = len(selected_media)
-    async def process_single_media(post_media: dict):
-        async with semaphore:
-            try:
-                if post_media is None:
-                    return False
-                folder: str = await FolderManager(post_media).create_folder()
-                await MainProcessor(post_media, folder).parse_and_download()
-                return True
-            finally:
-                nonlocal completed
-                completed += 1
-                logger.info(
-                    f"{Color.fg('gray')}POST: [{Color.fg('mint')}{completed}"
-                    f"{Color.fg('gray')}/{Color.fg('mint')}{total}{Color.fg('gray')}]"
-                    f"({Color.fg('fern')}{completed/total*100:.1f}{Color.fg('gray')}%)"
-                    )
-
-    tasks = [asyncio.create_task(process_single_media(media)) for media in selected_media]
-    await asyncio.gather(*tasks, return_exceptions=True)
+    try:
+        async def process_single_media(post_media: dict):
+            async with semaphore:
+                try:
+                    if post_media is None:
+                        return False
+                    folder: str = await FolderManager(post_media).create_folder()
+                    make_html.created_folders.add(folder) 
+                    await MainProcessor(post_media, folder).parse_and_download()
+                    return True
+                except asyncio.CancelledError:
+                    try:
+                        if await aiofiles.os.path.exists(folder):
+                            shutil.rmtree(folder, ignore_errors=True)
+                            logger.info(f"Removed partial file: {folder}")
+                    except OSError as e:
+                        logger.warning(f"Failed to remove file {folder}: {e}")
+                    raise
+                finally:
+                    nonlocal completed
+                    completed += 1
+                    logger.info(
+                        f"{Color.fg('gray')}POST: [{Color.fg('mint')}{completed}"
+                        f"{Color.fg('gray')}/{Color.fg('mint')}{total}{Color.fg('gray')}]"
+                        f"({Color.fg('fern')}{completed/total*100:.1f}{Color.fg('gray')}%)"
+                        )
+        tasks = [asyncio.create_task(process_single_media(media)) for media in selected_media]
+        await asyncio.gather(*tasks, return_exceptions=True)
+    except Exception as e:
+        for folder_path in make_html.created_folders:
+            if folder_path and os.path.isdir(folder_path):
+                shutil.rmtree(folder_path, ignore_errors=True)
+        logger.exception(f"Unexpected error during download: {e}")
 
 
 class File_date_time_formact:

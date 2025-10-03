@@ -133,6 +133,7 @@ async def main():
     except KeyboardInterrupt:
         pass
     except asyncio.CancelledError:
+        #print('catch asyncio.CancelledError')
         pass
     except Exception as e:
         logger.critical(f"Main program execution error: {e}", exc_info=True)

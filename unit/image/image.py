@@ -1,7 +1,9 @@
 import asyncio
 import random
 import re
+import os
 import string
+import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -178,46 +180,54 @@ class ImageUrlParser:
     downloader: ImageDownloader
     semaphore: asyncio.Semaphore
 
-    def __init__(self, max_concurrent: int = 23) -> None:
-        self.downloader: ImageDownloader = ImageDownloader() # 假設 ImageDownloader 有一個無參數的 __init__
+    def __init__(self, max_concurrent: int = 5) -> None:
+        self.downloader: ImageDownloader = ImageDownloader()
         self.semaphore: asyncio.Semaphore = asyncio.Semaphore(max_concurrent)
 
     async def parse_and_download(
         self, images: List[Dict[str, Any]], folder: str
     ) -> None:
         """Parse image URLs and download them with concurrency control."""
-        folder_path: Path = Path(folder)
-        tasks: List[asyncio.Task[Any]] = []
+        try:
+            folder_path: Path = Path(folder)
+            tasks: List[asyncio.Task[Any]] = []
 
-        for idx, image in enumerate(images):
-            # image.get("imageUrl") 返回 Optional[str]
-            url: Optional[str] = image.get("imageUrl")
-            if not url:
-                continue
-            
-            # Path(url).name 返回 Optional[str]
-            name: str = Path(url).name or f"image_{idx}.jpg"
-            # 對 name 進行分段處理
-            name = name.split("?")[0]
-            file_path: Path = folder_path / name
+            for idx, image in enumerate(images):
+                # image.get("imageUrl") 返回 Optional[str]
+                url: Optional[str] = image.get("imageUrl")
+                if not url:
+                    continue
+                
+                # Path(url).name 返回 Optional[str]
+                name: str = Path(url).name or f"image_{idx}.jpg"
+                # 對 name 進行分段處理
+                name = name.split("?")[0]
+                file_path: Path = folder_path / name
 
-            # asyncio.create_task 返回 asyncio.Task
-            task: asyncio.Task[Any] = asyncio.create_task(self._download_with_semaphore(url, file_path))
-            tasks.append(task)
+                # asyncio.create_task 返回 asyncio.Task
+                task: asyncio.Task[Any] = asyncio.create_task(self._download_with_semaphore(url, file_path))
+                tasks.append(task)
+            await asyncio.gather(*tasks)
+        except asyncio.CancelledError:
+            logger.warning(f"Download cancelled. Cleaning up folder...")
+            if folder_path and os.path.isdir(folder_path):
+                logger.info(f"{Color.fg('light_gray')}Removing folder: {folder_path}{Color.reset()}")
+                shutil.rmtree(folder_path, ignore_errors=True)
+                raise
+        except Exception as e:
+            if folder_path and os.path.isdir(folder_path):
+                shutil.rmtree(folder_path, ignore_errors=True)
+                logger.exception(f"Unexpected error during download: {e}")
 
-        await asyncio.gather(*tasks)
-
-    # _download_with_semaphore 是一個內部方法，不需要回傳值 (None)
     async def _download_with_semaphore(self, url: str, file_path: Path) -> None:
         async with self.semaphore:
-            await self.downloader.download_image(url, file_path)
-
+            await ImageDownloader.download_image(url, file_path)
 
 class IMGmediaDownloader:
     semaphore: asyncio.Semaphore
     folder_manager: FolderManager
 
-    def __init__(self, max_concurrent: int = 23) -> None:
+    def __init__(self, max_concurrent: int = 7) -> None:
         self.semaphore: asyncio.Semaphore = asyncio.Semaphore(max_concurrent)
         self.folder_manager: FolderManager = FolderManager(logger=logger)
 

@@ -1,4 +1,5 @@
 import asyncio
+import os
 from pathlib import Path
 from typing import Union, Dict
 
@@ -7,7 +8,7 @@ import httpx
 
 from static.color import Color
 from unit.handle_log import setup_logging
-from unit.__init__ import USERAGENT
+from lib.load_yaml_config import CFG
 
 
 logger = setup_logging('class_ImageDownloader', 'sienna')
@@ -19,7 +20,7 @@ class ImageDownloader:
     @staticmethod
     def get_header() -> Dict[str, str]:
         return {
-            "User-Agent": f"{USERAGENT}",
+            "User-Agent": f"{CFG['headers']['User-Agent']}",
             "Cache-Control": "no-cache",
             "Accept-Encoding": "identity",
             "Accept": "image/avif,image/webp,image/png,image/jpeg,image/gif,image/svg+xml,*/*",
@@ -28,8 +29,8 @@ class ImageDownloader:
         }
 
     _headers: Dict[str, str] = get_header.__func__()  # type: ignore
-    _timeout: httpx.Timeout = httpx.Timeout(connect=5.0, read=30.0, write=30.0, pool=30.0)
-    _limits: httpx.Limits = httpx.Limits(max_keepalive_connections=20, max_connections=50)
+    _timeout: httpx.Timeout = httpx.Timeout(connect=13.0, read=7.0, write=2.0, pool=10.0)
+    _limits: httpx.Limits = httpx.Limits(max_keepalive_connections=10, max_connections=10)
         
     @staticmethod
     async def _write_to_file(resp: httpx.Response, file_path: Union[str, Path]) -> None:
@@ -48,7 +49,7 @@ class ImageDownloader:
 
         writer = asyncio.create_task(writer_task())
         try:
-            async for chunk in resp.aiter_bytes(25565):
+            async for chunk in resp.aiter_bytes(10240):
                 await write_queue.put(chunk)
             await write_queue.join()
         finally:
@@ -68,14 +69,9 @@ class ImageDownloader:
                     async with client.stream("GET", url) as resp:
                         resp.raise_for_status()
 
-                        write_task = asyncio.create_task(
-                            ImageDownloader._write_to_file(resp, file_path)
-                        )
-                        await write_task
-
-                logger.info(f"{Color.fg('periwinkle')}{file_path}{Color.reset()}")
-                return
-
+                        logger.info(f"{Color.fg('periwinkle')}{file_path}{Color.reset()}")
+                        await ImageDownloader._write_to_file(resp, file_path)
+                return True
             except (httpx.RequestError, httpx.HTTPStatusError) as e:
                 logger.warning(f"[Attempt {attempt}/10] Failed to download {url}: {e}")
                 if attempt == 10:
