@@ -1,16 +1,13 @@
 import asyncio
-import os
+import difflib
 import random
 import string
 import shutil
 from pathlib import Path
-
-import aiofiles
-
 from typing import Any, Dict, List, Optional
 
 from lib.__init__ import dl_folder_name
-
+from static.color import Color
 from unit.post.post import File_date_time_formact
 from unit.handle_board_from import BoardNoticeINFO
 from unit.handle_board_from import NoticeINFOFetcher
@@ -107,6 +104,8 @@ class RunNotice:
     def __init__(self, selected_media: List[Dict]):
         self.selected_media: List[Dict[str, Any]] = selected_media
         self.folder_manager: FolderManager = FolderManager()
+        self.folder_path = None
+        self.folder_name = set()
 
     async def run_notice_dl(self):
         """Top Async ENTER"""
@@ -114,35 +113,42 @@ class RunNotice:
         async def process(index: Dict[str, Any]) -> str:
             async with semaphore:
                 try:
+                    self.folder_name.add((index['title']))
                     notice_media: dict = await self.notice_media(index)
-                    folder: str = await self.folder(notice_media)
+                    folder: str = await self.folder(await self.notice_media(index))
                     await MainProcessor(notice_media, folder).parse_and_download()
                     return "ok"
                 except asyncio.CancelledError:
-                    try:
-                        if await aiofiles.os.path.exists(folder):
-                            shutil.rmtree(folder, ignore_errors=True)
-                            logger.info(f"Removed partial file: {folder}")
-                    except OSError as e:
-                        logger.warning(f"Failed to remove file {folder}: {e}")
-                    raise
-                except Exception as e:
-                    if folder and os.path.isdir(folder):
-                        shutil.rmtree(folder, ignore_errors=True)
-                        logger.exception(f"Unexpected error during download: {e}")
+                    await self.handle_cancel()
+                    raise asyncio.CancelledError
         tasks = [asyncio.create_task(process(index)) for index in self.selected_media]
         await asyncio.gather(*tasks)
 
     async def notice_media(self, index: Dict[str, Any]) -> Dict[str, Any]:
-        return await self.get_notice_info(
-            index, index["mediaId"], index["communityId"]
-        )
+        data = await self.get_notice_info(index, index["mediaId"], index["communityId"])
+        return data[0]
         
     async def folder(self, notice_media: Dict[str, Any]) -> str:
-        return await self.folder_manager.create_folder(
+        folder = await self.folder_manager.create_folder(
             notice_media["folderName"],
             notice_media["communityId"],
         )
+        self.folder_path: Path = Path(folder)
+        return self.folder_path
         
     async def get_notice_info(self, media: Dict[str, Any], communityNoticeId: int, communityId: int) -> Dict[str, Any]:
-        return await BoardNoticeINFO(media).request_notice_info(communityNoticeId, communityId)
+        try:
+            get_notice_info_task = [asyncio.create_task(BoardNoticeINFO(media).request_notice_info(communityNoticeId, communityId))]
+            return await asyncio.gather(*get_notice_info_task)
+        except asyncio.CancelledError:
+            await self.handle_cancel()
+            raise asyncio.CancelledError
+        
+    async def handle_cancel(self):
+        if self.folder_path.parent.iterdir():
+            for all_folder in self.folder_path.parent.iterdir():
+                path = self.folder_path.parent / all_folder
+                E = not any(path.iterdir())
+                if E and path.name.strip() in  all_folder.name.strip():
+                    logger.warning(f"async_dl_cancel: delete folder {Color.fg('light_gray')}{path}{Color.reset()}")
+                    shutil.rmtree(path)

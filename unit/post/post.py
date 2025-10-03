@@ -4,7 +4,6 @@ import random
 import shutil
 import string
 from datetime import datetime
-from itertools import islice
 from pathlib import Path
 
 from typing import Any, Dict, List, Tuple, Optional
