@@ -10,6 +10,7 @@ cookies/Berriz/*.txt
 *Berriz downloads/
 /Berriz downloads/
 download_info.pkl
+unit\data\*.pyc
 .env
 *.wvd
 *.prd
