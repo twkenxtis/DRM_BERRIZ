@@ -1,4 +1,5 @@
 import re
+import sys
 from datetime import datetime, timedelta, timezone
 from dateutil import parser as dateutil_parser
 from typing import List, Optional, Tuple
@@ -98,60 +99,71 @@ def _date_only(dt: datetime) -> bool:
 
 # 主要處理函式的型別提示
 def process_time_inputs() -> Tuple[datetime, datetime]:
-    parser: FlexibleDateParser = FlexibleDateParser()
+    try:
+        parser: FlexibleDateParser = FlexibleDateParser()
 
-    print("Please enter the first date and time string:")
-    dt_str1: str = input()
-    print("Please enter the second date and time string (optional):")
-    dt_str2: str = input()
+        print("Please enter the first date (accept any formact):")
+        dt_str1: str = input()
+        print("Please enter the second date (optional):")
+        dt_str2: str = input()
 
-    if not dt_str1 and not dt_str2:
-        raise ValueError("The two input date strings cannot be empty at the same time")
+        if not dt_str1 and not dt_str2:
+            logger.error("Both input date strings cannot be empty at the same time")
+            raise ValueError("empty input.")
 
-    dt1: Optional[datetime] = parser.parse(dt_str1) if dt_str1 else None
-    dt2: Optional[datetime] = parser.parse(dt_str2) if dt_str2 else None
+        dt1: Optional[datetime] = parser.parse(dt_str1) if dt_str1 else None
+        dt2: Optional[datetime] = parser.parse(dt_str2) if dt_str2 else None
 
-    # 若空值，以「現在(KST)」補上
-    dt1 = _coerce_now_if_none(dt1)
-    dt2 = _coerce_now_if_none(dt2)
+        # 若空值，以「現在(KST)」補上
+        dt1 = _coerce_now_if_none(dt1)
+        dt2 = _coerce_now_if_none(dt2)
 
-    # 標準化為 KST、去微秒
-    dt1 = _strip_to_kst(dt1)
-    dt2 = _strip_to_kst(dt2)
+        # 標準化為 KST、去微秒
+        dt1 = _strip_to_kst(dt1)
+        dt2 = _strip_to_kst(dt2)
 
-    # 先暫存是否 原始輸入為單純日期 的判斷依據：
-    # 規則：若原始解析沒有時間成分（或視為 00:00:00），視為 date-only
-    # 此處以「時間為 00:00:00」作為近似判斷，解析階段未主動補時間
-    date_only_1: bool = _date_only(dt1)
-    date_only_2: bool = _date_only(dt2)
+        # 先暫存是否 原始輸入為單純日期 的判斷依據：
+        # 規則：若原始解析沒有時間成分（或視為 00:00:00），視為 date-only
+        # 此處以「時間為 00:00:00」作為近似判斷，解析階段未主動補時間
+        date_only_1: bool = _date_only(dt1)
+        date_only_2: bool = _date_only(dt2)
 
-    # 先排序，確保 start <= end
-    # sorted 返回一個包含兩個 datetime 物件的 List[datetime]
-    sorted_dts: List[datetime] = sorted([dt1, dt2])
-    start: datetime = sorted_dts[0]
-    end: datetime = sorted_dts[1]
+        # 先排序，確保 start <= end
+        # sorted 返回一個包含兩個 datetime 物件的 List[datetime]
+        sorted_dts: List[datetime] = sorted([dt1, dt2])
+        start: datetime = sorted_dts[0]
+        end: datetime = sorted_dts[1]
 
-    # 依需求補時間：
-    # - 若 start 是 date-only，補 00:00
-    # - 若 end 是 date-only，補 23:59
-    # 注意：排序後，date-only 標記需要隨者對應到的物件重新匹配
-    # 重新推導：如果排序後的 start 等於原 dt1，則沿用 date_only_1；否則用 date_only_2
-    start_was_dt1: bool = (start == dt1)
-    start_is_date_only: bool = date_only_1 if start_was_dt1 else date_only_2
-    end_is_date_only: bool = date_only_2 if start_was_dt1 else date_only_1
+        # 依需求補時間：
+        # - 若 start 是 date-only，補 00:00
+        # - 若 end 是 date-only，補 23:59
+        # 注意：排序後，date-only 標記需要隨者對應到的物件重新匹配
+        # 重新推導：如果排序後的 start 等於原 dt1，則沿用 date_only_1；否則用 date_only_2
+        start_was_dt1: bool = (start == dt1)
+        start_is_date_only: bool = date_only_1 if start_was_dt1 else date_only_2
+        end_is_date_only: bool = date_only_2 if start_was_dt1 else date_only_1
 
-    if start_is_date_only:
-        start = start.replace(hour=0, minute=0, second=0, microsecond=0)
-    if end_is_date_only:
-        end = end.replace(hour=23, minute=59, second=0, microsecond=0)
+        if start_is_date_only:
+            start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        if end_is_date_only:
+            end = end.replace(hour=23, minute=59, second=0, microsecond=0)
 
-    # 保證順序（理論上仍然成立）
-    if start > end:
-        start, end = end, start
+        # 保證順序（理論上仍然成立）
+        if start > end:
+            start, end = end, start
 
-    # 最終以 最早 最晚 順序回傳
-    return (start, end)
-
+        # 最終以 最早 最晚 順序回傳
+        return (start, end)
+    except KeyboardInterrupt:
+        sys.exit(1)
+    except EOFError:
+        sys.exit(1)
+    except ValueError as e:
+        logger.error(f"Error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"An unknown error occurred: {e}")
+        sys.exit(1)
 
 class TimeHandler:
     def __init__(self, utc_timestamp_str:str) -> str:
