@@ -136,7 +136,6 @@ class MediaDownloader:
                 f"[Bitrate: {Color.fg('violet')}{track.bandwidth / 1000}k{Color.reset()}]"
                 f"[Codec: {Color.fg('light_green')}{track.codecs}{Color.reset()}]"
                 f"[Type: {Color.fg('light_yellow')}{track.mime_type}{Color.reset()}]"
-                f"[Resolution: {Color.fg('light_magenta')}{track.height} x {track.width}{Color.reset()}]"
             )
         return await self.task_and_dl(slice_parameters, track_dir, file_ext, track_type)
 
