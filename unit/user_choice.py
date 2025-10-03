@@ -9,8 +9,8 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 
 from static.color import Color
-from unit.handle_log import setup_logging
-from unit.community import custom_dict, get_community
+from unit.handle.handle_log import setup_logging
+from unit.community.community import custom_dict, get_community
 
 
 logger = setup_logging('user_choice', 'fresh_chartreuse')

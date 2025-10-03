@@ -564,7 +564,7 @@ class Community(BerrizAPIClient):
 
     async def community_menus(self, communityId: int) -> Optional[Dict[str, Any]]:
         params: Dict[str, str] = {"languageCode": 'en'}
-        from unit.community import get_community
+        from unit.community.community import get_community
         if type(communityId) is not int:
             communityId = await get_community(communityId)
         if not isinstance(communityId, int):

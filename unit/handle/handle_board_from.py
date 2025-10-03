@@ -11,7 +11,7 @@ from lib.load_yaml_config import CFG
 from lib.__init__ import OutputFormatter, FilenameSanitizer
 from unit.data.data import get_timestamp_formact, get_formatted_publish_date
 from unit.handle.handle_log import setup_logging
-from unit.community import get_community, custom_dict
+from unit.community.community import get_community, custom_dict
 from unit.http.request_berriz_api import Translate
 from unit.http.request_berriz_api import Arits
 

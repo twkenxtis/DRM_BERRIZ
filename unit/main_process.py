@@ -12,11 +12,11 @@ from lib.lock_cookie import cookie_session
 from lib.media_queue import MediaQueue
 from lock.donwnload_lock import UUIDSetStore
 from static.color import Color
-from unit.berriz_drm import BerrizProcessor
-from unit.handle_log import setup_logging
+from static.parameter import paramstore
+from unit.media.berriz_drm import BerrizProcessor
+from unit.handle.handle_log import setup_logging
 from unit.image.image import IMGmediaDownloader
 from unit.notice.notice import RunNotice
-from unit.parameter import paramstore
 from unit.post.post import run_post_dl
 
 

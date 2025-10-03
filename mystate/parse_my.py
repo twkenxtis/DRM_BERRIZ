@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from static.color import Color
 from lib.lock_cookie import cookie_session, Lock_Cookie
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import My
 
 

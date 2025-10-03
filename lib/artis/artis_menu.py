@@ -6,7 +6,7 @@ from InquirerPy import inquirer
 
 from static.color import Color
 from static.api_error_handle import api_error_handle
-from unit.community import get_community
+from unit.community.community import get_community
 from unit.http.request_berriz_api import Community
 from unit.http.request_berriz_api import Arits
 from unit.handle.handle_log import setup_logging

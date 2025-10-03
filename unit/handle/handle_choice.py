@@ -14,7 +14,7 @@ from unit.handle.handle_log import setup_logging
 from unit.main_process import MediaProcessor
 from unit.media.media_json_process import MediaJsonProcessor
 from unit.user_choice import InquirerPySelector
-from unit.community import get_community
+from unit.community.community import get_community
 from unit.GET.GetNotifyList import NotifyFetcher
 from static.parameter import paramstore
 

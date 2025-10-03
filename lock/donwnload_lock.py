@@ -5,7 +5,7 @@ import queue
 import threading
 from typing import Set
 
-from unit.handle_log import setup_logging
+from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('download_lock', 'forest_green')

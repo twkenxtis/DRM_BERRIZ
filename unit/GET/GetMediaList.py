@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from lib.lock_cookie import cookie_session
 from mystate.fanclub import fanclub_main
 from static.color import Color
-from unit.community import get_community, get_community_print
+from unit.community.community import get_community, get_community_print
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import Live, MediaList
 from static.parameter import paramstore
