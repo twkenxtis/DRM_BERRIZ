@@ -157,11 +157,13 @@ class Key_handle:
         return None
 
 
-async def start_download(public_info: PublicInfo, key: Optional[str], raw_mpd: Any, dash_playback_url: str, hls_playback_url: str, raw_hls: str) -> None:
-    if public_info.code == "0000":
-        json_data: Dict[str, Any] = json.loads(public_info.to_json())
-    else:
-        json_data = {}
+async def start_download(public_info: PublicInfo, playback_info : PlaybackInfo, key: Optional[str], raw_mpd: Any, dash_playback_url: str, hls_playback_url: str, raw_hls: str) -> None:
+    public_dict = json.loads(public_info.to_json())
+    playback_dict = json.loads(playback_info.to_json())
+    json_data: Dict[str, Any] = {} | public_dict | playback_dict 
+    json_data = {**public_dict, **playback_dict}
+    json_data["Decryption"] = key
+    logger.debug(f"{Color.fg('gold')}{json_data}{Color.reset()}")
     
     if paramstore.get('key') is True:
         logger.info(
@@ -221,12 +223,13 @@ class BerrizProcessor:
                     )
                 return await self.pre_make_download(playback_info, public_info)
     
-    async def pre_make_download(self, playback_info: PlaybackInfo, public_info: Playback_info) -> None:
+    async def pre_make_download(self, playback_info: PlaybackInfo | LivePlaybackInfo, public_info: PublicInfo) -> None:
+        logger.debug(playback_info.to_dict())
+        logger.debug(public_info.to_dict())
         logger.info(BerrizProcessor.print_title(public_info))
-
         key, dash_playback_url, raw_mpd, hls_playback_url, raw_hls = await self.drm_handle(playback_info)
         if not any(not v for v in (dash_playback_url, raw_mpd, hls_playback_url, raw_hls)):
-            await start_download(public_info, key, raw_mpd, dash_playback_url, hls_playback_url, raw_hls)
+            await start_download(public_info, playback_info, key, raw_mpd, dash_playback_url, hls_playback_url, raw_hls)
         else:
             missing = {
                 "dash_playback_url": dash_playback_url,
@@ -253,7 +256,6 @@ class BerrizProcessor:
 
         raw_mpd: Any = None
         raw_hls: Optional[str] = None
-
         if getattr(playback_info, "dash_playback_url", None):
             raw_mpd = await Live().fetch_mpd(playback_info.dash_playback_url)
         if getattr(playback_info, "hls_playback_url", None):

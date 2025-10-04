@@ -58,26 +58,22 @@ def async_cache(maxsize: int = 13) -> Decorator:
         
     return decorator
 
-# search_community 的回傳值可以是 communityKey (str), communityId (int), 或 None
-ReturnType = Union[str, int, None]
-def search_community(contents: List[CommunityDict], query: Union[str, int, None]) -> ReturnType:
+def search_community(contents: List[CommunityDict], query: Union[str, int, None]) -> Union[str, int, None]:
     if query is None:
         return None
-
-    try:
-        query_id: int = int(query)
+    query = int(query) if isinstance(query, str) and query.isdigit() else query
+    logger.debug(f"{Color.fg('gold')}search_community {query}, {type(query)}{Color.reset()}")
+    if isinstance(query, str):
+        q = query.strip().lower()
         for item in contents:
-            if item.get("communityId") == query_id:
-                # 返回 communityKey (str)
-                return item.get("communityKey")
-    except ValueError:
-        pass
+            key = item.get("communityKey", "").lower()
+            if q == key:
+                return item.get("communityId")
 
-    normalized: str = str(query).strip().lower()
-    for item in contents:
-        if item.get("communityKey", "").lower() == normalized:
-            # 返回 communityId (int)
-            return item.get("communityId")
+    elif isinstance(query, int):
+        for item in contents:
+            if item.get("communityId") == query:
+                return item.get("communityKey")
 
     return None
 
@@ -126,7 +122,7 @@ async def custom_dict(input_str: Union[str, int]) -> Optional[str]:
     
 # get_community 的回傳值是 str (communityKey) 或 int (communityId) 或 None
 @async_cache(maxsize=256)
-async def get_community(query: Union[str, int, None] = None) -> ReturnType:
+async def get_community(query: Union[str, int, None] = None) -> Union[str, int, None]:
     await file_Check()
     try:
         async with aiofiles.open(BASE_COMMUNITY_KEY_DICT, 'rb') as f:
@@ -135,9 +131,8 @@ async def get_community(query: Union[str, int, None] = None) -> ReturnType:
     except orjson.JSONDecodeError:
         PRELOADED_COMMUNITIES = [{}]
         pass
-
     # 先查本地預設資料
-    result: ReturnType = search_community(PRELOADED_COMMUNITIES, query)
+    result: Union[str, int, None] = search_community(PRELOADED_COMMUNITIES, query)
     if isinstance(result, str):
         # 假設 custom_dict 返回 str 或 None
         name: Optional[str] = await custom_dict(result) or result
@@ -146,11 +141,9 @@ async def get_community(query: Union[str, int, None] = None) -> ReturnType:
             f"{Color.reset()}［{Color.fg('turquoise')}{name}{Color.reset()}］"
         )
         return result.strip()
-
     if result is not None:
         # 如果 result 是 int (communityId)
         return result
-    
     # 查不到再發 API
     # 假設 Community().community_keys() 返回 Dict[str, Any]
     data = await request_community_community_keys()
