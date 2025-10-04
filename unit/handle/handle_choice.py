@@ -118,7 +118,7 @@ class Handle_Choice:
         vod_list, photo_list, live_list, post_list, notice_list = await self.get_list_data()
         # If no conditions are True, return all lists
         if active_conditions == 0:
-            return await self.get_list_data()
+            return vod_list, photo_list, live_list, post_list, notice_list
         # Initialize result lists based on corresponding flags
         result_vod_list: List[Dict[str, Any]] = vod_list if mediaonly else []
         result_photo_list: List[Dict[str, Any]] = photo_list if photoonly else []

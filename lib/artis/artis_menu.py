@@ -52,7 +52,6 @@ class Board:
                             selected = await self.call_auto_choese(choices)
                             selected_list.append(selected)
                     else:
-                        # 'board only'
                         try:
                             selected = await self.call_inquirer(filterchoice)
                         except asyncio.TimeoutError:
@@ -67,7 +66,7 @@ class Board:
                 message="Please select a project: (After 7s auto choese default Options)",
                 choices=filterchoice
             ).execute_async(),
-            timeout=7
+            timeout=1
         )
         
     async def call_auto_choese(self, choices: List[Dict]) -> Dict:
