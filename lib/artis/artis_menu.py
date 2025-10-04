@@ -6,7 +6,6 @@ from InquirerPy import inquirer
 
 from static.color import Color
 from static.api_error_handle import api_error_handle
-from unit.community.community import get_community
 from unit.http.request_berriz_api import Community
 from unit.http.request_berriz_api import Arits
 from unit.handle.handle_log import setup_logging
@@ -24,8 +23,9 @@ noticeonly: Optional[bool] = paramstore.get('noticeonly')
         
         
 class Board:
-    def __init__(self, communityId: int, time_a: Optional[datetime] = None, time_b: Optional[datetime] = None) -> None:
-        self.communityId: int = communityId
+    def __init__(self, community_id: int, communityname: str, time_a: Optional[datetime] = None, time_b: Optional[datetime] = None) -> None:
+        self.communityid: int = community_id
+        self.communityname = communityname
         self.json_data: Optional[Dict[str, Any]] = None
         self.time_a: Optional[datetime] = time_a
         self.time_b: Optional[datetime] = time_b
@@ -96,12 +96,8 @@ class Board:
         ]
 
     async def get_artis_board_list(self) -> Optional[Tuple[Any, str]]:
-        CM_id: Union[int, str]
-        group_name: str
-        CM_id, group_name = await self.get_community_id(self.communityId)
-        
         # Community().community_menus 回傳 Optional[Dict[str, Any]]
-        community_menu: Optional[Dict[str, Any]] = await Community().community_menus(CM_id) 
+        community_menu: Optional[Dict[str, Any]] = await Community().community_menus(self.communityid) 
         
         if community_menu is None or community_menu.get('code') != '0000':
             return None
@@ -116,15 +112,15 @@ class Board:
         _type, iconType, _id, name = self.parse_user_select(selected)
         selected_list: List[Dict[str:Any]]
         if len(selected_list) > 0:
-            result: Any = await self.handle_artist_board(selected, CM_id)
-            result_notice: Any = await self.handle_artist_notice(selected_list[0], CM_id)
+            result: Any = await self.handle_artist_board(selected)
+            result_notice: Any = await self.handle_artist_notice(selected_list[0])
             data = [result, result_notice]
             return (data, 'notice+board')
         if iconType in('artist', 'user', 'artist-fanclub', 'user-fanclub', 'shop', 'live', 'media'):
-            result: Any = await self.handle_artist_board(selected, CM_id)
+            result: Any = await self.handle_artist_board(selected)
             return (result, 'artist')
         if iconType == 'notice':
-            result: Any = await self.handle_artist_notice(selected, CM_id)
+            result: Any = await self.handle_artist_notice(selected)
             return (result, 'notice')
         else:
             logger.warning(
@@ -140,32 +136,21 @@ class Board:
         name: str = selected['name']
         return _type, iconType, _id, name
 
-    async def handle_artist_board(self, menu: Dict[str, Any], CM_id: Union[int, str]) -> Optional[Any]:
-        board_list: Optional[List[Dict[str, Any]]] = await self.sort_board_list(menu, CM_id)
+    async def handle_artist_board(self, menu: Dict[str, Any]) -> Optional[Any]:
+        board_list: Optional[List[Dict[str, Any]]] = await self.sort_board_list(menu)
         return await BoardMain(board_list, self.time_a, self.time_b).main()
     
-    async def handle_artist_notice(self, menu: Dict[str, Any], CM_id: Union[int, str]) -> Optional[Any]:
-        board_list: Optional[List[Dict[str, Any]]] = await self.sort_board_list(menu, CM_id)
-        return await BoardNotice(board_list, CM_id, self.time_a, self.time_b).notice_list()
+    async def handle_artist_notice(self, menu: Dict[str, Any]) -> Optional[Any]:
+        board_list: Optional[List[Dict[str, Any]]] = await self.sort_board_list(menu)
+        return await BoardNotice(board_list, self.communityid, self.time_a, self.time_b).notice_list()
     
-    async def get_community_id(self, group_name: Union[int, str]) -> Tuple[int, str]:
-        group_id: int
-        _group_name: str
-        if isinstance(group_name, int):
-            group_id = group_name
-            _group_name = await get_community(group_id) 
-            return group_id, _group_name
-        else:
-            group_id = await get_community(group_name)
-            return group_id, group_name
-
-    async def sort_board_list(self, data: Dict[str, Any], community_id: Union[int, str]) -> Optional[List[Dict[str, Any]]]:
+    async def sort_board_list(self, data: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
         boards_id: Union[int, str] = data.get('id', '')
         boards_name: Union[int, str] = data.get('name', '')
         if data.get('type') in('board', 'shop', 'live', 'media'):
-            return await self.get_all_board_content_lists(str(boards_id), int(community_id), str(boards_name))
+            return await self.get_all_board_content_lists(str(boards_id), str(boards_name))
         elif data.get('type') == 'notice':
-            return await Notice(int(community_id)).get_all_notice_content_lists()
+            return await Notice(self.communityid, self.communityname).get_all_notice_content_lists()
         return None
         
     def basic_sort_json(self) -> Tuple[List[Dict[str, Any]], Dict[str, Any], bool]:
@@ -186,14 +171,14 @@ class Board:
             params["next"] = cursor['next']
         return params
     
-    async def get_all_board_content_lists(self, boards_id: str, community_id: int, boards_name: str) -> List[Dict[str, Any]]:
+    async def get_all_board_content_lists(self, boards_id: str, boards_name: str) -> List[Dict[str, Any]]:
         all_contents: List[Dict[str, Any]] = []
         next_int: Optional[int] = 0
         hasNext: bool = True
         
         # 初始請求
         params: Dict[str, Union[str, int]] = {"pageSize": 100, "languageCode": "en"}
-        self.json_data = await self._fetch_board_data(boards_id, community_id, params)
+        self.json_data = await self._fetch_board_data(boards_id, params)
         contents: List[Dict[str, Any]]
         contents, _, hasNext = self.basic_sort_json()
         all_contents.extend(contents)
@@ -221,7 +206,7 @@ class Board:
         # 單筆擴展，每次用回應的指針
         while hasNext and next_int is not None:
             params = {"pageSize": 100, "languageCode": "en", "next": next_int}
-            result: Optional[Dict[str, Any]] = await self._fetch_board_data(boards_id, community_id, params)
+            result: Optional[Dict[str, Any]] = await self._fetch_board_data(boards_id, params)
             if result is None:
                 break
             
@@ -254,18 +239,17 @@ class Board:
                 deduped.append(item)
         return deduped
 
-    async def _fetch_board_data(self, boards_id: str, community_id: int, params: Dict[str, Any]) -> Dict[str, Any]:
-        data: Optional[Dict[str, Any]] = await Arits()._board_list(boards_id, str(community_id), params)
+    async def _fetch_board_data(self, boards_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        data: Optional[Dict[str, Any]] = await Arits()._board_list(boards_id, str(self.communityid), params)
         return data if data is not None else {} # 處理 _board_list 可能回傳 None 的情況
 
 
 class Notice(Board):
-    def __init__(self, communityId: int) -> None:
-        self.communityId: int = communityId
-        super().__init__(self.communityId)
+    def __init__(self, community_id: int, communityname: str) -> None:
+        super().__init__(community_id, communityname)
     
     async def fetch_notice_content_lists(self, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        return await Arits().request_notice(self.communityId, params)
+        return await Arits().request_notice(self.communityid, params)
 
     async def get_all_notice_content_lists(self) -> List[Dict[str, Any]]:
         params: Dict[str, Union[str, int]] = {'languageCode': 'en', 'pageSize': 999999999339134974}
