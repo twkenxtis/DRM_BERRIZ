@@ -1,24 +1,38 @@
-import concurrent.futures
 import logging
 import os
 import re
+import yaml
 import threading
+import concurrent.futures
+from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
 from logging import LogRecord, Formatter, Logger, StreamHandler
 from typing import Any, Pattern
 
-
 from static.color import Color
 
 
+YAML_PATH: Path = os.path.join('config', 'berrizconfig.yaml')
+try:
+    with open(YAML_PATH, 'r', encoding='utf-8') as f:
+        CFG: dict = yaml.safe_load(f)
+except FileNotFoundError:
+    logging.error(f"Config file not found: {YAML_PATH}")
+    raise FileNotFoundError('not found config file')
+
+
+LOGGING_LEVEL = CFG['logging']['level']
+LOGGING_FORMAT = CFG['logging']['format']
+
+
 class NonBlockingFileHandler(TimedRotatingFileHandler):
-    """使用線程池執行器實現非阻塞寫入"""
+    """Use thread pool executor to implement non-blocking write."""
 
     _executor: concurrent.futures.ThreadPoolExecutor
     _lock: threading.Lock
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        # TimedRotatingFileHandler.__init__ 的參數較多且常透過 kwargs 傳入
+        # TimedRotatingFileHandler.__init__ has many parameters and is passed through kwargs
         super().__init__(*args, **kwargs)
         self._executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="log_writer"
@@ -26,21 +40,21 @@ class NonBlockingFileHandler(TimedRotatingFileHandler):
         self._lock = threading.Lock()
 
     def emit(self, record: LogRecord) -> None:
-        """在線程池中執行文件寫入"""
+        """Execute file write in thread pool."""
         try:
-            # self.format(record) 返回 str
+            # self.format(record) returns str
             msg: str = self.format(record)
-            # 在線程池中執行寫入操作（非阻塞）
+            # Execute write operation (non-blocking) in thread pool
             self._executor.submit(self._sync_write, msg)
         except Exception as e:
-            # 這裡的 print 語句是為了在傳輸失敗時提供反饋
+            # This print statement is for providing feedback in case of transmission error
             print(f"Log transmission error: {e}")
 
     def _sync_write(self, message: str) -> None:
-        """同步寫入方法（在線程中執行）"""
+        """Synchronous write method (run in thread)."""
         try:
             with self._lock:
-                # self.baseFilename, self.encoding 來自 TimedRotatingFileHandler
+                # self.baseFilename, self.encoding come from TimedRotatingFileHandler   
                 with open(self.baseFilename, "a", encoding=self.encoding) as f:
                     f.write(message + "\n")
         except Exception as e:
@@ -113,11 +127,11 @@ def setup_logging(name: str, log_color: str) -> Logger:
             return color_pattern.sub("", message)
 
     file_format: NoColorFormatter = NoColorFormatter(
-        "%(asctime)s [%(levelname)s] [%(name)s]: %(message)s"
+        f"{LOGGING_FORMAT}"
     )
 
     logger: Logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(LOGGING_LEVEL.upper())
 
     # 確保不重複添加 Handler
     if logger.handlers:

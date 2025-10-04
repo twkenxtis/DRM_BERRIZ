@@ -233,12 +233,12 @@ class ConfigLoader:
         log = config.get("logging", {})
         if not isinstance(log, dict):
             raise TypeError("logging must be a dict")
-        if not isinstance(user.get("level"), str):
+        if not isinstance(log.get("level"), str):
             raise ValueError("logging.level must be a string")
-        elif isinstance(user.get("level"), str):
-            if user.get("level").lower() not in ("debug", "info", "warning", "error", "critical"):
+        elif isinstance(log.get("level"), str):
+            if log.get("level").lower() not in ("debug", "info", "warning", "error", "critical"):
                 raise ValueError("logging.level must be one of debug, info, warning, error, critical")
-        if not isinstance(user.get("format"), str):
+        if not isinstance(log.get("format"), str):
             raise ValueError("logging.format must be a string")
         config["logging"] = log
 
