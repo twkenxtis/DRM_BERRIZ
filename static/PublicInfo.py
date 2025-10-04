@@ -1,5 +1,4 @@
-from datetime import datetime, timezone, timedelta
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 
 import orjson
 
@@ -8,7 +7,12 @@ from unit.data.data import get_formatted_publish_date
 
 
 class PublicInfo:
-    def __init__(self, public_context: dict):
+    def __init__(self, public_context: Dict[str, Any]):
+        if isinstance(public_context, dict):
+            public_context = public_context
+        else:
+            public_context: tuple[Dict[str, Any]]
+            public_context = public_context[1]
         self.code: Optional[int] = public_context.get("code")
         self.status: Optional[str] = public_context.get("message")
 
@@ -95,7 +99,8 @@ class PublicInfo:
 
 
 class PublicInfo_Custom:
-    def __init__(self, public_context: dict):
+    def __init__(self, public_context: Dict[str, Any]):
+        public_context = public_context[0]
         self.code: Optional[str] = public_context.get("code")
         self.status: Optional[str] = public_context.get("status")
 

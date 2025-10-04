@@ -3,6 +3,11 @@ import orjson
 
 class PlaybackInfo:
     def __init__(self, playback_context: Dict[str, Any]):
+        if isinstance(playback_context, dict):
+            playback_context = playback_context
+        else:
+            playback_context: tuple[Dict[str, Any]]
+            playback_context = playback_context[1]
         # Top-level info
         self.code: Optional[str] = playback_context.get("code")
         self.status: Optional[str] = playback_context.get("message")
@@ -114,6 +119,11 @@ class PlaybackInfo:
 
 class LivePlaybackInfo:
     def __init__(self, playback_context: Dict[str, Any]):
+        if isinstance(playback_context, dict):
+            playback_context = playback_context
+        else:
+            playback_context: tuple[Dict[str, Any]]
+            playback_context = playback_context[1]
         # Top-level info
         self.code: Optional[str] = playback_context.get("code")
         self.status: Optional[str] = playback_context.get("message")
