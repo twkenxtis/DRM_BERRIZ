@@ -61,3 +61,8 @@ CDM:
 berriz:
   account: mrqi7@powerscrews.com
   password: jO2^Gopc7rkv
+
+
+logging:
+  level: INFO
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

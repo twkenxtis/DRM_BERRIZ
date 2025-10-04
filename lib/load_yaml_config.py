@@ -229,6 +229,19 @@ class ConfigLoader:
             raise ValueError("berriz.password must be a tring")
         config["berriz"] = user
     
+        # 11. logging
+        log = config.get("logging", {})
+        if not isinstance(log, dict):
+            raise TypeError("logging must be a dict")
+        if not isinstance(user.get("level"), str):
+            raise ValueError("logging.level must be a string")
+        elif isinstance(user.get("level"), str):
+            if user.get("level").lower() not in ("debug", "info", "warning", "error", "critical"):
+                raise ValueError("logging.level must be one of debug, info, warning, error, critical")
+        if not isinstance(user.get("format"), str):
+            raise ValueError("logging.format must be a string")
+        config["logging"] = log
+
     def print_warning(invaild_message: str, invaild_value: str,correct_message: str) -> None:
         logger.warning(
             f"Unsupported value {Color.bg('ruby')}{invaild_message}{Color.reset()}"
