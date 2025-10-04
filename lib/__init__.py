@@ -1,6 +1,6 @@
 import re
 import string
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from static.color import Color
 from lib.load_yaml_config import CFG, ConfigLoader
@@ -86,3 +86,12 @@ class OutputFormatter:
         # 移除連接符與欄位，包含前後空格
         pattern = rf"[\s\-._]*{{{field}}}[\s\-._]*"
         return re.sub(pattern, " ", template)
+    
+    
+def get_artis_list(artis_list: List[Dict[str, Optional[str]]]):
+    all_artos_list = set()
+    for i in artis_list:
+        if i.get('name'):
+            all_artos_list.add(i['name'])
+    all_artis_str: str  = " ".join(sorted(all_artos_list))
+    return all_artis_str

@@ -11,7 +11,7 @@ import aiofiles
 import aiofiles.os as aios
 import orjson
 
-from lib.__init__ import dl_folder_name, OutputFormatter
+from lib.__init__ import dl_folder_name, OutputFormatter, get_artis_list
 from lib.load_yaml_config import CFG
 from lib.rename import SUCCESS
 from static.color import Color
@@ -64,7 +64,7 @@ class Video_folder:
         self.base_dir = base_dir
         self.output_dir = str(temp_dir.resolve())
         
-        if self.get_artis_list() == community_name:
+        if get_artis_list(self.artis_list) == community_name:
             video_meta: Dict[str, str] = {
                 "date": self.time_str,
                 "title": self.title,
@@ -72,11 +72,11 @@ class Video_folder:
                 "source": "Berriz",
                 "tag": CFG['output_template']['tag']
             }
-        elif self.get_artis_list() != community_name:
+        elif get_artis_list(self.artis_list) != community_name:
             video_meta: Dict[str, str] = {
                 "date": self.time_str,
                 "title": self.title,
-                "artis": self.get_artis_list(),
+                "artis": get_artis_list(self.artis_list),
                 "community_name": community_name,
                 "source": "Berriz",
                 "tag": CFG['output_template']['tag']
@@ -84,15 +84,6 @@ class Video_folder:
         folder_name: str = OutputFormatter(f"{CFG['Donwload_Dir_Name']['dir_name']}").format(video_meta)
         self.folder_name = folder_name
         return temp_dir
-    
-    def get_artis_list(self):
-        self.artis_list: List[Dict[str, Optional[str]]]
-        all_artos_list = set()
-        for i in self.artis_list:
-            if i.get('name'):
-                all_artos_list.add(i['name'])
-        all_artis_str: str  = " ".join(sorted(all_artos_list))
-        return all_artis_str
 
     def get_unique_folder_name(self, base_name: str, full_path: Path) -> Path:
         """確保資料夾名稱唯一性，避免衝突"""
