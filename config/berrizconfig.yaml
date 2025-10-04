@@ -48,7 +48,7 @@ TimeZone:
 
 KeyService:
   # mspr wv watora_wv cdrm_wv cdrm_mspr
-  source: wv
+  source: mspr
 
 
 CDM:
@@ -64,5 +64,5 @@ berriz:
 
 
 logging:
-  level: DEBUG
+  level: INFO
   format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

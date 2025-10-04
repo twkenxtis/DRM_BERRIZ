@@ -207,7 +207,6 @@ async def start_download_queue(
     output_dir: Path = await video_folder_obj.video_folder_handle()
     if output_dir is not None:
         s_obhect: save_json_data = save_json_data(output_dir)
-        
         # 異步並行儲存 manifest 和 JSON 檔案
         await asyncio.gather(
             asyncio.create_task(s_obhect.mpd_to_folder(raw_mpd)),
