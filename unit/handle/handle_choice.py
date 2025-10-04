@@ -185,7 +185,7 @@ class Handle_Choice:
             
         except Exception as e:
             logger.error(f"Error at media queue processing: {e}")
-            raise {'vods': [], 'photos': [], 'lives': [], 'post': [], 'notice': []}
+            return {'vods': [], 'photos': [], 'lives': [], 'post': [], 'notice': []}
 
     def printer_user_choese(self):
         temp_messages = []
