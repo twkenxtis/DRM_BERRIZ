@@ -145,11 +145,9 @@ async def get_community(query: Union[str, int, None] = None) -> Union[str, int, 
         # 如果 result 是 int (communityId)
         return result
     # 查不到再發 API
-    # 假設 Community().community_keys() 返回 Dict[str, Any]
     data = await request_community_community_keys()
     if data == {}: return None
 
-    # 假設 contents 是 List[CommunityDict]
     contents: List[CommunityDict] = data.get("data", {}).get("contents", [])
     async with aiofiles.open(BASE_COMMUNITY_KEY_DICT, 'wb') as f:
         await f.write(orjson.dumps(contents, option=orjson.OPT_INDENT_2))
@@ -166,15 +164,12 @@ async def get_community(query: Union[str, int, None] = None) -> Union[str, int, 
     return result
 
 async def get_community_print() -> None:
-    # 假設 Community().community_keys() 返回 Dict[str, Any]
     data = await request_community_community_keys()
     if data == {}: return None
         
-    # 假設 data.get("data", {}).get("contents", []) 返回 List[CommunityDict]
     contents: List[CommunityDict] = data.get("data", {}).get("contents", [])
     
     for i in contents:
-        # 假設 get() 返回 int 或 str
         Community_id: Optional[int] = i.get("communityId")
         communityKey: Optional[str] = i.get("communityKey")
         logger.info(f"{Color.fg('light_gray')}Community_id: "
