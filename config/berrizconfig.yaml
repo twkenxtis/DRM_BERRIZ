@@ -29,7 +29,7 @@ Donwload_Dir_Name:
 
 Container:
   # ffmpeg or mkvtoolnix
-  mux: MKVTOOLNIX
+  mux: ffmpeg
   # [if choese mkvtoolnix enforce .mkv ts, mp4, mov, m4v, mkv, avi
   video: mp4
   # MP4DECRYPT, SHAKA_PACKAGER
@@ -65,4 +65,5 @@ berriz:
 
 logging:
   level: INFO
+  # formact only show in log file not on console
   format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
