@@ -74,17 +74,19 @@ class MPDParser:
             ".//ContentProtection[@schemeIdUri='urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95']",
             self.namespaces,
         )
-
-        if playready_prot_info is not None:
+        widevine_prot_info: Optional[ET.Element] = self.root.find(
+            ".//ContentProtection[@schemeIdUri='urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed']",
+            self.namespaces,
+        )
+        if playready_prot_info is not None or widevine_prot_info is not None:
             # findtext 回傳 str 或 default 值 (這裡為 "")
             pro_value: str = playready_prot_info.findtext("./mspr:pro", "", namespaces=self.namespaces)
             if pro_value:
-                drm_info["playready_pro"] = pro_value
-                return drm_info # 這裡提早返回
+                drm_info["playready_pssh"] = pro_value
 
-            if playready_prot_info.get("value") == "MSPR 2.0":
-                pssh_value: str = playready_prot_info.findtext("./cenc:pssh", "", namespaces=self.namespaces)
-                drm_info["playready_pro"] = pssh_value
+            pssh_value: str = widevine_prot_info.findtext("./cenc:pssh", "", namespaces=self.namespaces)
+            if pssh_value and len(pssh_value) == 76 and pssh_value.endswith("="):
+                drm_info["widevine_pssh"] = pssh_value
         
         return drm_info
 
