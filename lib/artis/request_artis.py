@@ -31,17 +31,16 @@ class ArtisDict:
             return None
         query = int(query) if isinstance(query, str) and query.isdigit() else query
         logger.debug(f"{Color.fg('gold')}search_artis {query}, {type(query)}{Color.reset()}")
-        
         if isinstance(query, str):
             q = query.strip().lower()
             for item in contents:
-                key = item.get("communityKey", "").lower()
+                key = item.get("name", "").lower()
                 if q == key:
                     return item.get("communityId")
         elif isinstance(query, int):
             for item in contents:
                 if item.get("communityId") == query:
-                    return item.get("communityKey")
+                    return item.get("name")
         return None
 
     async def get_community(self, community_id: int, query: Union[str, int, None] = None) -> Dict:
@@ -55,7 +54,6 @@ class ArtisDict:
         # 如果提供了查詢條件，先在本機搜尋
         if query is not None:
             result = self.search_artis(contents, query)
-            print(result)
             if result is not None:
                 logger.debug(f"在本地 JSON 中找到結果: {result}")
                 # 如果查詢的是 communityKey，回傳對應的 communityId
