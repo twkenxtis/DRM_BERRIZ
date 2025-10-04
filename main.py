@@ -2,7 +2,9 @@
 import asyncio
 import sys
 
-from lib.account.berriz_create_community import community_join, leave_community_main
+from typing import Union
+
+from lib.account.berriz_create_community import BerrizCreateCommunity
 from static.args import (
     had_key, clean_dl, skip_merge, fanclub, nofanclub,
     community, group, time_date, had_nocookie,
@@ -16,6 +18,7 @@ from static.parameter import paramstore
 from unit.handle.handle_log import setup_logging
 from lib.account.change_pawword import Change_Password
 from lib.account.signup import run_signup
+
 
 logger = setup_logging('main', 'orange')
 
@@ -87,22 +90,26 @@ from unit.handle.handle_choice import Handle_Choice
 from unit.community.community import get_community, get_community_print
 from unit.data.data import process_time_inputs 
 
+
 if time_date():
     time_a, time_b = process_time_inputs()
 else:
     time_a, time_b = None, None
 
-async def run_communoty_join(j):
-    if await community_join(j) is True:
-        return
+async def cm(input: Union[str, int]):
+    community = await get_community(input)
+    if community is None:
+        logger.error(
+            f"{Color.fg('ruby')}Input Community ID invaild{Color.reset()}"
+            f" → {Color.fg('gold')}【{input}】"
+            )
+        logger.info(
+            f"{Color.fg('sea_green')}Use {Color.fg('gold')}--community {Color.fg('sea_green')}for more info!{Color.reset()}"
+            )
+        await get_community_print()
+        sys.exit(1)
     else:
-        raise RuntimeError(f'Fail to join community {j}')
-
-async def run_leave_communoty(j):
-    if await leave_community_main(j) is True:
-        return
-    else:
-        raise RuntimeError(f'Fail to join community {j}')
+        return community
 
 async def main():
     try:
@@ -111,30 +118,15 @@ async def main():
                 pass
             else:
                 raise RuntimeError('Something fail')
-        if group():
-            community_id = await get_community(group())
-            if community_id is None:
-                logger.error(
-                    f"{Color.fg('ruby')}Input Community ID invaild{Color.reset()}"
-                    f" → {Color.fg('gold')}【{group()}】"
-                    )
-                logger.info(
-                    f"{Color.fg('sea_green')}Use {Color.fg('gold')}--community {Color.fg('sea_green')}for more info!{Color.reset()}"
-                    )
-                await get_community_print()
-                sys.exit(1)
-
-        j = await get_community(join_community())
         if join_community():
-            await run_communoty_join(j)
+            await BerrizCreateCommunity(await cm(join_community()), join_community()).community_join()
         if leave_community():
-            await run_leave_communoty(j)
+            await BerrizCreateCommunity(await cm(leave_community()), leave_community()).leave_community_main()
         if not community():
-            await Handle_Choice(community_id, time_a, time_b).handle_choice()
+            community_id, communityname =await BerrizCreateCommunity(await cm(group()), group()).community_id_name()
+            await Handle_Choice(community_id, communityname, time_a, time_b).handle_choice()
         else:
             await get_community_print()
-    except KeyboardInterrupt:
-        pass
     except Exception as e:
         logger.critical(f"Main program execution error: {e}", exc_info=True)
 
