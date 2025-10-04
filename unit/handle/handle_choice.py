@@ -163,9 +163,8 @@ class Handle_Choice:
         return self.selected_media
     
     async def process_selected_media(self) -> SelectedMediaDict:
+        processed_media: SelectedMediaDict = MediaJsonProcessor.process_selection(self.selected_media)
         try:
-            processed_media: SelectedMediaDict = MediaJsonProcessor.process_selection(self.selected_media)
-            
             custom_media_types = [
                 ('vods', 'VOD'),
                 ('lives', 'LIVE'), 
@@ -182,7 +181,6 @@ class Handle_Choice:
                     queue.enqueue_batch(processed_media[k], type)
                     await MP(queue)
             return self.selected_media
-            
         except Exception as e:
             logger.error(f"Error at media queue processing: {e}")
             return {'vods': [], 'photos': [], 'lives': [], 'post': [], 'notice': []}

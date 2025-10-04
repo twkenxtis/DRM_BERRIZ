@@ -158,11 +158,11 @@ class Key_handle:
 
 
 async def start_download(public_info: PublicInfo, playback_info : PlaybackInfo, key: Optional[str], raw_mpd: Any, dash_playback_url: str, hls_playback_url: str, raw_hls: str) -> None:
-    public_dict = json.loads(public_info.to_json())
-    playback_dict = json.loads(playback_info.to_json())
-    json_data: Dict[str, Any] = {} | public_dict | playback_dict 
-    json_data = {**public_dict, **playback_dict}
-    json_data["Decryption"] = key
+    json_data: Dict[str, Any] = [{}]
+    public_dict: Dict[str, Any] = json.loads(public_info.to_json())
+    playback_dict: Dict[str, Any] = json.loads(playback_info.to_json())
+    playback_dict["Decryption_key"] = key
+    json_data = (public_dict, playback_dict)
     logger.debug(f"{Color.fg('gold')}{json_data}{Color.reset()}")
     
     if paramstore.get('key') is True:
