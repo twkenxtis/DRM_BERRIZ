@@ -1,13 +1,11 @@
 import asyncio
 import random
 from datetime import datetime
-from functools import cache
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from lib.lock_cookie import cookie_session
 from mystate.fanclub import fanclub_main
 from static.color import Color
-from unit.community.community import get_community, get_community_print
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import Live, MediaList
 from static.parameter import paramstore
@@ -23,39 +21,40 @@ class FanClubFilter:
         if paramstore.get('no_cookie') is not True:
             context: Optional[Any] = await fanclub_main()
             """None - not fanclub"""
-            return context
-        else:
-            return None
+            match context:
+                case 'NOFANCLUBINFO':
+                    return 'NOFANCLUBINFO'
+                case _:
+                    return context
 
 
 class MediaParser:
-    @staticmethod
-    async def parse(
-        data: Dict[str, Any], time_a: Optional[datetime], time_b: Optional[datetime]
-    ) -> Tuple[List[Dict], List[Dict], List[Dict], Optional[str], bool]:
-        pref: Optional[bool] = paramstore.get("fanclub")
+    def __init__(self, community_id: int, communityname: str, time_a: Optional[datetime], time_b: Optional[datetime]):
+        self.community_id: int = community_id
+        self.communityname: str = communityname
+        self.time_a: Optional[datetime] = time_a
+        self.time_b: Optional[datetime] = time_b
+    
+    async def parse(self, _data: Dict[str, Any]) -> Tuple[List[Dict], List[Dict], List[Dict], Optional[str], bool]:
         # Chunk 1: extract core
-        contents, cursor, has_next = await MediaParser._extract_core(data)
+        contents, cursor, has_next = await self._extract_core(_data)
         if contents is None:
             return [], [], [], cursor, has_next
-
         # Chunk 2: parse three raw lists
-        vods, photos, lives = MediaParser._extract_media_items(contents, time_a, time_b)
-
+        vods, photos, lives = self._extract_media_items(contents)
         # Chunk 3: concurrently split fanclub vs non-fanclub
-        (v_fc, v_nfc), (p_fc, p_nfc), (l_fc, l_nfc) = await asyncio.gather(
-            asyncio.to_thread(MediaParser.fanclub_items, vods),
-            asyncio.to_thread(MediaParser.fanclub_items, photos),
-            asyncio.to_thread(MediaParser.fanclub_items, lives),
-        )
-
+        v_fc, v_nfc = self.fanclub_items(vods)
+        p_fc, p_nfc  = self.fanclub_items(photos)
+        l_fc, l_nfc = self.fanclub_items(lives)
+        
         # Cookie 檢查：沒 cookie 則清空付費列表
         if cookie_session == {}:
             v_fc = p_fc = l_fc = []
 
         # Fanclub 身份檢查
-        t: Optional[Any] = await FanClubFilter.is_fanclub()
-        if t is None and pref is None:
+        FCINFO: Optional[Any] = await FanClubFilter.is_fanclub()
+        pref: Optional[bool] = paramstore.get("fanclub")
+        if FCINFO == 'NOFANCLUBINFO' and pref in (None, False):
             # 非會員 → 回傳非付費
             return v_nfc, p_nfc, l_nfc, cursor, has_next
         elif pref is True:
@@ -63,58 +62,42 @@ class MediaParser:
             return v_fc, p_fc, l_fc, cursor, has_next
         elif pref is False:
             return v_nfc, p_nfc, l_nfc, cursor, has_next
+        # 會員 fanclub only content + Normal none-fanclub content
+        return v_fc+v_nfc, p_fc+p_nfc, l_fc+l_nfc, cursor, has_next
 
-        # 會員 fanclub only content
-        cid: int = await get_community(t)
-        p_contents: List[Dict] = await MediaParser.parse_fanclub_community(contents, cid)
-        v2, p2, l2 = MediaParser._extract_media_items(p_contents, time_a, time_b)
-        return v2, p2, l2, cursor, has_next
-
-    @staticmethod
-    async def _extract_core(
-        data: Dict[str, Any]
-    ) -> Tuple[Optional[List[Dict]], Optional[str], bool]:
-        if not MediaParser._is_valid_response(data):
+    async def _extract_core(self, _data: Dict[str, Any]) -> Tuple[Optional[List[Dict]], Optional[str], bool]:
+        if not self._is_valid_response(_data):
             return None, None, False
-        contents, (cursor, has_next) = await asyncio.gather(
-            MediaParser._get_contents(data),
-            MediaParser._extract_pagination(data)
-        )
+        contents, (cursor, has_next) = await asyncio.gather(self._get_contents(_data), self._extract_pagination(_data))
         return contents, cursor, has_next
 
-    async def parse_fanclub_community(contents: List[Dict], target_id: int) -> List[Dict]:
+    async def parse_fanclub_community(self, contents: List[Dict]) -> List[Dict]:
         return [
             item for item in contents
-            if item.get("media", {}).get("communityId") == target_id
+            if item.get("media", {}).get("communityId") == self.community_id
             and item["media"].get("isFanclubOnly") is True
         ]
 
-    @staticmethod
-    def _is_valid_response(data: Dict[str, Any]) -> bool:
-        if data is None:
+    def _is_valid_response(self, _data: Dict[str, Any]) -> bool:
+        if _data is None:
             return False
-        code: Optional[str] = data.get("code")
+        code: Optional[str] = _data.get("code")
         if code != "0000":
             logger.warning(f"API error: {code}")
             return False
         return True
 
-    @staticmethod
-    async def _get_contents(data: Dict[str, Any]) -> List[Dict]:
-        return data.get("data", {}).get("contents", [])
+    async def _get_contents(self, _data: Dict[str, Any]) -> List[Dict]:
+        return _data.get("data", {}).get("contents", [])
 
-    @staticmethod
     def _extract_media_items(
-        contents: List[Dict[str, Any]],
-        time_a: Optional[datetime] = None,
-        time_b: Optional[datetime] = None
-    ) -> Tuple[List[Dict], List[Dict], List[Dict]]:
+        self, contents: List[Dict[str, Any]]) -> Tuple[List[Dict], List[Dict], List[Dict]]:
         vod_list: List[Dict] = []
         photo_list: List[Dict] = []
         live_list: List[Dict] = []
         
         # 檢查是否需要進行時間篩選 -> bool
-        should_filter_by_time: bool = (isinstance(time_a, datetime) and isinstance(time_b, datetime))
+        should_filter_by_time: bool = (isinstance(self.time_a, datetime) and isinstance(self.time_b, datetime))
 
         for item in contents:
             media: Optional[Dict[str, Any]] = item.get("media")
@@ -128,7 +111,7 @@ class MediaParser:
                 try:
                     # 將字串轉換為 datetime 物件，並處理時區
                     published_at: datetime = datetime.fromisoformat(published_at_str.replace('Z', '+00:00'))
-                    if not (time_a <= published_at <= time_b):
+                    if not (self.time_a <= published_at <= self.time_b):
                         continue
                 except (ValueError, TypeError):
                     continue
@@ -141,8 +124,7 @@ class MediaParser:
                     live_list.append(media)
         return vod_list, photo_list, live_list
     
-    @staticmethod
-    def fanclub_items(contents: List[Dict[str, Any]]) -> Tuple[List[Dict], List[Dict]]:
+    def fanclub_items(self, contents: List[Dict[str, Any]]) -> Tuple[List[Dict], List[Dict]]:
         fanclub: List[Dict] = []
         not_fanclub: List[Dict] = []
         for item in contents:
@@ -155,52 +137,37 @@ class MediaParser:
                     not_fanclub.append(item)
         return fanclub, not_fanclub
 
-    @staticmethod
-    async def _extract_pagination(data: Dict[str, Any]) -> Tuple[Optional[str], bool]:
-        pagination: Dict[str, Any] = data.get("data", {})
+    async def _extract_pagination(self, _data: Dict[str, Any]) -> Tuple[Optional[str], bool]:
+        pagination: Dict[str, Any] = _data.get("data", {})
         cursor: Optional[str] = pagination.get("cursor", {}).get("next")
         has_next: bool = pagination.get("hasNext", False)
         return cursor, has_next
 
 
 class MediaFetcher:
-    def __init__(self, community_id: int, communityname: str):
+    def __init__(self, community_id: int, communityname: str, time_a: Optional[datetime], time_b: Optional[datetime]):
         self.community_id: int = community_id
         self.communityname: str = communityname
+        self.MP: MediaParser = MediaParser(community_id, communityname, time_a, time_b)
 
-    async def get_all_media_lists(self, time_a: Optional[datetime], time_b: Optional[datetime]) -> Tuple[List[Dict], List[Dict], List[Dict]] | bool:
+    async def get_all_media_lists(self) -> Tuple[List[Dict], List[Dict], List[Dict]] | bool:
         vod_total: List[Dict] = []
         photo_total: List[Dict] = []
         live_total: List[Dict] = []
         params: Dict[str, Any] = await self._build_params(cursor=None)
 
         while True:
-            # 並行拉 raw data
-            async with asyncio.TaskGroup() as tg:
-                media_task = tg.create_task(MediaList().media_list(self.community_id, params))
-                live_task = tg.create_task(Live().fetch_live_replay(self.community_id, params))
-            
-            media_data = media_task.result()
-            live_data = live_task.result()
+            media_data , live_data = await self._fetch_data(params)
             
             if not (media_data or live_data):
-                if not media_data and live_data:
-                    M = 'Media data'
-                elif not live_data and media_data:
-                    M = 'Live data'
-                else:
-                    M = 'Media and Live data'
-                    logger.warning(
-                        f"Fail to get 【{Color.fg('light_yellow')}{M}"
-                        f"{Color.fg('gold')}】"
-                    )
+                self.error_printer(media_data, live_data)
                 break
 
             # 並行解析 + build params
             (vods, photos, params_media, has_next_media), \
             (lives, params_live, has_next_live) = await asyncio.gather(
-                self._process_media_chunk(media_data, time_a, time_b),
-                self._process_live_chunk(live_data,   time_a, time_b),
+                self._process_media_chunk(media_data),
+                self._process_live_chunk(live_data),
             )
 
             vod_total  .extend(vods)
@@ -218,29 +185,38 @@ class MediaFetcher:
 
         return vod_total, photo_total, live_total
 
+    def error_printer(self, media_data: Dict[str, Any], live_data: Dict[str, Any]):
+        if not media_data and live_data:
+            M = 'Media data'
+        elif not live_data and media_data:
+            M = 'Live data'
+        else:
+            M = 'Media and Live data'
+            logger.warning(
+                f"Fail to get 【{Color.fg('light_yellow')}{M}"
+                f"{Color.fg('gold')}】"
+            )
+
     async def _fetch_data(
-        self, community_id: str, params: Dict[str, Any]
+        self, params: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        return await asyncio.gather(
-            MediaList().media_list(community_id, params),
-            Live().fetch_live_replay(community_id, params),
-        )
+            async with asyncio.TaskGroup() as tg:
+                media_task = tg.create_task(MediaList().media_list(self.community_id, params))
+                live_task = tg.create_task(Live().fetch_live_replay(self.community_id, params))
+            
+            media_data = media_task.result()
+            live_data = live_task.result()
+            return media_data, live_data
 
     async def _process_media_chunk(
-        self, media_data: Dict[str, Any], time_a: Optional[datetime], time_b: Optional[datetime]
-    ) -> Tuple[List[Dict], List[Dict], Dict[str, Any], bool]:
-        vods, photos, _, cursor, has_next = await MediaParser.parse(
-            media_data, time_a, time_b
-        )
+        self, media_data: Dict[str, Any]) -> Tuple[List[Dict], List[Dict], Dict[str, Any], bool]:
+        vods, photos, _, cursor, has_next = await self.MP.parse(media_data)
         next_params: Dict[str, Any] = await self._build_params(cursor)
         return vods, photos, next_params, has_next
 
     async def _process_live_chunk(
-        self, live_data: Dict[str, Any], time_a: Optional[datetime], time_b: Optional[datetime]
-    ) -> Tuple[List[Dict], Dict[str, Any], bool]:
-        _, _, lives, cursor, has_next = await MediaParser.parse(
-            live_data, time_a, time_b
-        )
+        self, live_data: Dict[str, Any]) -> Tuple[List[Dict], Dict[str, Any], bool]:
+        _, _, lives, cursor, has_next = await self.MP.parse(live_data)
         next_params: Dict[str, Any] = await self._build_params(cursor)
         return lives, next_params, has_next
     
