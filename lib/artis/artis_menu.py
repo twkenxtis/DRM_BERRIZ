@@ -92,7 +92,7 @@ class Board:
         return [
             {"name": f"{idx}. {i['name']}", "value": i}
             for idx, i in enumerate(data.get("data", {}).get("menus", []))
-            if i["name"] not in ("MEDIA", "LIVE", "Media")
+            if i["name"] not in ("MEDIA", "LIVE", "Media", "Live", "live", "media", "Media")
         ]
 
     async def get_artis_board_list(self) -> Optional[Tuple[Any, str]]:
@@ -116,7 +116,7 @@ class Board:
             result_notice: Any = await self.handle_artist_notice(selected_list[0])
             data = [result, result_notice]
             return (data, 'notice+board')
-        if iconType in('artist', 'user', 'artist-fanclub', 'user-fanclub', 'shop', 'live', 'media'):
+        if iconType in('artist', 'user', 'artist-fanclub', 'user-fanclub', 'shop'):
             result: Any = await self.handle_artist_board(selected)
             return (result, 'artist')
         if iconType == 'notice':
@@ -147,7 +147,7 @@ class Board:
     async def sort_board_list(self, data: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
         boards_id: Union[int, str] = data.get('id', '')
         boards_name: Union[int, str] = data.get('name', '')
-        if data.get('type') in('board', 'shop', 'live', 'media'):
+        if data.get('type') in('board', 'shop'):
             return await self.get_all_board_content_lists(str(boards_id), str(boards_name))
         elif data.get('type') == 'notice':
             return await Notice(self.communityid, self.communityname).get_all_notice_content_lists()
