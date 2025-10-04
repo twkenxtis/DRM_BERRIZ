@@ -1,4 +1,3 @@
-import asyncio
 import sys
 from datetime import datetime
 
@@ -41,6 +40,15 @@ active_conditions_2 = sum([
 ])
 
 
+active_conditions: int = sum([
+    bool(liveonly),
+    bool(mediaonly),
+    bool(photoonly),
+    bool(boardonly),
+    bool(noticeonly),
+])
+   
+        
 SelectedMediaDict = Dict[str, List[Dict[str, Any]]]
 # get_list_data 和 fetch_filtered_media 的回傳型別
 ListDataTuple = Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]
@@ -97,16 +105,6 @@ class Handle_Choice:
                 return vod_list, photo_list, live_list, post_list, notice_list
             
     async def fetch_filtered_media(self) -> ListDataTuple:
-
-        # Count how many conditions are True
-        active_conditions: int = sum([
-            bool(liveonly),
-            bool(mediaonly),
-            bool(photoonly),
-            bool(boardonly),
-            bool(noticeonly),
-        ])
-        
         # 接收 ListDataTuple, 5個 List[dict]
         vod_list, photo_list, live_list, post_list, notice_list = await self.get_list_data()
         # If no conditions are True, return all lists
@@ -128,18 +126,20 @@ class Handle_Choice:
             await request_my()
 
         if self.time_a is not None or self.time_b is not None:
-            logger.info(f"{Color.fg('tomato')}choese "
-                            f"{Color.fg('sand')}{self.time_a} "
-                            f"{Color.fg('light_gray')}- "
-                            f"{Color.fg('sand')}{self.time_b}{Color.reset()}"
-                            )
+            self.printer_time_filter()
+        selected_media: Optional[SelectedMediaDict] = await self.media_list()
+        self.selected_media = await self.user_selected_media(selected_media)
+        self.printer_user_choese()
+        return await self.process_selected_media()
+    
+    async def media_list(self):
         try:
-            # 接收 ListDataTuple, 5個 List[dict]
             vod_list: List[Dict[str, Any]]
             photo_list: List[Dict[str, Any]]
             live_list: List[Dict[str, Any]]
             post_list: List[Dict[str, Any]]
             notice_list: List[Dict[str, Any]]
+            # 接收 ListDataTuple, 5個 List[dict]
             vod_list, photo_list, live_list, post_list, notice_list = await self.fetch_filtered_media()
             
             # 假設 paramstore.get 返回 bool
@@ -150,12 +150,8 @@ class Handle_Choice:
         except TypeError as e:
             logger.error(e)
             return
-
-        selector: InquirerPySelector = InquirerPySelector(vod_list, photo_list, live_list, post_list, notice_list)
-        selected_media: Optional[SelectedMediaDict] = await selector.run()
-        self.selected_media = await self.user_selected_media(selected_media)
-        self.printer_user_choese()
-        return await self.process_selected_media()
+        selected_media = await InquirerPySelector(vod_list, photo_list, live_list, post_list, notice_list).run()
+        return selected_media
 
     async def user_selected_media(self, selected_media: Dict[str, List[Dict[str, Any]]]) -> SelectedMediaDict:
         if selected_media is None:
@@ -222,3 +218,10 @@ class Handle_Choice:
             combined_message = ", ".join(temp_messages)
             logger.info(
                 f"{Color.fg('light_gray')}choese "f"{combined_message}"f"{Color.reset()}")
+            
+    def printer_time_filter(self):
+        logger.info(f"{Color.fg('tomato')}choese "
+                f"{Color.fg('sand')}{self.time_a} "
+                f"{Color.fg('light_gray')}- "
+                f"{Color.fg('sand')}{self.time_b}{Color.reset()}"
+                )
