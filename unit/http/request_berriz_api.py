@@ -564,12 +564,13 @@ class Community(BerrizAPIClient):
 
     async def community_menus(self, communityId: int) -> Optional[Dict[str, Any]]:
         params: Dict[str, str] = {"languageCode": 'en'}
-        from unit.community.community import get_community
-        if type(communityId) is not int:
-            communityId = await get_community(communityId)
-        if not isinstance(communityId, int):
+        try:
+            communityId = int(communityId)
+            if not isinstance(communityId, int):
+                raise ValueError
+        except ValueError:
             logger.error(f'{Color.fg('red')}communityId should be int {Color.reset()} Current is ⭢ {Color.bg('ruby')}{communityId}')
-            sys.exit(0)
+            raise ValueError(f'{communityId} should be int')
 
         url: str = f"https://svc-api.berriz.in/service/v1/community/info/{communityId}/menus"
 
