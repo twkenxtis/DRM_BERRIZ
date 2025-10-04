@@ -14,7 +14,7 @@ import orjson
 from lib.__init__ import dl_folder_name, OutputFormatter, get_artis_list
 from lib.load_yaml_config import CFG
 from lib.rename import SUCCESS
-from lib.save_json_data import save_hls_mpd
+from lib.save_json_data import save_json_data
 from static.color import Color
 from static.PublicInfo import PublicInfo_Custom
 from unit.community.community import custom_dict, get_community
@@ -206,7 +206,7 @@ async def start_download_queue(
     community_name = await video_folder_obj.get_community_name(publicinfo.media_community_id)
     output_dir: Path = await video_folder_obj.video_folder_handle()
     if output_dir is not None:
-        s_obhect: save_hls_mpd = save_hls_mpd(output_dir)
+        s_obhect: save_json_data = save_json_data(output_dir)
         
         # 異步並行儲存 manifest 和 JSON 檔案
         await asyncio.gather(
