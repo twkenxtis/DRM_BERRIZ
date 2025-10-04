@@ -172,14 +172,9 @@ class MediaFetcher:
         vod_total: List[Dict] = []
         photo_total: List[Dict] = []
         live_total: List[Dict] = []
-        await self.handle_community_input()
         params: Dict[str, Any] = await self._build_params(cursor=None)
 
         while True:
-            if self.community_id is None:
-                logger.error(f"{Color.fg('ruby')}Community ID is None{Color.reset()}")
-                return False
-
             # 並行拉 raw data
             async with asyncio.TaskGroup() as tg:
                 media_task = tg.create_task(MediaList().media_list(self.community_id, params))
@@ -223,20 +218,6 @@ class MediaFetcher:
 
         return vod_total, photo_total, live_total
 
-    async def handle_community_input(self) -> Optional[int | str]:
-        if type(self.community_id) == int:
-            return self.community_id
-        elif type(self.community_id) == str:
-            self.community_id = await get_community(self.community_id)
-            await self.get_community_id(self.community_id)
-            return self.community_id
-        return None
-
-    async def _init_state(self) -> Tuple[str, Dict[str, Any]]:
-        cid: str = await self.get_community_id(self.community_id)
-        params: Dict[str, Any] = await self._build_params(cursor=None)
-        return cid, params
-
     async def _fetch_data(
         self, community_id: str, params: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -269,15 +250,3 @@ class MediaFetcher:
         if cursor:
             params["next"] = cursor
         return params
-    
-    @cache
-    async def get_community_id(self, community_id: Union[str, int]) -> Optional[int]:
-        if type(community_id) == int:
-            return community_id
-        if type(community_id) == str:
-            community_id = await get_community(community_id)
-        if community_id is None:
-            logger.error(f"Community ID is {Color.fg('bright_red')}None{Color.reset()}")
-            logger.info(await get_community_print())
-            return None
-        return community_id
