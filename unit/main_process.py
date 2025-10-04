@@ -20,7 +20,7 @@ from unit.notice.notice import RunNotice
 from unit.post.post import run_post_dl
 
 
-logger = setup_logging('main_process', 'navy')
+logger = setup_logging('main_process', 'light_peach')
 
 
 class DuplicateConfig:

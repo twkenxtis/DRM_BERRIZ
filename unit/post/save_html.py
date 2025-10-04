@@ -11,7 +11,7 @@ from unit.handle.handle_board_from import FilenameSanitizer
 from unit.handle.handle_log import setup_logging
 
 
-logger = setup_logging('save_html', 'crimson')
+logger = setup_logging('save_html', 'magenta_pink')
 
 
 class SaveHTML:
