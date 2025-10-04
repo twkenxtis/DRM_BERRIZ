@@ -6,12 +6,13 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from lib.lock_cookie import cookie_session
 from mystate.fanclub import fanclub_main
 from static.color import Color
+from static.parameter import paramstore
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import Live, MediaList
-from static.parameter import paramstore
 
 MediaItem = Dict[str, Union[str, Dict, bool]]
 SelectedMedia = Dict[str, List[Dict]]
+
 
 logger = setup_logging('GetMediaList', 'turquoise')
 
@@ -34,8 +35,13 @@ class MediaParser:
         self.communityname: str = communityname
         self.time_a: Optional[datetime] = time_a
         self.time_b: Optional[datetime] = time_b
+        self.fcinfo = None
     
     async def parse(self, _data: Dict[str, Any]) -> Tuple[List[Dict], List[Dict], List[Dict], Optional[str], bool]:
+        # Fanclub 身份檢查
+        FCINFO: Optional[Any] = await FanClubFilter.is_fanclub()
+        self.fcinfo = FCINFO
+        
         # Chunk 1: extract core
         contents, cursor, has_next = await self._extract_core(_data)
         if contents is None:
@@ -44,17 +50,15 @@ class MediaParser:
         vods, photos, lives = self._extract_media_items(contents)
         # Chunk 3: concurrently split fanclub vs non-fanclub
         v_fc, v_nfc = self.fanclub_items(vods)
-        p_fc, p_nfc  = self.fanclub_items(photos)
         l_fc, l_nfc = self.fanclub_items(lives)
+        p_fc, p_nfc  = self.fanclub_items(photos)
         
         # Cookie 檢查：沒 cookie 則清空付費列表
         if cookie_session == {}:
             v_fc = p_fc = l_fc = []
 
-        # Fanclub 身份檢查
-        FCINFO: Optional[Any] = await FanClubFilter.is_fanclub()
         pref: Optional[bool] = paramstore.get("fanclub")
-        if FCINFO == 'NOFANCLUBINFO' and pref in (None, False):
+        if self.fcinfo == 'NOFANCLUBINFO' and pref in (None, False):
             # 非會員 → 回傳非付費
             return v_nfc, p_nfc, l_nfc, cursor, has_next
         elif pref is True:
