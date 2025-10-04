@@ -1,74 +1,75 @@
 from typing import Any, Dict, List, Optional
 
+import orjson
+
+from lib.load_yaml_config import CFG
+from unit.data.data import get_formatted_publish_date
+
 
 class PlaybackInfo:
-    def __init__(self, playback_context: Dict[str, Any]):
+    def __init__(self, info_context: Dict[str, Any]):
         # Top-level info
-        self.code: Optional[str] = playback_context.get("code")
-        self.status: Optional[str] = playback_context.get("message")
+        self.code: Optional[str] = info_context.get("code")
+        self.status: Optional[str] = info_context.get("message")
 
         # Access data from the 'data' key
-        data: Dict[str, Any] = playback_context.get("data", {})
+        data: Dict[str, Any] = info_context.get("data", {})
 
-        # VOD data
-        vod_data: Dict[str, Any] = data.get("vod", {})
-        if vod_data:
-            self.duration: Optional[int] = vod_data.get("duration")
-            self.orientation: Optional[str] = vod_data.get("orientation")
-            self.is_drm: Optional[bool] = vod_data.get("isDrm")
+        # Media data
+        self.media_seq: Optional[int] = data.get("mediaSeq")
+        self.media_id: Optional[str] = data.get("mediaId")
+        self.media_type: Optional[str] = data.get("mediaType")
+        self.title: Optional[str] = data.get("title")
+        self.published_at: Optional[str] = data.get("publishedAt")
+        self.community_id: Optional[str] = data.get("communityId")
+        self.is_fanclub_only: Optional[bool] = data.get("isFanclubOnly")
+        self.thumbnail_url: Optional[str] = data.get("thumbnailUrl")
+        self.body: Optional[str] = data.get("description")
 
-            # DRM info
-            self.drm_info: Dict[str, Any] = vod_data.get("drmInfo", {})
-            if self.drm_info and self.drm_info.get("assertion"):
-                self.assertion: Optional[str] = self.drm_info["assertion"]
+        # Related data
+        self.artists: List[Dict[str, Any]] = data.get("artists", [])
+        self.categories: List[Dict[str, Any]] = data.get("categories", [])
+        self.comment_info: Dict[str, Any] = data.get("commentInfo", {})
 
-                if "widevine" in self.drm_info:
-                    self.widevine_license: Optional[str] = self.drm_info["widevine"].get("licenseUrl")
-                else:
-                    self.widevine_license = None
+    def get_primary_artist(self) -> Optional[Dict]:
+        """回傳第一個藝術家字典（如果存在的話）"""
+        return self.artists[0] if self.artists else None
 
-                if "playready" in self.drm_info:
-                    self.playready_license: Optional[str] = self.drm_info["playready"].get("licenseUrl")
-                else:
-                    self.playready_license = None
+    def get_category_names(self) -> List[str]:
+        """回傳所有類別名稱的清單"""
+        return [cat["name"] for cat in self.categories if cat.get("name")]
 
-                if "fairplay" in self.drm_info:
-                    self.fairplay_data: Dict[str, Any] = self.drm_info.get("fairplay")  # type: ignore[assignment]
-                    self.fairplay_license: Optional[str] = self.fairplay_data.get("licenseUrl")
-                    self.fairplay_cert: Optional[str] = self.fairplay_data.get("certUrl")
-                else:
-                    self.fairplay_license = None
-                    self.fairplay_cert = None
-            else:
-                self.assertion = None
-                self.widevine_license = None
-                self.playready_license = None
-                self.fairplay_license = None
-                self.fairplay_cert = None
+    def __str__(self):
+        return f"PublicInfo(media_id={self.media_id}, title={self.title}, artists={[a['name'] for a in self.artists]})"
 
-            # HLS data
-            hls_data: Dict[str, Any] = vod_data.get("hls", {})
-            if hls_data:
-                self.hls_playback_url: Optional[str] = hls_data.get("playbackUrl")
-                self.hls_adaptations: List[Dict[str, Any]] = hls_data.get("adaptationSet", [])
-            else:
-                self.hls_playback_url = None
-                self.hls_adaptations = []
+    def to_dict(self):
+        """Convert all data to dictionary"""
+        if self.code != "0000":
+            return {"error": "Invalid status code"}
 
-            # DASH data
-            dash_data: Dict[str, Any] = vod_data.get("dash", {})
-            if dash_data:
-                self.dash_playback_url: Optional[str] = dash_data.get("playbackUrl")
-            else:
-                self.dash_playback_url = None
+        return {
+            "code": self.code,
+            "status": self.status,
+            "media": {
+                "seq": self.media_seq,
+                "id": self.media_id,
+                "type": self.media_type,
+                "title": self.title,
+                "published_at": self.published_at,
+                "formatted_published_at": get_formatted_publish_date(self.published_at, CFG['output_template']['date_formact']),
+                "community_id": self.community_id,
+                "is_fanclub_only": self.is_fanclub_only,
+                "thumbnail_url": self.thumbnail_url,
+                "description": self.body,
+            },
+            "artists": self.artists,
+            "categories": self.categories,
+            "comment_info": self.comment_info,
+        }
 
-        # Tracking info
-        tracking_data: Dict[str, Any] = data.get("tracking", {})
-        self.tracking_interval: Optional[int] = tracking_data.get("trackingPlaybackPollingIntervalSec")
-
-        # Settlement info
-        settlement_data: Dict[str, Any] = data.get("settlement", {})
-        self.settlement_token: Optional[str] = settlement_data.get("mediaSettlementToken")
+    def to_json(self):
+        """Convert to JSON string with pretty formatting"""
+        return orjson.dumps(self.to_dict(), option=orjson.OPT_INDENT_2).decode("utf-8")
 
 
 class LivePlaybackInfo:
