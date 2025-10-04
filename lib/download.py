@@ -146,6 +146,7 @@ class MediaDownloader:
         tasks = []
         for i, url in enumerate(slice_parameters):
             seg_path = track_dir / f"seg_{i}{file_ext}"
+            logger.debug(url)
             tasks.append(self._download_file(url, seg_path))
 
         progress_bar = ProgressBar(total, prefix=track_type)
