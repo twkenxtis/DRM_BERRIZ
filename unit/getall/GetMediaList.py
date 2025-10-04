@@ -164,8 +164,9 @@ class MediaParser:
 
 
 class MediaFetcher:
-    def __init__(self, community_id: int | str):
-        self.community_id: int | str = community_id
+    def __init__(self, community_id: int, communityname: str):
+        self.community_id: int = community_id
+        self.communityname: str = communityname
 
     async def get_all_media_lists(self, time_a: Optional[datetime], time_b: Optional[datetime]) -> Tuple[List[Dict], List[Dict], List[Dict]] | bool:
         vod_total: List[Dict] = []
@@ -180,10 +181,13 @@ class MediaFetcher:
                 return False
 
             # 並行拉 raw data
-            media_data, live_data = await asyncio.gather(
-                MediaList().media_list(self.community_id, params),
-                Live().fetch_live_replay(self.community_id, params),
-            )
+            async with asyncio.TaskGroup() as tg:
+                media_task = tg.create_task(MediaList().media_list(self.community_id, params))
+                live_task = tg.create_task(Live().fetch_live_replay(self.community_id, params))
+            
+            media_data = media_task.result()
+            live_data = live_task.result()
+            
             if not (media_data or live_data):
                 if not media_data and live_data:
                     M = 'Media data'
