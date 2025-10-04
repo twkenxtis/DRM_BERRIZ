@@ -12,9 +12,8 @@ from unit.handle.handle_log import setup_logging
 logger = setup_logging('save_json_data', 'peach')
 
 
-class save_hls_mpd:
+class save_json_data:
     def __init__(self, output_dir: Union[str, Path]) -> None:
-        # 將 output_dir 設定為其父目錄，因為它指向 'temp' 資料夾
         self.output_dir: Path = Path(output_dir).parent
         self.max_retries: int = 3
         self.retry_delay: int = 2
@@ -32,11 +31,9 @@ class save_hls_mpd:
         for attempt in range(self.max_retries):
             try:
                 async with aiofiles.open(tmp_path, mode, encoding=encoding) as f:
-                    # 根據 content 類型，確保在正確模式下寫入
                     if is_text_mode and isinstance(content, bytes):
-                        pass
+                        content = content.decode('utf-8')
                     elif not is_text_mode and isinstance(content, str):
-                        # 如果是二進製模式但 content 是 str，可能需要編碼
                         content = content.encode('utf-8')
                     
                     await f.write(content)
