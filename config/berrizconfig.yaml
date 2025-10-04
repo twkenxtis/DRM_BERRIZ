@@ -13,7 +13,7 @@ headers:
 
 output_template:
   # '{date} {community_name} - {title} {source}.WEB-DL.{quality}.{video}.{audio}-{tag}'
-  video: '{date}.{title}.{quality}.{community_name}.{source}.WEB-DL.{video}.{audio}-{tag}'
+  video: '{date}.{title}.{quality}.{community_name}.{artis}.{source}.WEB-DL.{video}.{audio}-{tag}'
   tag: 'slime'
   # Default File datetime
   date_formact: "%y%m%d"
@@ -22,7 +22,7 @@ output_template:
 Donwload_Dir_Name:
   download_dir: "Berriz downloads"
   # Default Folder formact
-  dir_name: "{date} {community_name} {artis} {title}"
+  dir_name: "{date} {community_name} {source} {artis} {title}"
   # Default Folder datetime
   date_formact: "%y%m%d_%H-%M_%S"
 
