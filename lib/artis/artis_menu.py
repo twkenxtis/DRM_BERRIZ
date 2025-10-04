@@ -97,7 +97,6 @@ class Board:
 
     async def get_artis_board_list(self) -> Optional[Tuple[Any, str]]:
         # Community().community_menus 回傳 Optional[Dict[str, Any]]
-        print(self.communityid)
         community_menu: Optional[Dict[str, Any]] = await Community().community_menus(self.communityid) 
         
         if community_menu is None or community_menu.get('code') != '0000':

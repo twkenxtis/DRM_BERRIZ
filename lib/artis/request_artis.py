@@ -74,15 +74,13 @@ class ArtisDict:
                 f"取得【{Color.fg('light_yellow')}社群 id: {community_id} 藝術家列表{Color.fg('gold')}】資料失敗"
             )
             return {}
-
-        # 將 API 回應儲存到本地 JSON
-        contents = artis_json.get("data", {}).get("communityArtists", [])
-        try:
-            async with aiofiles.open(BASE_ARTIS_KEY_DICT, 'wb') as f:
-                await f.write(orjson.dumps(contents, option=orjson.OPT_INDENT_2))
-        except Exception as e:
-            logger.warning(f"儲存到 {BASE_ARTIS_KEY_DICT} 失敗: {e}")
-
+        
+        async with aiofiles.open(BASE_ARTIS_KEY_DICT, 'rb') as f:
+            old_bytes = await f.read()
+        old_items = orjson.loads(old_bytes)
+        old_items.extend(contents)
+        async with aiofiles.open(BASE_ARTIS_KEY_DICT, 'wb') as f:
+            await f.write(orjson.dumps(old_items, option=orjson.OPT_INDENT_2))
         return artis_json
 
 class JSON_Artis:
