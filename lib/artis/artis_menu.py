@@ -66,7 +66,7 @@ class Board:
                 message="Please select a project: (After 7s auto choese default Options)",
                 choices=filterchoice
             ).execute_async(),
-            timeout=5
+            timeout=7
         )
         
     async def call_auto_choese(self, choices: List[Dict]) -> Dict:
