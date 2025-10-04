@@ -1,0 +1,1358 @@
+[
+  {
+    "communityArtistId": 1,
+    "communityId": 1,
+    "artistId": 1,
+    "userId": 149743433867264,
+    "name": "Jung Seung Hwan",
+    "tags": [
+      {
+        "tag": "정승환",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "Jung Seung Hwan",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "감성 발라더🎤",
+        "tagBgColor": "#ff02d7"
+      },
+      {
+        "tag": "햄찌대장🐹",
+        "tagBgColor": ""
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rj/mi/sz/di/cr/ai/1029223428.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/bf/sz/ui/cv/hz/1979128187.jpg",
+    "description": "",
+    "displayOrder": 1
+  },
+  {
+    "communityArtistId": 25,
+    "communityId": 2,
+    "artistId": 21,
+    "userId": 158606070087959,
+    "name": "KiiiKiii",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/so/bi/th/bp/tc/2112688260.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/az/bl/bf/uh/mq/ty/1640538371.jpg",
+    "description": "",
+    "displayOrder": 1
+  },
+  {
+    "communityArtistId": 26,
+    "communityId": 2,
+    "artistId": 22,
+    "userId": 158606659318089,
+    "name": "JIYU",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rj/bl/bf/dw/mq/wf/1443087314.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/so/bf/th/sp/pm/837261291.jpg",
+    "description": "",
+    "displayOrder": 2
+  },
+  {
+    "communityArtistId": 27,
+    "communityId": 2,
+    "artistId": 23,
+    "userId": 158606553891123,
+    "name": "LEESOL",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/sl/bi/uh/mp/zh/1442600280.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/ml/bf/dc/bq/eo/1707344278.jpg",
+    "description": "",
+    "displayOrder": 3
+  },
+  {
+    "communityArtistId": 28,
+    "communityId": 2,
+    "artistId": 24,
+    "userId": 158606419411356,
+    "name": "SUI",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/ml/mi/dh/mz/ta/653372338.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/ml/si/tw/mz/te/202620807.jpg",
+    "description": "",
+    "displayOrder": 4
+  },
+  {
+    "communityArtistId": 29,
+    "communityId": 2,
+    "artistId": 25,
+    "userId": 158606311174541,
+    "name": "HAUM",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/sl/mi/th/bz/vy/616981966.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/bo/si/dw/bz/hd/183136132.jpg",
+    "description": "",
+    "displayOrder": 5
+  },
+  {
+    "communityArtistId": 30,
+    "communityId": 2,
+    "artistId": 26,
+    "userId": 158606209315108,
+    "name": "KYA",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/so/bf/uw/me/pn/1563186229.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/ml/si/tw/bz/jv/389901366.jpg",
+    "description": "",
+    "displayOrder": 6
+  },
+  {
+    "communityArtistId": 35,
+    "communityId": 3,
+    "artistId": 31,
+    "userId": 161127610970131,
+    "name": "BANI",
+    "tags": [
+      {
+        "tag": "반희진",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "2005.02.05🎂",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "조소과",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "예쁨지상주의💖",
+        "tagBgColor": "#ff02d7"
+      },
+      {
+        "tag": "손재주🙌🏻",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "연애호구",
+        "tagBgColor": "#5227ff"
+      },
+      {
+        "tag": "코믹발랄😋",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "힘짱💪",
+        "tagBgColor": "#ae02ff"
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/sf/sz/ui/ws/db/533750579.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/bf/me/tf/wm/tq/564487961.jpg",
+    "description": "",
+    "displayOrder": 1
+  },
+  {
+    "communityArtistId": 36,
+    "communityId": 3,
+    "artistId": 32,
+    "userId": 161127710392380,
+    "name": "YEOL",
+    "tags": [
+      {
+        "tag": "황재열",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "2003.12.31🎂",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "시각디자인과",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "과대표👑",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "냉미남🧊",
+        "tagBgColor": "#ff02d7"
+      },
+      {
+        "tag": "겉바속촉",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "이온음료🌿",
+        "tagBgColor": "#5227ff"
+      },
+      {
+        "tag": "능력캐😎",
+        "tagBgColor": "#ae02ff"
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/bi/sz/uf/hb/vn/1921522398.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/mi/be/di/hb/we/2111808757.jpg",
+    "description": "",
+    "displayOrder": 2
+  },
+  {
+    "communityArtistId": 37,
+    "communityId": 3,
+    "artistId": 33,
+    "userId": 161127794085929,
+    "name": "WON",
+    "tags": [
+      {
+        "tag": "차지원",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "2002.01.25🎂",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "조소과",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "조각상외모✨",
+        "tagBgColor": "#ff02d7"
+      },
+      {
+        "tag": "허당미😮",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "친한오빠",
+        "tagBgColor": "#5227ff"
+      },
+      {
+        "tag": "1등남친감🥇",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "다이아수저💎",
+        "tagBgColor": "#ae02ff"
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/sf/bj/tf/hs/es/1775627267.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/rj/bi/mj/uf/wb/ef/791192926.jpg",
+    "description": "",
+    "displayOrder": 3
+  },
+  {
+    "communityArtistId": 32,
+    "communityId": 3,
+    "artistId": 28,
+    "userId": 161127025356828,
+    "name": "BANI's POV",
+    "tags": [
+      {
+        "tag": "AI🐰💭",
+        "tagBgColor": "#ae02ff"
+      },
+      {
+        "tag": "반희진",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "2005.02.05🎂",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "조소과",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "예쁨지상주의💖",
+        "tagBgColor": "#ff02d7"
+      },
+      {
+        "tag": "손재주🙌🏻",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "연애호구",
+        "tagBgColor": "#5227ff"
+      },
+      {
+        "tag": "코믹발랄😋",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "힘짱💪",
+        "tagBgColor": "#ae02ff"
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/mp/md/um/uh/ut/1056316407.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/mq/sd/ds/tc/uq/1629723259.png",
+    "description": "",
+    "displayOrder": 4
+  },
+  {
+    "communityArtistId": 33,
+    "communityId": 3,
+    "artistId": 29,
+    "userId": 161127343845403,
+    "name": "YEOL's POV",
+    "tags": [
+      {
+        "tag": "AI🦊💭",
+        "tagBgColor": "#ae02ff"
+      },
+      {
+        "tag": "황재열",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "2003.12.31🎂",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "시각디자인과",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "과대표👑",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "냉미남🧊",
+        "tagBgColor": "#ff02d7"
+      },
+      {
+        "tag": "겉바속촉",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "이온음료🌿",
+        "tagBgColor": "#5227ff"
+      },
+      {
+        "tag": "능력캐😎",
+        "tagBgColor": "#ae02ff"
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/mq/mt/dm/dj/um/1957081102.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/bq/mu/ds/de/dh/875097279.png",
+    "description": "",
+    "displayOrder": 5
+  },
+  {
+    "communityArtistId": 34,
+    "communityId": 3,
+    "artistId": 30,
+    "userId": 161127462400042,
+    "name": "WON's POV",
+    "tags": [
+      {
+        "tag": "AI🐶💭",
+        "tagBgColor": "#ae02ff"
+      },
+      {
+        "tag": "차지원",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "2002.01.25🎂",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "조소과",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "조각상외모✨",
+        "tagBgColor": "#ff02d7"
+      },
+      {
+        "tag": "허당미😮",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "친한오빠",
+        "tagBgColor": "#5227ff"
+      },
+      {
+        "tag": "1등남친감🥇",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "다이아수저💎",
+        "tagBgColor": "#ae02ff"
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/sp/md/db/pr/rs/1524687910.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/bq/md/db/uf/cp/1991924353.png",
+    "description": "",
+    "displayOrder": 6
+  },
+  {
+    "communityArtistId": 39,
+    "communityId": 4,
+    "artistId": 34,
+    "userId": 170945681245015,
+    "name": "SHOWNU",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/mi/mj/uf/cn/uy/2002229206.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/sf/me/df/cx/vr/874299395.jpg",
+    "description": "",
+    "displayOrder": 1
+  },
+  {
+    "communityArtistId": 40,
+    "communityId": 4,
+    "artistId": 35,
+    "userId": 170945790181950,
+    "name": "MINHYUK",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/bf/mj/ti/wn/hf/1773520904.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/bf/be/di/wn/pt/525396673.jpg",
+    "description": "",
+    "displayOrder": 2
+  },
+  {
+    "communityArtistId": 41,
+    "communityId": 4,
+    "artistId": 36,
+    "userId": 170945925051016,
+    "name": "KIHYUN",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/bf/se/ui/cn/ef/223196042.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/bf/se/ui/pb/bk/764339635.jpg",
+    "description": "",
+    "displayOrder": 3
+  },
+  {
+    "communityArtistId": 42,
+    "communityId": 4,
+    "artistId": 37,
+    "userId": 170945998512534,
+    "name": "HYUNGWON",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/mf/mj/di/qm/rq/276833274.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/mf/mj/di/qb/ce/63194875.jpg",
+    "description": "",
+    "displayOrder": 4
+  },
+  {
+    "communityArtistId": 43,
+    "communityId": 4,
+    "artistId": 38,
+    "userId": 170946081767860,
+    "name": "JOOHONEY",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/bf/mj/df/pm/jj/1228154991.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/bf/be/ti/qd/su/508063882.jpg",
+    "description": "",
+    "displayOrder": 5
+  },
+  {
+    "communityArtistId": 44,
+    "communityId": 4,
+    "artistId": 39,
+    "userId": 170946159739749,
+    "name": "I.M",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/si/bz/ui/pu/de/1824861245.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/bf/me/df/pt/af/2061262854.jpg",
+    "description": "",
+    "displayOrder": 6
+  },
+  {
+    "communityArtistId": 48,
+    "communityId": 5,
+    "artistId": 42,
+    "userId": 174549297586620,
+    "name": "IU",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/mi/se/di/vz/hd/292280062.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/mf/mz/ui/vz/hi/1233754955.jpg",
+    "description": "",
+    "displayOrder": 1
+  },
+  {
+    "communityArtistId": 55,
+    "communityId": 6,
+    "artistId": 51,
+    "userId": 182001538371605,
+    "name": "SERIM",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/bf/rs/ru/bo/zx/275616553.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/az/mi/vs/vu/mx/sz/1950190245.jpg",
+    "description": "",
+    "displayOrder": 1
+  },
+  {
+    "communityArtistId": 56,
+    "communityId": 6,
+    "artistId": 52,
+    "userId": 182003174084650,
+    "name": "ALLEN",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/bf/rm/ad/mo/pp/787616111.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/bf/rm/vt/so/pn/1099871799.jpg",
+    "description": "",
+    "displayOrder": 2
+  },
+  {
+    "communityArtistId": 57,
+    "communityId": 6,
+    "artistId": 53,
+    "userId": 182004371406852,
+    "name": "JUNGMO",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/sf/vm/ad/bo/rf/145317344.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/bi/vm/au/mo/wh/40326018.jpg",
+    "description": "",
+    "displayOrder": 3
+  },
+  {
+    "communityArtistId": 58,
+    "communityId": 6,
+    "artistId": 54,
+    "userId": 182005043232796,
+    "name": "WOOBIN",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/sf/ab/at/bl/us/885231167.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/mi/vm/ad/ml/tq/914356613.jpg",
+    "description": "",
+    "displayOrder": 4
+  },
+  {
+    "communityArtistId": 59,
+    "communityId": 6,
+    "artistId": 55,
+    "userId": 182005659279384,
+    "name": "WONJIN",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/bi/vs/ad/by/zm/2088550574.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/bi/ab/at/bk/ze/1298148342.jpg",
+    "description": "",
+    "displayOrder": 5
+  },
+  {
+    "communityArtistId": 60,
+    "communityId": 6,
+    "artistId": 56,
+    "userId": 182006163947543,
+    "name": "MINHEE",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/mi/vm/ad/mk/cf/1093671004.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/mf/vm/au/bk/qs/1219601926.jpg",
+    "description": "",
+    "displayOrder": 6
+  },
+  {
+    "communityArtistId": 61,
+    "communityId": 6,
+    "artistId": 57,
+    "userId": 182006779527212,
+    "name": "HYEONGJUN",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/az/mf/ab/ru/si/jo/1700694973.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/mf/rm/vu/sy/rw/873328692.jpg",
+    "description": "",
+    "displayOrder": 7
+  },
+  {
+    "communityArtistId": 62,
+    "communityId": 6,
+    "artistId": 58,
+    "userId": 182007306002478,
+    "name": "TAEYOUNG",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/si/vm/rd/mi/cd/458492084.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/si/vb/vd/si/wj/844221182.jpg",
+    "description": "",
+    "displayOrder": 8
+  },
+  {
+    "communityArtistId": 63,
+    "communityId": 6,
+    "artistId": 59,
+    "userId": 182007769735192,
+    "name": "SEONGMIN",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/mi/rb/au/bi/bn/320806700.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/rj/sf/vm/ad/sf/uc/36905619.jpg",
+    "description": "",
+    "displayOrder": 9
+  },
+  {
+    "communityArtistId": 76,
+    "communityId": 7,
+    "artistId": 63,
+    "userId": 182042814373889,
+    "name": "ANYUJIN",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/az/bl/uc/ts/vx/ut/1055640154.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/bo/uc/tm/ax/de/283416816.jpg",
+    "description": "",
+    "displayOrder": 1
+  },
+  {
+    "communityArtistId": 71,
+    "communityId": 7,
+    "artistId": 61,
+    "userId": 182041215545370,
+    "name": "GAEUL",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/mo/uc/tb/rx/cf/1934830825.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/bl/dw/tb/an/qm/1965948508.jpg",
+    "description": "",
+    "displayOrder": 2
+  },
+  {
+    "communityArtistId": 77,
+    "communityId": 7,
+    "artistId": 62,
+    "userId": 182042025762837,
+    "name": "REI",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/bo/uc/us/rn/ea/1006298556.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/mo/uc/ts/ax/ej/1484999492.jpg",
+    "description": "",
+    "displayOrder": 3
+  },
+  {
+    "communityArtistId": 75,
+    "communityId": 7,
+    "artistId": 64,
+    "userId": 182043489574929,
+    "name": "JANGWONYOUNG",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/bl/tc/db/hs/bk/700504237.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/so/tw/um/wb/ud/511968100.jpg",
+    "description": "",
+    "displayOrder": 4
+  },
+  {
+    "communityArtistId": 74,
+    "communityId": 7,
+    "artistId": 65,
+    "userId": 182044355067923,
+    "name": "LIZ",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/sl/uw/ts/cm/rc/101768450.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/bo/tw/um/cs/ag/1710532022.jpg",
+    "description": "",
+    "displayOrder": 5
+  },
+  {
+    "communityArtistId": 73,
+    "communityId": 7,
+    "artistId": 66,
+    "userId": 182045098565635,
+    "name": "LEESEO",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/mo/dc/tm/cs/cx/1029408527.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/ml/uh/us/cm/qh/846706753.jpg",
+    "description": "",
+    "displayOrder": 6
+  },
+  {
+    "communityArtistId": 87,
+    "communityId": 8,
+    "artistId": 69,
+    "userId": 186927391718021,
+    "name": "JANG YONGHOON",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/bk/cm/mn/wh/pe/1014118331.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/by/hs/mx/cc/ql/37140632.jpg",
+    "description": "",
+    "displayOrder": 1
+  },
+  {
+    "communityArtistId": 86,
+    "communityId": 8,
+    "artistId": 70,
+    "userId": 186929408740223,
+    "name": "KIM MINJAE",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/sg/cb/sn/wq/sq/803851505.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/mg/wm/bx/hp/sk/1890498439.jpg",
+    "description": "",
+    "displayOrder": 2
+  },
+  {
+    "communityArtistId": 85,
+    "communityId": 8,
+    "artistId": 71,
+    "userId": 186930089986536,
+    "name": "PARK WONBIN",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/by/hs/bn/wq/dn/980178826.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/az/bg/hm/mn/hp/aw/319821536.jpg",
+    "description": "",
+    "displayOrder": 3
+  },
+  {
+    "communityArtistId": 84,
+    "communityId": 8,
+    "artistId": 72,
+    "userId": 186931456334477,
+    "name": "CHU YOOCHAN",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/bk/cm/sx/wp/pm/277227954.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/sk/hm/bn/wq/qw/1808456646.jpg",
+    "description": "",
+    "displayOrder": 4
+  },
+  {
+    "communityArtistId": 83,
+    "communityId": 8,
+    "artistId": 73,
+    "userId": 186931901221356,
+    "name": "PARK SEONGHYEON",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/sg/hb/bx/hp/eg/2133773480.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/az/sy/hs/bx/hq/jn/569988479.jpg",
+    "description": "",
+    "displayOrder": 5
+  },
+  {
+    "communityArtistId": 82,
+    "communityId": 8,
+    "artistId": 74,
+    "userId": 186934868803528,
+    "name": "BAEK JUNHYUK",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/mk/wm/sx/wj/sn/1416193428.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/my/hb/mx/cj/dr/647924077.jpg",
+    "description": "",
+    "displayOrder": 6
+  },
+  {
+    "communityArtistId": 81,
+    "communityId": 8,
+    "artistId": 75,
+    "userId": 186935037176806,
+    "name": "JEONG SEMIN",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rj/bk/cs/bn/we/aw/988181447.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/my/hs/mn/he/rk/2089355056.jpg",
+    "description": "",
+    "displayOrder": 7
+  },
+  {
+    "communityArtistId": 96,
+    "communityId": 9,
+    "artistId": 78,
+    "userId": 189406576413145,
+    "name": "SEOLA",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/si/dk/dj/pi/qn/243830378.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/sf/dk/tj/qf/eh/102704433.jpg",
+    "description": "",
+    "displayOrder": 1
+  },
+  {
+    "communityArtistId": 95,
+    "communityId": 9,
+    "artistId": 79,
+    "userId": 189407641640149,
+    "name": "BONA",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/bi/ty/uj/qf/aw/18310040.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/mi/tg/dz/pf/ai/480894766.jpg",
+    "description": "",
+    "displayOrder": 2
+  },
+  {
+    "communityArtistId": 94,
+    "communityId": 9,
+    "artistId": 80,
+    "userId": 189408995732724,
+    "name": "EXY",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/mi/dy/dz/qe/zy/1571611560.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/sf/ug/uj/qf/bu/1257901702.jpg",
+    "description": "",
+    "displayOrder": 3
+  },
+  {
+    "communityArtistId": 93,
+    "communityId": 9,
+    "artistId": 81,
+    "userId": 189409349979405,
+    "name": "SOOBIN",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/sg/sh/tg/pc/to/734110084.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/bk/sc/ug/pc/rr/986964408.jpg",
+    "description": "",
+    "displayOrder": 4
+  },
+  {
+    "communityArtistId": 92,
+    "communityId": 9,
+    "artistId": 82,
+    "userId": 189409712651837,
+    "name": "EUNSEO",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/bi/uk/dj/qp/zm/1263630086.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/si/uy/te/pq/zc/403586541.jpg",
+    "description": "",
+    "displayOrder": 5
+  },
+  {
+    "communityArtistId": 91,
+    "communityId": 9,
+    "artistId": 83,
+    "userId": 189410118495134,
+    "name": "YEOREUM",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/mi/dk/dz/pq/dw/1169925721.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/mi/uy/ue/qq/tk/132217695.jpg",
+    "description": "",
+    "displayOrder": 6
+  },
+  {
+    "communityArtistId": 90,
+    "communityId": 9,
+    "artistId": 84,
+    "userId": 189410491456473,
+    "name": "DAYOUNG",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/sn/mp/ah/ao/qt/553557978.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/sx/sp/rh/vl/wl/2084633462.jpg",
+    "description": "",
+    "displayOrder": 7
+  },
+  {
+    "communityArtistId": 89,
+    "communityId": 9,
+    "artistId": 85,
+    "userId": 189410881358048,
+    "name": "YEONJUNG",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/mi/tk/te/pv/cd/2125995155.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/az/sf/tg/te/qa/hi/683633074.jpg",
+    "description": "",
+    "displayOrder": 8
+  },
+  {
+    "communityArtistId": 101,
+    "communityId": 10,
+    "artistId": 88,
+    "userId": 198556571890034,
+    "name": "WOODZ",
+    "tags": null,
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/mx/vp/dg/ea/uz/683760208.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/ve/bx/vq/uk/jv/to/1831723917.jpg",
+    "description": "",
+    "displayOrder": 1
+  },
+  {
+    "communityArtistId": 105,
+    "communityId": 11,
+    "artistId": 90,
+    "userId": 209182146843013,
+    "name": "Seo Munju",
+    "tags": [
+      {
+        "tag": "리더십",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "정의감",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "외유내강",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "당당함 ",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "아름다운",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "멋쁨",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "솔직함",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "AI페르소나",
+        "tagBgColor": "#A627F3"
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/artist/image/vz/bl/uq/tm/vt/bi/1370789267.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/ml/up/um/vg/bj/1097629945.jpg",
+    "description": "",
+    "displayOrder": 1
+  },
+  {
+    "communityArtistId": 104,
+    "communityId": 11,
+    "artistId": 91,
+    "userId": 209182345966007,
+    "name": "Baek Sanho",
+    "tags": [
+      {
+        "tag": "믿음직한",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "비밀스러운",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "국적불명",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "미스터리의",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "존잘",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "강인함",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "반전매력",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "만능캐",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "멜로눈빛😍",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "AI페르소나",
+        "tagBgColor": "#A627F3"
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/artist/image/rj/bl/dp/db/at/hd/2121892008.jpg",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/bl/up/db/ai/dt/1473516354.jpg",
+    "description": "",
+    "displayOrder": 2
+  },
+  {
+    "communityArtistId": 112,
+    "communityId": 12,
+    "artistId": 115,
+    "userId": 226212252099223,
+    "name": "Kim DaYe",
+    "tags": [
+      {
+        "tag": "대체될 수 없는",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "점점 더 궁금해지는",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "자연스러운 얼굴의",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "나만의 분위기를 가진",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "긍정 에너지를 주는",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "믿고보는",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "섬세하게 연기하는",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "당당한 자세의",
+        "tagBgColor": "#5671fb"
+      },
+      {
+        "tag": "항상 감사하는",
+        "tagBgColor": "#00b166"
+      },
+      {
+        "tag": "배우",
+        "tagBgColor": "#A627F3"
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/az/tb/mv/um/jj/hj/2040666864.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/dm/mr/ds/je/cx/1554647410.png",
+    "description": "",
+    "displayOrder": 1
+  },
+  {
+    "communityArtistId": 113,
+    "communityId": 12,
+    "artistId": 116,
+    "userId": 226222453695537,
+    "name": "Kimryeowon",
+    "tags": [
+      {
+        "tag": "밝고 장난스러운",
+        "tagBgColor": "#a627f3"
+      },
+      {
+        "tag": "에너지🔥",
+        "tagBgColor": "#a627f3"
+      },
+      {
+        "tag": "정이 많은",
+        "tagBgColor": "#5671fb"
+      },
+      {
+        "tag": "사람 좋아 인간🫶🏻",
+        "tagBgColor": "#5671fb"
+      },
+      {
+        "tag": "솔직한 눈빛👀",
+        "tagBgColor": "#00b166"
+      },
+      {
+        "tag": "연기를 배우기 위해",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "서울로✈️",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "간절하고 진실된 마음",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "큰 키의 강렬한 존재감",
+        "tagBgColor": ""
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/tb/ba/db/jj/jp/1916355597.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/ts/sa/tm/je/zl/1522858456.png",
+    "description": "",
+    "displayOrder": 2
+  },
+  {
+    "communityArtistId": 114,
+    "communityId": 12,
+    "artistId": 117,
+    "userId": 226222626333841,
+    "name": "GeonTaePark",
+    "tags": [
+      {
+        "tag": "배우",
+        "tagBgColor": "#a627f3"
+      },
+      {
+        "tag": "울산",
+        "tagBgColor": "#5671fb"
+      },
+      {
+        "tag": "03",
+        "tagBgColor": "#00b166"
+      },
+      {
+        "tag": "열정",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "축구",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "🐶",
+        "tagBgColor": ""
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rj/ts/mv/tb/jf/uu/2047476635.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/um/sv/db/ef/uj/1697216976.png",
+    "description": "",
+    "displayOrder": 3
+  },
+  {
+    "communityArtistId": 115,
+    "communityId": 12,
+    "artistId": 118,
+    "userId": 226222791529018,
+    "name": "Shin Ha Young",
+    "tags": [
+      {
+        "tag": "신나영",
+        "tagBgColor": "#5671fb"
+      },
+      {
+        "tag": "안녕하신하영",
+        "tagBgColor": "#00b166"
+      },
+      {
+        "tag": "대배우",
+        "tagBgColor": "#a627f3"
+      },
+      {
+        "tag": "해피",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "ENFP",
+        "tagBgColor": ""
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/us/sa/db/zf/rl/1934734346.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/tm/sa/tm/ji/cc/1834736512.png",
+    "description": "",
+    "displayOrder": 4
+  },
+  {
+    "communityArtistId": 116,
+    "communityId": 12,
+    "artistId": 119,
+    "userId": 226222957327126,
+    "name": "Lee Do Hyun",
+    "tags": [
+      {
+        "tag": "도전",
+        "tagBgColor": "#5671fb"
+      },
+      {
+        "tag": "진중",
+        "tagBgColor": "#a627f3"
+      },
+      {
+        "tag": "행복",
+        "tagBgColor": "#00b166"
+      },
+      {
+        "tag": "연기",
+        "tagBgColor": ""
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/re/ds/sv/ts/ef/pi/2100283706.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/rj/tm/ma/um/zf/pr/814911701.png",
+    "description": "",
+    "displayOrder": 5
+  },
+  {
+    "communityArtistId": 117,
+    "communityId": 12,
+    "artistId": 120,
+    "userId": 226223091048974,
+    "name": "Jang Yujin",
+    "tags": [
+      {
+        "tag": "연기쟁이💃🏻",
+        "tagBgColor": "#00b166"
+      },
+      {
+        "tag": "내성적",
+        "tagBgColor": "#a627f3"
+      },
+      {
+        "tag": "호기심",
+        "tagBgColor": "#5671fb"
+      },
+      {
+        "tag": "객관적",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "유연함",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "진지함",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "도라이",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "집순이",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "intp특징",
+        "tagBgColor": ""
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/ts/br/tb/zy/bs/1402706557.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/aj/um/sa/tb/ey/be/1703079599.png",
+    "description": "",
+    "displayOrder": 6
+  },
+  {
+    "communityArtistId": 118,
+    "communityId": 12,
+    "artistId": 121,
+    "userId": 226223329513999,
+    "name": "Jo hyeonjin",
+    "tags": [
+      {
+        "tag": "    🍀",
+        "tagBgColor": "#a627f3"
+      },
+      {
+        "tag": "시네필되고파",
+        "tagBgColor": "#5671fb"
+      },
+      {
+        "tag": "스위프티",
+        "tagBgColor": "#00b166"
+      },
+      {
+        "tag": "☁️",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "산책",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "👾",
+        "tagBgColor": ""
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/um/bv/ub/zo/bq/972098223.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/dm/bv/um/jo/ud/1135739708.png",
+    "description": "",
+    "displayOrder": 7
+  },
+  {
+    "communityArtistId": 120,
+    "communityId": 12,
+    "artistId": 123,
+    "userId": 226224217551436,
+    "name": "최예나",
+    "tags": [
+      {
+        "tag": "자칭오리상🐥",
+        "tagBgColor": "#5671fb"
+      },
+      {
+        "tag": "시끄러운데얌전함🤫",
+        "tagBgColor": "#a627f3"
+      },
+      {
+        "tag": "멍때리기장인😮",
+        "tagBgColor": "#00b166"
+      },
+      {
+        "tag": "예나지금이나",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "파워예스맨🙆🏻‍♀️",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "애늙은이👵",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "대식가🍽️",
+        "tagBgColor": ""
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/az/ts/sv/db/jx/dy/1244305198.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vj/tb/mv/um/ex/ah/581732369.png",
+    "description": "",
+    "displayOrder": 8
+  },
+  {
+    "communityArtistId": 119,
+    "communityId": 12,
+    "artistId": 122,
+    "userId": 226223745360815,
+    "name": "Choi Min Kyo",
+    "tags": [
+      {
+        "tag": "부산",
+        "tagBgColor": "#5671fb"
+      },
+      {
+        "tag": "하이틴",
+        "tagBgColor": "#00b166"
+      },
+      {
+        "tag": "어릴적 리틀 손예진",
+        "tagBgColor": "#a627f3"
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/ub/sv/tm/el/eo/1042996650.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/rz/ts/ba/um/jo/eq/1034844300.png",
+    "description": "",
+    "displayOrder": 9
+  },
+  {
+    "communityArtistId": 121,
+    "communityId": 12,
+    "artistId": 124,
+    "userId": 226224421696077,
+    "name": "Choi Junhyeok",
+    "tags": [
+      {
+        "tag": "내꿈은_연기왕",
+        "tagBgColor": "#a627f3"
+      },
+      {
+        "tag": "👑",
+        "tagBgColor": "#00b166"
+      },
+      {
+        "tag": "까까머리",
+        "tagBgColor": "#5671fb"
+      },
+      {
+        "tag": "바보상자",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "⚽️",
+        "tagBgColor": ""
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/ae/ub/br/tm/zn/hf/507554629.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/tm/sv/ts/ex/wx/1760606966.png",
+    "description": "",
+    "displayOrder": 10
+  },
+  {
+    "communityArtistId": 122,
+    "communityId": 12,
+    "artistId": 125,
+    "userId": 226224558138017,
+    "name": "Hwang seo bin",
+    "tags": [
+      {
+        "tag": "실력파",
+        "tagBgColor": "#5671fb"
+      },
+      {
+        "tag": "검정",
+        "tagBgColor": "#00b166"
+      },
+      {
+        "tag": "흰색",
+        "tagBgColor": "#a627f3"
+      },
+      {
+        "tag": "털털한",
+        "tagBgColor": ""
+      },
+      {
+        "tag": "진심",
+        "tagBgColor": ""
+      }
+    ],
+    "imageUrl": "https://statics.berriz.in/cdn/community_artist/image/vz/ts/ma/ds/jn/qn/388220865.png",
+    "pcImageUrl": "https://statics.berriz.in/cdn/community_artist/image/az/dm/bv/dm/zn/ec/511620702.png",
+    "description": "",
+    "displayOrder": 11
+  }
+]
