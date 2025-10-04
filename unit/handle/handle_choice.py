@@ -8,14 +8,12 @@ from lib.artis.artis_menu import Board
 from lib.media_queue import MediaQueue
 from mystate.parse_my import request_my
 from static.color import Color
-from unit.GET.GetMediaList import MediaFetcher
-from unit.http.request_berriz_api import Community
+from unit.getall.GetMediaList import MediaFetcher
 from unit.handle.handle_log import setup_logging
 from unit.main_process import MediaProcessor
 from unit.media.media_json_process import MediaJsonProcessor
 from unit.user_choice import InquirerPySelector
-from unit.community.community import get_community
-from unit.GET.GetNotifyList import NotifyFetcher
+from unit.getall.GetNotifyList import NotifyFetcher
 from static.parameter import paramstore
 
 
@@ -51,15 +49,17 @@ BoardListTuple = Tuple[List[Dict[str, Any]], str]
 
 
 class Handle_Choice:
-    def __init__(self, communityId: int, time_a: Optional[datetime], time_b: Optional[datetime]):
-        self.community_id: int = communityId
+    def __init__(self, community_id: int, communityname: str, time_a: Optional[datetime], time_b: Optional[datetime]):
+        self.community_id: int = community_id
+        self.communityname: str = communityname
         self.time_a: Optional[datetime] = time_a
         self.time_b: Optional[datetime] = time_b
         self.selected_media = None
+        self.fetcher = MediaFetcher(self.community_id, self.communityname, self.time_a, self.time_b)
         
     async def get_list_data(self) -> ListDataTuple:
         # Fetch all media lists concurrently
-        BO: Board = Board(self.community_id, self.time_a, self.time_b)
+        BO: Board = Board(self.community_id, self.communityname, self.time_a, self.time_b)
         
         vod_list: List[Dict[str, Any]]
         photo_list: List[Dict[str, Any]]
@@ -67,9 +67,7 @@ class Handle_Choice:
         data_list: List[Dict[str, Any]]
         TYPE: str
         if active_conditions_1 != 0 or active_conditions_1 + active_conditions_2 == 0: 
-            vod_list, photo_list, live_list = await asyncio.create_task(
-                        MediaFetcher(self.community_id).get_all_media_lists(self.time_a, self.time_b)
-            )
+            vod_list, photo_list, live_list = await self.fetcher.get_all_media_lists()
         else:
             vod_list, photo_list, live_list = [], [], []
         if active_conditions_2 != 0 or active_conditions_1 + active_conditions_2 == 0:
