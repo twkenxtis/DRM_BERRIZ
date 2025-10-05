@@ -3,6 +3,10 @@ import json
 import sys
 from typing import Any, List, Tuple, Optional, Dict
 
+from rich.console import Console
+from rich.table import Table
+from rich import box
+
 from lib.download import run_dl
 from lib.mux.parse_m3u8 import rebuild_master_playlist
 
@@ -166,17 +170,27 @@ async def start_download(public_info: PublicInfo, playback_info : PlaybackInfo, 
     logger.debug(f"{Color.fg('gold')}{json_data}{Color.reset()}")
     
     if paramstore.get('key') is True:
-        logger.info(
-            f"{Color.fg('light_gray')}title:{Color.reset()} "
-            f"{Color.fg('olive')}{json_data[0].get('media', {}).get('title', '')}{Color.reset()}"
+        console = Console()
+        table = Table(
+            title="",
+            box=box.ROUNDED,
+            show_header=False,
+            border_style="bright_blue",
         )
-        logger.info(f"{Color.fg('khaki')}MPD: {Color.fg('dark_cyan')}{dash_playback_url} {Color.reset()}")
-        logger.info(f"{Color.fg('sky_blue')}HLS: {Color.fg('dark_cyan')}{hls_playback_url} {Color.reset()}")
-        logger.info(f"{Color.fg('gold')}--key{Color.fg('ruby')} only mode"
-                    f"{Color.fg('wheat')} Skip download "
-                    f"{BerrizProcessor.print_title(public_info)}"
-                    f"{Color.reset()}"
-                    )
+        table.add_column("Label", style="cyan", no_wrap=True)
+        table.add_column("Value", style="white")
+        # Title
+        title = json_data[0].get("media", {}).get("title", "")
+        table.add_row("[light_gray]Title[/]", f"[olive]{title}[/]")
+        # MPD URL
+        table.add_row("[khaki]MPD[/]", f"[dark_cyan]{dash_playback_url}[/]")
+        # HLS URL
+        table.add_row("[sky_blue]HLS[/]", f"[dark_cyan]{hls_playback_url}[/]")
+        # Key-only mode info
+        key_mode = f"[ruby]--key only mode[/] [wheat]Skip download[/] {BerrizProcessor.print_title(public_info)}"
+        table.add_row("[gold]Mode[/]", key_mode)
+
+        console.print(table)
     else:
         logger.info(f"{Color.fg('khaki')}MPD: {Color.fg('dark_cyan')}{dash_playback_url} {Color.reset()}")
         logger.info(f"{Color.fg('sky_blue')}HLS: {Color.fg('dark_cyan')}{hls_playback_url} {Color.reset()}")
