@@ -171,7 +171,8 @@ class NoColorFormatter(Formatter):
 
 def setup_logging(name: str, log_color: str = None) -> Logger:
     """設定日誌記錄器與處理器；log_color 用於模組名稱顏色（例如 'gold'）"""
-    os.makedirs("logs", exist_ok=True)
+    log_directory = "logs"
+    os.makedirs(log_directory, exist_ok=True)
 
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, LOGGING_LEVEL.upper(), logging.INFO))
@@ -185,16 +186,40 @@ def setup_logging(name: str, log_color: str = None) -> Logger:
     console_handler.setFormatter(ColoredConsoleFormatter(log_color=log_color))
     logger.addHandler(console_handler)
 
-    # 非阻塞檔案處理器，啟用壓縮
-    file_handler = NonBlockingFileHandler(
-        filename=Path("logs") / f"{name}.log",
+    # 應用程式檔案處理器，啟用壓縮
+    app_file_handler = NonBlockingFileHandler(
+        filename=Path(log_directory) / f"{name}.log",
         when="midnight",
         interval=1,
         backupCount=30,
         encoding="utf-8",
         compress=True,
     )
-    file_handler.setFormatter(NoColorFormatter(LOGGING_FORMAT))
-    logger.addHandler(file_handler)
+    file_format = NoColorFormatter(LOGGING_FORMAT)
+    app_file_handler.setFormatter(file_format)
+    logger.addHandler(app_file_handler)
+
+    # httpx 和 httpcore 日誌處理器
+    httpx_file_handler = NonBlockingFileHandler(
+        filename=Path(log_directory) / "httpx_requests.log",
+        when="midnight",
+        interval=1,
+        backupCount=30,
+        encoding="utf-8",
+        compress=True,
+    )
+    httpx_file_handler.setFormatter(file_format)
+
+    # 設定 httpx 和 httpcore 日誌
+    for logger_name in ["httpx", "httpcore"]:
+        lib_logger = logging.getLogger(logger_name)
+        lib_logger.setLevel(logging.INFO)
+
+        if lib_logger.handlers:
+            lib_logger.handlers.clear()
+
+        lib_logger.addHandler(console_handler)
+        lib_logger.addHandler(httpx_file_handler)
+        lib_logger.propagate = False
 
     return logger
