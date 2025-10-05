@@ -2,7 +2,6 @@ import re
 import string
 from typing import List, Dict, Optional
 
-from static.color import Color
 from lib.load_yaml_config import CFG, ConfigLoader
 from unit.handle.handle_log import setup_logging
 
@@ -12,7 +11,6 @@ logger = setup_logging('lib.__init__', 'fern')
 
 class FilenameSanitizer:
     """Handles sanitization of filenames to remove invalid characters."""
-
     @staticmethod
     def sanitize_filename(name: str) -> str:
         """Sanitize filename by removing invalid Windows characters and replacing problematic symbols."""
@@ -51,14 +49,12 @@ def get_container(yaml_container = CFG['Container']['video']) -> str:
             return 'mkv'
         case _:
             return container
-
 container = get_container()
 
 
 def get_download_folder_name(yaml_container = CFG['Donwload_Dir_Name']['download_dir']) -> str:
     folder_name = FilenameSanitizer.sanitize_filename(yaml_container)
     return folder_name
-
 dl_folder_name = get_download_folder_name()
 
 
