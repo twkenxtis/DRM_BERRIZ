@@ -54,29 +54,6 @@ class BerrizCreateCommunity:
                 if 'data' in data and isinstance(data['data'], dict):
                     self.print_data_with_fstring(data['data'])
                 return True
-            else:
-                code: str = str(data.get('code'))
-                message: str = str(data.get('message', 'Unknown error'))
-                
-                if code == 'FS_CJ1011':
-                    logger.info(
-                        f"{Color.fg('gold')}{message}{Color.reset()} "
-                        f"{Color.fg('light_gray')}in community "
-                        f"{Color.fg('aquamarine')}{communityname}{Color.reset()}"
-                    )
-                    return True
-                elif code == 'FS_CJ1017':
-                    """"You cannot join again within 24 hours you leave"""
-                    logger.warning(
-                        f'{message} {Color.fg("light_gray")}→ '
-                        f'{Color.fg("aquamarine")}{communityname} {Color.fg("light_gray")}community{Color.reset()}'
-                    )
-                    return True
-                else:
-                    logger.error(f"Fail to join {communityname}. Response data: {data}")
-                    return False
-        except KeyboardInterrupt:
-            raise KeyboardInterrupt
         except (EOFError, AttributeError, TypeError, ValueError):
             sys.exit(1)
         except Exception:
@@ -112,20 +89,6 @@ class BerrizCreateCommunity:
                     f"community.{Color.reset()}"
                 )
                 return True
-            else:
-                code: str = str(data.get('code'))
-                message: str = str(data.get('message', 'Unknown error'))
-                
-                if code == 'FS_CM1010':
-                    logger.info(f"{Color.fg('light_gray')}{message}{Color.reset()}")
-                    logger.info(f"{Color.fg('gold')}You are already leave {Color.fg('aquamarine')}{communityname}{Color.reset()}")
-                    return True
-                else:
-                    logger.critical(f"Failed to leave community. Response data: {data}")
-                    return False
-                    
-        except KeyboardInterrupt:
-            raise KeyboardInterrupt
         except (EOFError, AttributeError, TypeError, ValueError):
             sys.exit(1)
         except Exception:

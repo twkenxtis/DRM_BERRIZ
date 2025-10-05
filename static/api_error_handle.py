@@ -15,5 +15,18 @@ def api_error_handle(code: str) -> Optional[str]:
         return 'An error occurred during the service.'
     if code == 'FS_CU9900':
         return '(Fanclub) This is a fanclub-only content, Fanclub not subscribed'
-    
+    if code == 'FS_CU9999':
+        return 'Community Info is Invalid.'
+    if code == 'FS_CJ1010':
+        return 'This Nickname already in use'
+    if code == 'FS_CJ1011':
+        return 'You are already a member in this community'
+    if code == 'FS_CJ1014':
+        return 'Invalid characters or spaces included, Please check input value'
+    if code == 'FS_CM1010':
+        return 'No content available, check are you in this community?'
+    if code == 'FS_CJ1017':
+        return 'You cannot join again within 24 hours you leave the community'
+    if code == 'FS_CU2050':
+        return 'This post mine be not found or deleted, Null post id.'
     return code

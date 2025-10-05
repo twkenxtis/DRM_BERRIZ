@@ -164,26 +164,22 @@ class Handle_Choice:
     
     async def process_selected_media(self) -> SelectedMediaDict:
         processed_media: SelectedMediaDict = MediaJsonProcessor.process_selection(self.selected_media)
-        try:
-            custom_media_types = [
-                ('vods', 'VOD'),
-                ('lives', 'LIVE'), 
-                ('photos', 'PHOTO'),
-                ('post', 'POST'),
-                ('notice', 'NOTICE')
-            ]
-            
-            for k, type in custom_media_types:
-                if self.selected_media.get(k):
-                    current_media_data = {k: self.selected_media[k]}
-                    MP: Callable = MediaProcessor(current_media_data).process_media_queue
-                    queue: MediaQueue = MediaQueue()
-                    queue.enqueue_batch(processed_media[k], type)
-                    await MP(queue)
-            return self.selected_media
-        except Exception as e:
-            logger.error(f"Error at media queue processing: {e}")
-            return {'vods': [], 'photos': [], 'lives': [], 'post': [], 'notice': []}
+        custom_media_types = [
+            ('vods', 'VOD'),
+            ('lives', 'LIVE'), 
+            ('photos', 'PHOTO'),
+            ('post', 'POST'),
+            ('notice', 'NOTICE')
+        ]
+        
+        for k, type in custom_media_types:
+            if self.selected_media.get(k):
+                current_media_data = {k: self.selected_media[k]}
+                MP: Callable = MediaProcessor(current_media_data).process_media_queue
+                queue: MediaQueue = MediaQueue()
+                queue.enqueue_batch(processed_media[k], type)
+                await MP(queue)
+        return self.selected_media
 
     def printer_user_choese(self):
         temp_messages = []

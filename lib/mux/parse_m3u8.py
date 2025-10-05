@@ -7,8 +7,8 @@ from typing import List, Any, Pattern, Awaitable, Union, Dict
 URI_PATTERN: Pattern[str] = re.compile(r'URI="([^"]+)"')
 
 
-async def rebuild_master_playlist(m3u8_string: Any, m3u8_uri: str) -> str:
-    # m3u8_string 是一個包含 .text 屬性的物件
+async def rebuild_master_playlist(m3u8: Any, m3u8_uri: str) -> str:
+    # m3u8 是一個包含 .text 屬性的物件
     
     # 類型註釋：解析 URL 的結果
     parsed_url: urllib.parse.ParseResult = urllib.parse.urlparse(m3u8_uri)
@@ -16,7 +16,7 @@ async def rebuild_master_playlist(m3u8_string: Any, m3u8_uri: str) -> str:
     base_url: str = f"{parsed_url.scheme}://{parsed_url.netloc}{os.path.dirname(parsed_url.path)}/"
     
     # 類型註釋：將輸入內容分割成字串列表
-    lines: List[str] = m3u8_string.text.strip().split('\n')
+    lines: List[str] = m3u8.text.strip().split('\n')
     # 類型註釋：重建後的行列表
     rebuilt_lines: List[str] = []
     

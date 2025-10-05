@@ -5,6 +5,7 @@ from typing import Any, Union, Dict, Optional
 import aiofiles
 import aiofiles.os as aios
 import orjson
+import httpx
 
 from unit.handle.handle_log import setup_logging
 
@@ -47,7 +48,7 @@ class save_json_data:
                     await aios.remove(tmp_path)
                 raise RuntimeError(f"Failed to write to {file_path} after {self.max_retries} attempts: {e}")
     
-    async def mpd_to_folder(self, raw_mpd: Any) -> None:
+    async def mpd_to_folder(self, raw_mpd: httpx.Response) -> None:
         """Save MPD content (expecting an object with a .text attribute) to manifest.mpd."""
         if raw_mpd is None:
             return
@@ -61,7 +62,8 @@ class save_json_data:
         """Save HLS content to manifest.m3u8."""
         if raw_hls is None:
             return
-        await self._write_file(self.output_dir / "manifest.m3u8", raw_hls, mode="w")
+        content: str = raw_hls
+        await self._write_file(self.output_dir / "manifest.m3u8", content, mode="w")
 
     async def play_list_to_folder(self, raw_play_list: Optional[Dict[str, Any]]) -> None:
         """Save playlist JSON to meta.json."""

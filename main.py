@@ -4,6 +4,8 @@ import sys
 
 from typing import Union
 
+import rich.traceback
+
 from lib.account.berriz_create_community import BerrizCreateCommunity
 from static.args import (
     had_key, clean_dl, skip_merge, fanclub, nofanclub,
@@ -18,6 +20,9 @@ from static.parameter import paramstore
 from unit.handle.handle_log import setup_logging
 from lib.account.change_pawword import Change_Password
 from lib.account.signup import run_signup
+
+
+rich.traceback.install()
 
 
 logger = setup_logging('main', 'orange')
@@ -112,25 +117,22 @@ async def cm(input: Union[str, int]):
         return community
 
 async def main():
-    try:
-        if change_password():
-            if await Change_Password().change_password() is True:
-                pass
-            else:
-                raise RuntimeError('Something fail')
-        if join_community():
-            await BerrizCreateCommunity(await cm(join_community()), join_community()).community_join()
-        if leave_community():
-            await BerrizCreateCommunity(await cm(leave_community()), leave_community()).leave_community_main()
-        if not community():
-            community_id, communityname =await BerrizCreateCommunity(await cm(group()), group()).community_id_name()
-            await Handle_Choice(community_id, communityname, time_a, time_b).handle_choice()
+    if change_password():
+        if await Change_Password().change_password() is True:
+            pass
         else:
-            await get_community_print()
-    except Exception as e:
-        logger.critical(f"Main program execution error: {e}", exc_info=True)
+            raise RuntimeError('Something fail')
+    if join_community():
+        await BerrizCreateCommunity(await cm(join_community()), join_community()).community_join()
+    if leave_community():
+        await BerrizCreateCommunity(await cm(leave_community()), leave_community()).leave_community_main()
+    if not community():
+        community_id, communityname =await BerrizCreateCommunity(await cm(group()), group()).community_id_name()
+        await Handle_Choice(community_id, communityname, time_a, time_b).handle_choice()
+    else:
+        await get_community_print()
 
 try:
     asyncio.run(main())
-except KeyboardInterrupt:
-    logger.info(f"{Color.fg('orange')}Program interrupted by user{Color.reset()}")
+except KeyboardInterrupt as e:
+    logger.warning(f"Program interrupted: {Color.fg('light_gray')}{e}{Color.reset()}")

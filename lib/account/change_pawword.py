@@ -77,10 +77,6 @@ class Change_Password:
             else:
                 logger.error('API call returned None data when attempting to change password.')
                 raise ValueError('API call failed or returned empty data.')
-
-        except (KeyboardInterrupt, EOFError):
-            logger.info("Operation cancelled by user.")
-            sys.exit(0)
         except Exception as e:
             logger.error(f"An unexpected error occurred during password change: {e}", exc_info=True)
             return False
@@ -91,15 +87,14 @@ class Change_Password:
             logger.error("Error: Tokens (bz_a or bz_r) are missing for cookie update.")
             return False
 
-        async with aiohttp.ClientSession() as session:
-            if await Refresh_JWT(session).update_cookie_file(self.bz_a, self.bz_r):
-                await Berriz_cookie.create_temp_json()
-                await Berriz_cookie().get_cookies()
-                logger.info("Successfully updated default cookie file.")
-                return True
-            else:
-                logger.error('Fail to update default.txt cookie file with new accessToken and refreshToken')
-                return False
+        if await Refresh_JWT().update_cookie_file(self.bz_a, self.bz_r):
+            await Berriz_cookie.create_temp_json()
+            await Berriz_cookie().get_cookies()
+            logger.info("Successfully updated default cookie file.")
+            return True
+        else:
+            logger.error('Fail to update default.txt cookie file with new accessToken and refreshToken')
+            return False
     
     async def handle_response(self) -> Optional[bool]:
         """處理 API 響應，提取新的 token 並觸發 cookie 更新"""
