@@ -10,7 +10,7 @@ class Route:
         self.berrizconfig = mainpath.parent.parent.joinpath('config', 'berrizconfig.yaml')
         self.default_cookie = mainpath.parent.parent.joinpath("cookies", "Berriz", "default.txt")
         self.temp_cookie = mainpath.parent.parent.joinpath("cookies", "cookie_temp.json")
-
+        self.DB_FILE = mainpath.parent.parent.joinpath("key", "local_key_vault.db")
 if __name__ == '__main__':
     route = Route()
     console = Console()
