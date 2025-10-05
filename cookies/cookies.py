@@ -1,15 +1,17 @@
 import asyncio
-import os
-from datetime import datetime, timedelta
-import sys
 import base64
+import os
+import sys
+import random
 import json
 import uuid
 import textwrap
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from static.parameter import paramstore
+from static.route import Route
 
 import jwt
 import httpx
@@ -22,9 +24,11 @@ from lib.account.login import LoginManager
 from unit.__init__ import USERAGENT
 from unit.handle.handle_log import setup_logging
 
-DEFAULT_COOKIE: Path = Path("cookies/Berriz/default.txt")
-TEMP_JSON: Path = Path("cookies/cookie_temp.json")
+route = Route()
+DEFAULT_COOKIE: Path = route.default_cookie
+TEMP_JSON: Path = route.temp_cookie
 file_lock: asyncio.Lock = asyncio.Lock()
+
 
 logger = setup_logging('cookies', 'firebrick')
 
@@ -122,7 +126,7 @@ class CookieUtils:
                 return bz_r2
         except (FileNotFoundError, ValueError) as e:
             logger.error(f"Failed to load bz_r: {e}")
-            raise
+            raise FileExistsError("Failed to load bz_r")
 
     async def get_default_cookies(self) -> Dict[str, str] | str:
         try:
@@ -177,7 +181,7 @@ class Refresh_JWT:
         url: str = "https://account.berriz.in/auth/v1/token:refresh?languageCode=en"
         headers: Dict[str, str] = await Refresh_JWT.CU.get_initial_headers()
         json_data: Dict[str, str] = {"clientId": "e8faf56c-575a-42d2-933d-7b2e279ad827"}
-        data: httpx.Response = await _send_post_http1(url, json_data, headers)
+        data: httpx.Response = await _send_post_http(url, json_data, headers)
         if data['code'] == 'FS_AU4021': 
             if Refresh_JWT.fsau4021_log == True:
                 Refresh_JWT.fsau4021_log = False
@@ -292,7 +296,6 @@ class Refresh_JWT:
                     refresh_time = data.get('cache_cookie', {}).get('refresh_time')
                     if not refresh_time:
                         return True
-                    
                     break
             except FileNotFoundError:
                 logger.warning(f"快取檔案不存在：{TEMP_JSON}")
@@ -318,7 +321,7 @@ class Refresh_JWT:
             sys.exit(1)
 
         try:
-            next_refresh: datetime = datetime.fromtimestamp(float(refresh_time))  # type: ignore[arg-type]
+            next_refresh: datetime = datetime.fromtimestamp(float(refresh_time))
             delta: float = (next_refresh - datetime.now()).total_seconds()
             return delta < 60
         except (TypeError, ValueError) as ve:
@@ -384,7 +387,6 @@ class Refresh_JWT:
 
 class NetscapeCookieReader:
     """Class to read cookies from a Netscape format cookie file."""
-
     def __init__(self):
         self.file_path: Path = Path(DEFAULT_COOKIE)
 
@@ -454,7 +456,7 @@ class Berriz_cookie:
                 default_task = tg.create_task(Berriz_cookie.CU.get_default_cookies())
                 bz_a_task = tg.create_task(Berriz_cookie.CU.read_bz_a())
                 bz_r_task = tg.create_task(Berriz_cookie.CU.get_bz_r())
-            self._cookies = default_task.result()  # type: ignore[assignment]
+            self._cookies = default_task.result()
             self._cookies["bz_a"] = bz_a_task.result()
             self._cookies["bz_r"] = bz_r_task.result()
             await self.get_cookies()
@@ -623,20 +625,43 @@ class Berriz_cookie:
         
         return self._cookies
 
-
-async def _send_post_http1(url: str, json_data: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Optional[httpx.Response]:
-    try:
-        params: Dict[str, str] = {"languageCode": 'en'}
-        async with httpx.AsyncClient(http2=True, timeout=7, verify=True) as client:
-            response: httpx.Response = await client.post(
-                url,
-                params=params,
-                cookies={},
-                headers=headers,
-                json=json_data,
-            )
-        if response.status_code not in range(200, 300):
-            logger.error(f"HTTP error for {url}: {response.status_code}")
-        return response.json()
-    except httpx.ConnectTimeout:
-        logger.warning(f"{Color.fg('light_gray')}Request timeout:{Color.reset()} {Color.fg('periwinkle')}{url}{Color.reset()}")
+        
+retry_http_status: set[int] = frozenset({400, 401, 500, 502, 503, 504})
+async def _send_post_http(url: str, json_data: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Optional[Dict[str, Any]]:
+    async with httpx.AsyncClient(http2=True, timeout=13, verify=True) as client:
+        attempt: int = 0
+        while attempt < 3:
+            try:
+                response: httpx.Response = await client.post(
+                    url,
+                    params={"languageCode": 'en'},
+                    cookies={},
+                    headers=headers,
+                    json=json_data,
+                )
+                if response.status_code in retry_http_status:
+                    raise httpx.HTTPStatusError(
+                        f"Retryable server error: {response.status_code}",
+                        request=response.request,
+                        response=response,
+                    )
+                response.raise_for_status()
+                try:
+                    response.json()
+                    return response.json()
+                except ValueError:
+                    return response.text
+            except (httpx.TimeoutException, httpx.ConnectError) as e:
+                logger.warning(f"Network exception, retry {attempt + 1}/{3}: {e}")
+            except httpx.HTTPStatusError as e:
+                if e.response is not None and e.response.status_code in retry_http_status:
+                    logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                else:
+                    logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                    return None
+            attempt += 1
+            sleep: float = min(1.5, 0.25 * (2 ** attempt))
+            sleep *= (0.5 + random.random())
+            await asyncio.sleep(sleep)
+    logger.error(f"Retry exceeded for {url}")
+    return None

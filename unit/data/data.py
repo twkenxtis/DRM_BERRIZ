@@ -19,7 +19,6 @@ KST: timezone = timezone(timedelta(hours=9))
 DatePattern = Tuple[str, Optional[int]]
 
 class FlexibleDateParser:
-    # 類別屬性的型別提示（雖然此處可選，但有助於靜態分析）
     tz: timezone
     enable_fuzzy: bool
     patterns: List[DatePattern]
@@ -154,16 +153,12 @@ def process_time_inputs() -> Tuple[datetime, datetime]:
 
         # 最終以 最早 最晚 順序回傳
         return (start, end)
-    except KeyboardInterrupt:
-        sys.exit(1)
-    except EOFError:
-        sys.exit(1)
     except ValueError as e:
         logger.error(f"Error: {e}")
-        sys.exit(1)
+        raise KeyboardInterrupt(e)
     except Exception as e:
         logger.error(f"An unknown error occurred: {e}")
-        sys.exit(1)
+        raise KeyboardInterrupt(e)
 
 class TimeHandler:
     def __init__(self, utc_timestamp_str:str) -> str:
@@ -211,6 +206,7 @@ VALID_DATETIME_CODES = {
     "%j", "%U", "%W",  # 年內日數與週數
     "%G", "%u", "%V"   # ISO 年週
 }
+
 
 def get_timestamp_formact(fmt) -> str:
     """Get a compact timestamp string for filenames, e.g. '250813_14-52_16'"""
