@@ -1,6 +1,5 @@
 from static.color import Color
 from unit.handle.handle_log import setup_logging
-from pathlib import Path
 from typing import Optional, List, Union, Any
 
 # DRM modules
