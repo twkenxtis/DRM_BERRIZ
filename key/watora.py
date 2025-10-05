@@ -5,6 +5,7 @@ from typing import List, Optional, Any
 
 import httpx
 from dotenv import load_dotenv
+from unit.http.request_berriz_api import GetPost
 
 from unit.handle.handle_log import setup_logging
 
@@ -34,7 +35,7 @@ class Watora_wv:
         :param assertion: License assertion
         :return: 成功時返回包含 key 的 list，失敗返回 None
         """
-        headers: dict[str, str] = {
+        _headers: dict[str, str] = {
             'accept': 'application/json, text/plain, */*',
             'accept-language': 'en-US,en;q=0.9',
             'acquirelicenseassertion': assertion
@@ -42,7 +43,7 @@ class Watora_wv:
         json_data: dict[str, Any] = {
             'PSSH': pssh,
             'License URL': "https://berriz.drmkeyserver.com/widevine_license",
-            'Headers': json.dumps(headers),
+            'Headers': json.dumps(_headers),
             "Cookies": "{}",
             'Data': "{}",
             'Proxy': "",
@@ -53,18 +54,9 @@ class Watora_wv:
                 logger.error("Remote CDM API key is not set")
                 return None
             case length if length >= 20:
-                async with httpx.AsyncClient(timeout=13.0, verify=True, http2=True) as client:
-                    decryption_results: httpx.Response = await client.post(
-                        'https://cdm.watora.me',
-                        json=json_data,
-                        headers={"Authorization": f"Bearer {self.remote_cdm_api_key}"}
-                    )
-                    decryption_results.raise_for_status()
-
-                if decryption_results.status_code != 200:
-                    logger.error(f"Failed to get decryption results: {decryption_results.text}")
-                    return None
-
+                url = 'https://cdm.watora.me'
+                headers={"Authorization": f"Bearer {self.remote_cdm_api_key}"}
+                data = await GetPost().get_post(url, json_data, {}, headers)
                 keys: List[str] = []
-                keys.append(decryption_results.json().get('Message', '').strip())
+                keys.append(data.get('Message', '').strip())
                 return keys
