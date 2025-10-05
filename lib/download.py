@@ -19,6 +19,7 @@ from static.parameter import paramstore
 from unit.handle.handle_log import setup_logging
 from lib.merge import MERGE
 
+
 logger = setup_logging('download', 'peach')
 
 
