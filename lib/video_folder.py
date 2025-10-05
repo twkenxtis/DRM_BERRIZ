@@ -159,7 +159,7 @@ class Video_folder:
             logger.warning(f'Fail to del temp folder -> {temp_path}')
         except Exception as e:
             shutil.rmtree(temp_path, ignore_errors=True)
-            sys.exit(1)
+            raise KeyboardInterrupt(f"Failed to delete temp folder: {e}")
         
     async def save_json_to_folder(self, output_dir: str) -> None:
         """將 JSON 資料儲存到下載資料夾中"""
@@ -176,7 +176,7 @@ class Video_folder:
                 await f.write(serialized_str)
         except Exception as e:
             logger.error(f"Save JSON file error: {e}")
-            sys.exit(1)
+            raise KeyboardInterrupt(f"Failed to save JSON file: {e}")
 
     async def get_community_name(self, community_id: int) -> str:
         """獲取媒體所屬的社群名稱"""
