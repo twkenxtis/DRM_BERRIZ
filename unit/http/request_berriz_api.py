@@ -77,7 +77,7 @@ def handle_response(obj):
                 return raw_response
     except Exception as e:
         logger.error(e)
-        raise ValueError(e)
+        return raw_response
 
 
 class BerrizAPIClient:
@@ -556,6 +556,12 @@ class MediaList(BerrizAPIClient):
 class GetRequest(BerrizAPIClient):
     async def get_request(self, url: str) -> Optional[httpx.Response]:
         d = await self._send_request_http1(url, usecookie=False)
+        if d is not None: return handle_response(d)
+        
+
+class GetPost(BerrizAPIClient):
+    async def get_post(self, url: str, json_data: Dict[str, Any], params: Dict[str, Any], headers: Dict[str, str]) -> Optional[httpx.Response]:
+        d = await self._send_post(url, json_data, params, headers)
         if d is not None: return handle_response(d)
 
 
