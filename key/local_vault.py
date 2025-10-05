@@ -3,10 +3,13 @@ import sqlite3
 from typing import Any, Dict, Optional, Tuple, List
 
 import orjson
+from pathlib import Path
+
+from static.route import Route
 
 
 class SQLiteKeyVault:
-    DB_FILE: str = "key\\local_key_vault.db"
+    DB_FILE: Path = Route().DB_FILE
 
     def __init__(self):
         os.makedirs(os.path.dirname(self.DB_FILE), exist_ok=True)
