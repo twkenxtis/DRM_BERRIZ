@@ -8,14 +8,16 @@ from pathlib import Path
 from functools import lru_cache
 
 import aiofiles
+import rich.traceback
 from email_validator import validate_email, EmailNotValidError
 
 from static.color import Color
+from static.route import Route
 from key.drm.cdm_path import CDM_PATH
 from static.route import Route
 from unit.handle.handle_log import setup_logging
 
-
+rich.traceback.install()
 logger = setup_logging('load_yaml_config', 'fresh_chartreuse')
 
 
@@ -29,14 +31,33 @@ DEFAULT_UA = (
 )
 
 
-def check_email(email_str):
+def check_email(email_str: str) -> bool:
     try:
         validate_email(email_str)
         return True
     except EmailNotValidError as e:
         logger.error(f"Mail invaild:  '{email_str}' | {e}")
         return False
-    
+
+
+def tools_check() -> None:
+    R = Route()
+    tools = {
+        "mp4decrypt": R.mp4decrypt_path,
+        "packager": R.packager_path,
+        "mkvmerge": R.mkvmerge_path,
+    }
+
+    missing = {name: path for name, path in tools.items() if not os.path.exists(path)}
+
+    if missing:
+        msg = (
+            f"Missing tools:{Color.fg('gold')} "
+            + ", ".join(f"{name} ({path})" for name, path in missing.items())
+        )
+        logger.error(msg)
+        raise FileNotFoundError(f"{', '.join(missing)} not found exit.")
+tools_check()
 
 class ConfigLoader:
     @classmethod
