@@ -45,7 +45,7 @@ class ParamStore:
                 self._store[key] = result
                 return result
             # 由於 @wraps，wrapper 的型別被視為 F
-            return wrapper # type: ignore [return-value] # 忽略此處的 mypy 警告
+            return wrapper
         return decorator
 
     # get 方法的型別註釋，回傳儲存的值或 None (如果鍵不存在)

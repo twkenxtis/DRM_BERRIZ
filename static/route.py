@@ -7,10 +7,18 @@ from rich.console import Console
 class Route:
     def __init__(self):
         mainpath = Path(__file__)
-        self.berrizconfig = mainpath.parent.parent.joinpath('config', 'berrizconfig.yaml')
-        self.default_cookie = mainpath.parent.parent.joinpath("cookies", "Berriz", "default.txt")
-        self.temp_cookie = mainpath.parent.parent.joinpath("cookies", "cookie_temp.json")
-        self.DB_FILE = mainpath.parent.parent.joinpath("key", "local_key_vault.db")
+        self.berrizconfig: Path = mainpath.parent.parent.joinpath('config', 'berrizconfig.yaml')
+        self.default_cookie: Path = mainpath.parent.parent.joinpath("cookies", "Berriz", "default.txt")
+        self.temp_cookie: Path = mainpath.parent.parent.joinpath("cookies", "cookie_temp.json")
+        self.DB_FILE: Path = mainpath.parent.parent.joinpath("key", "local_key_vault.db")
+        self.YAML_path: Path = mainpath.parent.parent.joinpath('config', 'berrizconfig.yaml')
+        self.mp4decrypt_path: Path = mainpath.parent.parent.joinpath("lib", "tools", "mp4decrypt.exe")
+        self.packager_path: Path = mainpath.parent.parent.joinpath("lib", "tools","packager-win-x64.exe")
+        self.mkvmerge_path: Path = mainpath.parent.parent.joinpath("lib", "tools","mkvmerge.exe")
+        self.BASE_ARTIS_KEY_DICT: Path = mainpath.parent.parent.joinpath("static", "artis_keys.json")
+        self.download_info_pkl: Path = mainpath.parent.parent.joinpath("lock", "download_info.pkl")
+
+
 if __name__ == '__main__':
     route = Route()
     console = Console()
