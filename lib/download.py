@@ -8,16 +8,16 @@ import aiohttp
 from contextlib import AsyncExitStack
 
 from lib.__init__ import container
-from unit.__init__ import USERAGENT
 from lib.load_yaml_config import CFG
 from lib.mux.parse_hls import HLS_Paser
 from lib.mux.parse_mpd import MPDContent, MPDParser, MediaTrack
 from lib.processbar import ProgressBar
+from lib.merge import MERGE
 from lib.video_folder import start_download_queue
 from static.color import Color
 from static.parameter import paramstore
+from unit.__init__ import USERAGENT
 from unit.handle.handle_log import setup_logging
-from lib.merge import MERGE
 
 
 logger = setup_logging('download', 'peach')
