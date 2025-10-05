@@ -168,7 +168,7 @@ async def start_download(public_info: PublicInfo, playback_info : PlaybackInfo, 
     if paramstore.get('key') is True:
         logger.info(
             f"{Color.fg('light_gray')}title:{Color.reset()} "
-            f"{Color.fg('olive')}{json_data.get('media', {}).get('title', '')}{Color.reset()}"
+            f"{Color.fg('olive')}{json_data[0].get('media', {}).get('title', '')}{Color.reset()}"
         )
         logger.info(f"{Color.fg('khaki')}MPD: {Color.fg('dark_cyan')}{dash_playback_url} {Color.reset()}")
         logger.info(f"{Color.fg('sky_blue')}HLS: {Color.fg('dark_cyan')}{hls_playback_url} {Color.reset()}")
