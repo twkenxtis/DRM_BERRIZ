@@ -11,14 +11,15 @@ import aiofiles
 from email_validator import validate_email, EmailNotValidError
 
 from static.color import Color
-from unit.handle.handle_log import setup_logging
 from key.drm.cdm_path import CDM_PATH
+from static.route import Route
+from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('load_yaml_config', 'fresh_chartreuse')
 
 
-YAML_PATH: Path = Path(__file__).parent.parent.joinpath('config', 'berrizconfig.yaml')
+YAML_PATH: Path = Route().YAML_path
 
 
 DEFAULT_UA = (
