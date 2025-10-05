@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Optional
 from lib.lock_cookie import cookie_session, Lock_Cookie
 from unit.http.request_berriz_api import My
 from unit.handle.handle_log import setup_logging
-from static.color import Color
 
 
 logger = setup_logging('fanclub', 'orange')
@@ -14,14 +13,8 @@ async def fanclub_main() -> Optional[str]:
         await Lock_Cookie.cookie_session()
         return None
 
-    try:
-        data: Optional[Dict[str, Any]] = await My().fetch_fanclub()
-    except AttributeError:
-        logger.error(f"{Color.fg('ruby')}Fail to request your fanclub info{Color.reset()}")
-        raise AttributeError("Fail to get request fanclub info")
-    if data is None:
-        return None
-
+    data: Optional[Dict[str, Any]] = await My().fetch_fanclub()
+    logger.debug(f"Fanclub api response: {data}")
     code: Optional[str] = data.get("code")
     message: Optional[str] = data.get("message")
     fanclub_list: Optional[List[Dict[str, Any]]] = data.get("data", {}).get("fanclubs")
