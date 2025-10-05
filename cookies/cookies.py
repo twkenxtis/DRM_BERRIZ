@@ -1,12 +1,11 @@
 import asyncio
-import base64
 import os
+from datetime import datetime, timedelta
 import sys
-import random
+import base64
 import json
 import uuid
 import textwrap
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -625,43 +624,20 @@ class Berriz_cookie:
         
         return self._cookies
 
-        
-retry_http_status: set[int] = frozenset({400, 401, 500, 502, 503, 504})
-async def _send_post_http(url: str, json_data: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Optional[Dict[str, Any]]:
-    async with httpx.AsyncClient(http2=True, timeout=13, verify=True) as client:
-        attempt: int = 0
-        while attempt < 3:
-            try:
-                response: httpx.Response = await client.post(
-                    url,
-                    params={"languageCode": 'en'},
-                    cookies={},
-                    headers=headers,
-                    json=json_data,
-                )
-                if response.status_code in retry_http_status:
-                    raise httpx.HTTPStatusError(
-                        f"Retryable server error: {response.status_code}",
-                        request=response.request,
-                        response=response,
-                    )
-                response.raise_for_status()
-                try:
-                    response.json()
-                    return response.json()
-                except ValueError:
-                    return response.text
-            except (httpx.TimeoutException, httpx.ConnectError) as e:
-                logger.warning(f"Network exception, retry {attempt + 1}/{3}: {e}")
-            except httpx.HTTPStatusError as e:
-                if e.response is not None and e.response.status_code in retry_http_status:
-                    logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
-                else:
-                    logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
-                    return None
-            attempt += 1
-            sleep: float = min(1.5, 0.25 * (2 ** attempt))
-            sleep *= (0.5 + random.random())
-            await asyncio.sleep(sleep)
-    logger.error(f"Retry exceeded for {url}")
-    return None
+
+async def _send_post_http(url: str, json_data: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Optional[httpx.Response]:
+    try:
+        params: Dict[str, str] = {"languageCode": 'en'}
+        async with httpx.AsyncClient(http2=True, timeout=7, verify=True) as client:
+            response: httpx.Response = await client.post(
+                url,
+                params=params,
+                cookies={},
+                headers=headers,
+                json=json_data,
+            )
+        if response.status_code not in range(200, 300):
+            logger.error(f"HTTP error for {url}: {response.status_code}")
+        return response.json()
+    except httpx.ConnectTimeout:
+        logger.warning(f"{Color.fg('light_gray')}Request timeout:{Color.reset()} {Color.fg('periwinkle')}{url}{Color.reset()}")
