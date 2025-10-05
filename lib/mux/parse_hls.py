@@ -1,38 +1,22 @@
 import asyncio
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urljoin, urlparse, urlunparse
+from typing import Any, Dict, List, Optional
+from urllib.parse import urljoin
+
+from rich.console import Console
+from rich.table import Table
+from rich import box
 
 from static.color import Color
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import GetRequest
 
+
 logger = setup_logging('parse_hls', 'periwinkle')
 
-regex_pattern: str = r'#.*|.*\.(?:ts|m4a|m4v|aac)'
 
-
-@dataclass
-class Segment:
-    t: int
-    d: int
-    r: int
-
-
-@dataclass
-class MediaTrack:
-    id: str
-    bandwidth: int
-    codecs: str
-    segments: List[Segment]
-    init_url: str
-    segment_urls: List[str]
-    mime_type: str
-    width: Optional[int] = None
-    height: Optional[int] = None
-    timescale: Optional[int] = None
-    audio_sampling_rate: Optional[int] = None
+REGEX_HLS_PATTERN: str = r'#.*|.*\.(?:ts|mp4|m4a|m4v|aac)'
 
 
 @dataclass
@@ -40,7 +24,8 @@ class HLSContent:
     video_track: Any
     audio_track: Any
     base_url: Optional[str]
-    drm_info: Dict[str, Any]
+    audio_link: str
+    best_info: str
 
 
 class HLS_Paser:
@@ -55,29 +40,29 @@ class HLS_Paser:
         self.audio_encryption_key: Optional[bytes] = None
         self._logged_key_iv: bool = False
 
-    async def make_obj(self, highest_video: Any, highest_audio: Any, base_url: Optional[str]) -> HLSContent:
+    def make_obj(self, highest_video: Any, highest_audio: Any, base_url: Optional[str], best_info:str) -> HLSContent:
         return HLSContent(
             video_track=highest_video,
             audio_track=highest_audio,
             base_url=base_url,
-            drm_info={},
+            audio_link=self.audio_link,
+            best_info=best_info
         )
 
     async def _parse_media_m3u8(
         self,
         m3u8_content_str: str,
-        prefix: str = "video"
     ) -> HLSContent:
         """Main method to parse M3U8 playlist and orchestrate processing."""
         # Master Playlist 分支
         lines: List[str] = self._preprocess_content(m3u8_content_str)
         if self._check_master_playlist(lines):
-            prefix = await self._process_master_playlist(lines, m3u8_content_str, prefix)
+            best_info = await self._process_master_playlist(lines, m3u8_content_str)
 
         # 定義共用 helper：取回並過濾出 ts 與 tag
         async def _fetch_and_filter(url: str) -> List[str]:
             resp = await GetRequest().get_request(url)
-            return [line.strip() for line in re.findall(regex_pattern, resp.text) if line.strip()]
+            return [line.strip() for line in re.findall(REGEX_HLS_PATTERN, resp.text) if line.strip()]
         tasks: Dict[str, "asyncio.Task[List[str]]"] = {}
         async with asyncio.TaskGroup() as tg:
             if self.m3u8_highest:
@@ -88,28 +73,24 @@ class HLS_Paser:
         video_list: Optional[List[str]] = tasks.get("video").result() if "video" in tasks else None
         audio_list: Optional[List[str]] = tasks.get("audio").result() if "audio" in tasks else None
 
-        video_segments: List[str] = []
-        audio_segments: List[str] = []
+        video_segments: tuple[str] = []
+        audio_segments: tuple[str] = []
 
         if video_list:
-            video_segments = await self._process_media_playlist(
-                video_list, self.m3u8_highest or "", prefix
-            )  # type: ignore[arg-type]
-
-        if audio_list:
-            audio_segments = await self._process_media_playlist(
-                audio_list, self.audio_link or "", prefix
-            )  # type: ignore[arg-type]
+            video_segments = self._process_media_playlist(video_list, self.m3u8_highest or "")
+        elif audio_list:
+            audio_segments = self._process_media_playlist(audio_list, self.audio_link or "")
 
         # 組出 base_url 並回傳最終物件
         base_url: Optional[str] = (
             re.sub(r'/\d+/playlist\.m3u8$', '', self.m3u8_highest)
             if self.m3u8_highest else None
         )
-        return await self.make_obj(
+        return self.make_obj(
             tuple(video_segments),
             tuple(audio_segments),
-            base_url
+            base_url,
+            best_info
         )
     
     def _preprocess_content(self, content: str) -> List[str]:
@@ -121,7 +102,7 @@ class HLS_Paser:
         return any(line.startswith("#EXT-X-STREAM-INF:") for line in lines)
     
     async def _process_master_playlist(
-            self, lines: List[str], m3u8_str: str, prefix: str
+            self, lines: List[str], m3u8_str: str
         ) -> str:
             """Select and parse the best resolution sub-playlist from a master playlist."""
             
@@ -144,25 +125,15 @@ class HLS_Paser:
                         best_info = line
 
             if best_link:
-                logger.info(
-                    f"{Color.fg('light_gray')}{prefix}:{Color.reset()} "
-                    f"{Color.fg('beige')}{best_info} {Color.reset()}\n"
-                    f"{Color.fg('khaki')}choese m3u8: {Color.reset()}"
-                    f"{Color.fg('ivory')}{best_link}{Color.reset()} "
-                    f"{Color.fg('ivory')}{audio_link}{Color.reset()}"
-                )
-                if prefix == "video":
-                    self.m3u8_highest = best_link
+                self.m3u8_highest = best_link
                 if audio_link:
                     self.audio_link = audio_link
+                return best_info
 
-                return prefix
+            return ""
 
-            logger.error(f"No valid sub-playlist links found for {prefix}")
-            return prefix
-
-    async def _process_media_playlist(
-        self, lines: List[str], m3u8_url: str, prefix: str
+    def _process_media_playlist(
+        self, lines: List[str], m3u8_url: str
     ) -> List[str]:
         """Extract segments, audio track, and metadata from a media playlist."""
         ts_segments: List[str] = []
@@ -171,7 +142,7 @@ class HLS_Paser:
         for i, line in enumerate(lines):
             line = line.strip()
             if line.startswith("#EXT-X-KEY:"):
-                self._handle_encryption(line, m3u8_url, prefix)
+                self._handle_encryption(line, m3u8_url)
             elif line.startswith("#EXTINF:"):
                 current_duration: float = self._extract_segment_duration(line)
                 durations.append(current_duration)
@@ -206,9 +177,10 @@ class HLS_Paser:
         # Original code sorts by sequence index tuple; here segments are strings, so keep as-is
         return ts_segments
 
-    def _handle_encryption(self, line: str, m3u8_url: str, prefix: str) -> None:
+    def _handle_encryption(self, line: str, m3u8_url: str) -> None:
         """Process encryption key information from an EXT-X-KEY line."""
         if "METHOD=AES-128" in line:
+            prefix: str = "video" if "URI" in line else "audio"
             setattr(self, f"{prefix}_is_encrypted", True)
             uri_match = re.search(r'URI="([^"]+)"', line)
             if uri_match:
@@ -218,7 +190,7 @@ class HLS_Paser:
                     f"{Color.fg('ruby')}{prefix}{Color.reset()} {Color.fg('light_gray')}encryption key URI: {Color.reset()} "
                     f"{Color.fg('bright_cyan')}{key_uri}{Color.reset()}"
                 )
-        if "METHOD=SAMPLE-AES" in line:
+        elif "METHOD=SAMPLE-AES" in line:
             key_format: Optional[str] = re.search(r'KEYFORMAT="([^"]+)"', line).group(1) if re.search(r'KEYFORMAT="([^"]+)"', line) else None
             if key_format == 'com.apple.streamingkeydelivery':
                 logger.info(
@@ -227,3 +199,42 @@ class HLS_Paser:
                 )
         else:
             logger.warning(f"Unsupported {prefix} encryption method: {line}")
+            
+    def rich_table_print(self, obj: HLSContent):
+        """Print rich table of HLS content."""
+        console = Console()
+        
+        info = obj.best_info.split(":", 1)[1]
+        pairs = [p.strip() for p in info.split(",")]
+        kv = {}
+        for p in pairs:
+            if "=" in p:
+                k, v = p.split("=", 1)
+                kv[k.strip()] = v.strip('"')
+
+        table = Table(
+            title="HLS Parsing Result",
+            box=box.ROUNDED,
+            show_header=False,
+            border_style="bright_blue",
+        )
+
+        table.add_column("Field", style="cyan", no_wrap=True)
+        table.add_column("Value", style="white")
+
+        colored_values = []
+        for key, value in kv.items():
+            color = {
+                "BANDWIDTH": "orange_red1",
+                "CODECS": "light_salmon1",
+                "AUDIO": "light_steel_blue",
+                "RESOLUTION": "light_goldenrod2",
+            }.get(key, "white")
+            colored_values.append(f"[{color}]{value}[/]")
+
+        joined_values = " | ".join(colored_values)
+        table.add_row("[bold magenta]INFO[/bold magenta]", joined_values)
+        table.add_row("[bold yellow]Playlist[/bold yellow]", f"[cornsilk1]{obj.base_url}[/]")
+        table.add_row("[bold blue]Audio Link[/bold blue]", f"[cornsilk1]{obj.audio_link}[/]")
+
+        console.print(table)

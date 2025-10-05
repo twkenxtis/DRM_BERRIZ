@@ -10,9 +10,12 @@ from typing import List, Tuple, Union, Optional, Dict, Any, Literal
 import httpx
 from urllib.parse import parse_qs, urlparse
 
+from static.color import Color
 from unit.__init__ import USERAGENT
+from unit.handle.handle_log import setup_logging
 
-logger = logging.getLogger(__name__)
+
+logger = setup_logging('signup', 'periwinkle')
 
 
 # 密碼強度正則表達式檢查
@@ -25,7 +28,8 @@ _pw_re: re.Pattern[str] = re.compile(
     r'$'  # End of string
 )
 
-clientid: str = 'e8faf56c-575a-42d2-933d-7b2e279ad827'
+PCID = 'ZOqaqhZDP51ktDutTpV_F'
+CLIENTID: str = 'e8faf56c-575a-42d2-933d-7b2e279ad827'
 
 class AuthManager:
     """
@@ -207,8 +211,8 @@ class Request:
     異步 HTTP 請求封裝，使用 httpx
     """
     cookies: Dict[str, str] = {
-        'pcid': 'jtDlEb93qRCg8MlrYbb86',
-        'pacode': 'fanplatf::web:win:pc:',
+        'pcid': str(PCID),
+        'pacode': 'fanplatf::app:android:phone',
         'NEXT_LOCALE': 'en',
         '__T_': '1',
         '__T_SECURE': '1',
@@ -223,37 +227,69 @@ class Request:
         'Pragma': 'no-cache',
     }
 
-    async def post(self, url: str, p: Dict[str, str], json_data: Dict[str, Any] = {}) -> httpx.Response:
-        """執行異步 POST 請求"""
+    async def post(self, url: str, p: Dict[str, Any], json_data: Dict[str, Any]) -> httpx.Response:
         async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            response: httpx.Response = await client.post(
-                url,
-                params=p,
-                cookies=self.cookies,
-                headers=self.headers,
-                json=json_data,
-            )
-            if response.status_code < 400:
-                return response
-            else:
-                logger.error(f"{response.status_code} - {response.url} - {response.text}")
-                raise RuntimeError(str(response.status_code))
+            attempt: int = 0
+            while attempt < 3:
+                try:
+                    response: httpx.Response = await client.post(
+                        url,
+                        params=p,
+                        cookies=Request.cookies,
+                        headers=Request.headers,
+                        json=json_data,
+                    )
+                    if response.status_code <= 400:
+                        raise httpx.HTTPStatusError(
+                            f"Retryable server error: {response.status_code}",
+                            request=response.request,
+                            response=response,
+                        )
+                    response.raise_for_status()
+                    return response
+                except httpx.HTTPStatusError as e:
+                    if e.response is not None and e.response.status_code <= 400:
+                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                    else:
+                        logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                        return None
+                attempt += 1
+                sleep: float = min(2.0, 0.5 * (2 ** attempt))
+                await asyncio.sleep(sleep)
+        logger.error(f"Retry exceeded for {url}")
+        return None
 
-    async def get(self, url: str, p: Dict[str, str]) -> httpx.Response:
-        """執行異步 GET 請求"""
+
+    async def get(self, url: str, p: Dict[str, Any]) -> httpx.Response:
         async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            response: httpx.Response = await client.get(
-                url,
-                params=p,
-                cookies=self.cookies,
-                headers=self.headers,
-
-            )
-            if response.status_code < 400:
-                return response
-            else:
-                logger.error(f"{response.status_code} - {response.url} - {response.text}")
-                raise RuntimeError(str(response.status_code))
+            attempt: int = 0
+            while attempt < 3:
+                try:
+                    response: httpx.Response = await client.get(
+                        url,
+                        params=p,
+                        cookies=Request.cookies,
+                        headers=Request.headers,
+                    )
+                    if response.status_code <= 400:
+                        raise httpx.HTTPStatusError(
+                            f"Retryable server error: {response.status_code}",
+                            request=response.request,
+                            response=response,
+                        )
+                    response.raise_for_status()
+                    return response
+                except httpx.HTTPStatusError as e:
+                    if e.response is not None and e.response.status_code <= 400:
+                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                    else:
+                        logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                        return None
+                attempt += 1
+                sleep: float = min(2.0, 0.5 * (2 ** attempt))
+                await asyncio.sleep(sleep)
+        logger.error(f"Retry exceeded for {url}")
+        return None
 
 
 R = Request()
@@ -276,7 +312,7 @@ async def valid_email(email: str) -> Optional[bool]:
         # 預期是 False (不存在)
         return response_json.get('data', {}).get('exists')
     elif response_json.get('code') == 'FS_ME1010':
-        print(response_json.get('message'), '->', email)
+        logger.info(response_json.get('message'), '->', email)
         return None # 處理完畢，但無法確定 exists 狀態
     else:
         logger.error(response_json)
@@ -504,7 +540,7 @@ class SignupManager:
     def __init__(self, email: str, password: str) -> None:
         self.account: str = (email or "").strip().lower()
         self.password: str = (password or "").strip()
-        self.CLIENTID: str = clientid
+        self.CLIENTID: str = CLIENTID
 
     def validate_password_regex(self) -> bool:
         """檢查密碼是否符合強度要求"""
@@ -529,7 +565,6 @@ class SignupManager:
             and len(url) > 110
         )
 
-    # 移除了重複的 check_code_value 方法定義
     def check_code_value(self, code: Optional[str]) -> bool:
         """檢查授權碼 (code) 值"""
         return code is not None and len(code) == 30
@@ -554,14 +589,11 @@ class SignupManager:
         生成並返回 PKCE 相關的 challenge, state, verifier
         (新增了 @staticmethod 裝飾器)
         """
-        # 注意：此處的 authorize_key=' ' 應該是為了匹配 JS 邏輯，但通常 PKCE 流程
-        # 第一次調用是不需要 authorize_key 的
         res: Dict[str, Any] = create_auth_request(
             password=password,
             authorize_key='',
-            email='', # 這裡 email 不重要
+            email='',
             challenge_method="S256",
-            # 注意： postRedirectUri 應該是單純的 '/' 或其他路徑，而不是帶有其他參數
             post_redirect_uri="/",
             clientid=clientId,
         )
@@ -614,12 +646,9 @@ class SignupManager:
         prompt: str = f"Enter the 6-digit code you received via email: {self.account} "
         while True:
             logger.info(prompt)
-            # 注意: 在非互動式環境中 (如某些 IDE 或腳本運行器)，input() 會失敗
-            # 在生產環境中，應考慮使用更好的互動式庫或外部輸入機制
             try:
                 otp_code: str = input(prompt).strip()
             except EOFError:
-                # 處理非互動式輸入錯誤
                 logging.error("Input not available. Cannot prompt for OTP code.")
                 raise
                 
@@ -636,6 +665,6 @@ async def run_signup() -> Union[str, bool]:
 
 
 if __name__ == '__main__':
-    email: str = 'lelovo@denipl.net'
-    password: str = '%kmq4jCg#5Dd3^rsC4m=7gtsE'
+    email: str = ''
+    password: str = ''
     print(asyncio.run(SignupManager(email, password).sign_up()))

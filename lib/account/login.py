@@ -1,26 +1,29 @@
+import asyncio
 import base64
 from datetime import datetime, timedelta
 import hashlib
-from pathlib import Path
 import re
 import secrets
+from pathlib import Path
 from typing import Any, Dict, Optional, List, Tuple, Union
 from urllib.parse import parse_qs, urlparse, ParseResult
 
 import aiofiles
 import httpx
 import yaml
-from unit.__init__ import USERAGENT
+
 from lib.account.unban_account import unban_main
 from static.color import Color
+from static.route import Route
+from unit.__init__ import USERAGENT
 from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('login', 'flamingo_pink')
 
 
-YAML_PATH: Path = Path("config") / "berrizconfig.yaml"
-
+YAML_PATH: Path = Route().YAML_path
+PCID = 'ZOqaqhZDP51ktDutTpV_F'
 
 class AuthManager:
     # 單例管理：確保全局只有一個 AuthManager 實例
@@ -213,7 +216,7 @@ def create_auth_request(
 
 class Request:
     cookies: Dict[str, str] = {
-        'pcid': '2a8efaf9a92eadb88b38a0324306edc75fc5fb7688b88a508e66f69d5dffdee4',
+        'pcid': str(PCID),
         'pacode': 'fanplatf::app:android:phone',
         '__T_': '1',
         '__T_SECURE': '1',
@@ -232,24 +235,67 @@ class Request:
 
     async def post(self, url: str, p: Dict[str, Any], json_data: Dict[str, Any]) -> httpx.Response:
         async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            response: httpx.Response = await client.post(
-                url,
-                params=p,
-                cookies=Request.cookies,
-                headers=Request.headers,
-                json=json_data,
-            )
-            return response
+            attempt: int = 0
+            while attempt < 3:
+                try:
+                    response: httpx.Response = await client.post(
+                        url,
+                        params=p,
+                        cookies=Request.cookies,
+                        headers=Request.headers,
+                        json=json_data,
+                    )
+                    if response.status_code <= 400:
+                        raise httpx.HTTPStatusError(
+                            f"Retryable server error: {response.status_code}",
+                            request=response.request,
+                            response=response,
+                        )
+                    response.raise_for_status()
+                    return response
+                except httpx.HTTPStatusError as e:
+                    if e.response is not None and e.response.status_code <= 400:
+                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                    else:
+                        logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                        return None
+                attempt += 1
+                sleep: float = min(2.0, 0.5 * (2 ** attempt))
+                await asyncio.sleep(sleep)
+        logger.error(f"Retry exceeded for {url}")
+        return None
+
 
     async def get(self, url: str, p: Dict[str, Any]) -> httpx.Response:
         async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            response: httpx.Response = await client.get(
-                url,
-                params=p,
-                cookies=Request.cookies,
-                headers=Request.headers,
-            )
-            return response
+            attempt: int = 0
+            while attempt < 3:
+                try:
+                    response: httpx.Response = await client.get(
+                        url,
+                        params=p,
+                        cookies=Request.cookies,
+                        headers=Request.headers,
+                    )
+                    if response.status_code <= 400:
+                        raise httpx.HTTPStatusError(
+                            f"Retryable server error: {response.status_code}",
+                            request=response.request,
+                            response=response,
+                        )
+                    response.raise_for_status()
+                    return response
+                except httpx.HTTPStatusError as e:
+                    if e.response is not None and e.response.status_code <= 400:
+                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                    else:
+                        logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                        return None
+                attempt += 1
+                sleep: float = min(2.0, 0.5 * (2 ** attempt))
+                await asyncio.sleep(sleep)
+        logger.error(f"Retry exceeded for {url}")
+        return None
 
 
 R: Request = Request()
@@ -270,7 +316,7 @@ async def authorizeKey(challenge: str, state: str, CLIENTID: str) -> Dict[str, A
         'codeChallenge': challenge,
         'challengeMethod': 'S256',
         'redirectUri': 'https://berriz.in/auth/token',
-        'postRedirectUri': '/en/',
+        'postRedirectUri': '/',
         'state': state,
         'languageCode': 'en',
     }
@@ -309,7 +355,7 @@ async def authenticateKey(authorizeKey: str, challenge: str, state_csrf: str, EN
         'state': state_csrf,
         'email': ENMAIL,
         'redirectUri': 'https://berriz.in/auth/token',
-        'postRedirectUri': '/en/',
+        'postRedirectUri': '/',
     }
     url: str = 'https://account.berriz.in/auth/v1/authenticate'
     response: httpx.Response = await R.post(url, params, json_data)
@@ -354,38 +400,9 @@ class LoginManager:
         self.bz_a: Optional[str] = None
         self.bz_r: Optional[str] = None
 
-    async def create_empty_yaml(self) -> None:
-        data: Dict[str, Any] = {
-            "berriz": {
-                "account": "",
-                "password": ""
-            },
-            "duplicate": {
-                "default": False,
-                "overrides": {
-                    "image": True,
-                    "video": True,
-                    "post": True,
-                    "notice": True
-                }
-            },
-            "headers": {
-                "User-Agent": (
-                    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_3_2 like Mac OS X) "
-                    "AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148; "
-                    "iPhone18.3.2; iPhone14,8"
-                )
-            }
-        }
-
-        yaml_text: str = yaml.dump(data, sort_keys=False, allow_unicode=True)
-
-        async with aiofiles.open(YAML_PATH, "w", encoding="utf-8") as f:
-            await f.write(yaml_text)
-
     async def load_info(self) -> bool:
         if not YAML_PATH.exists():
-            await self.create_empty_yaml()
+            raise FileNotFoundError(f"YAML file not found: {YAML_PATH}")
 
         async with aiofiles.open(YAML_PATH, "r", encoding="utf-8") as f:
             raw: str = await f.read()
@@ -401,7 +418,7 @@ class LoginManager:
             raise ValueError('No valid account/password in YAML')
         except ValueError as e:
             logger.error(f"{e} - Fail to use account password re-login in")
-            # 原程式未明確回傳，保持原狀（隱式返回 None）
+            
 
     async def run_login(self) -> bool:
         # 校驗郵箱
@@ -465,7 +482,7 @@ class LoginManager:
             authorize_key='',
             email=self.account or "",
             challenge_method="S256",
-            post_redirect_uri="https://berriz.in/auth/token&postRedirectUri=/en",
+            post_redirect_uri="https://berriz.in/auth/token&postRedirectUri=/",
             clientid=self.CLIENTID,
         )
         m: AuthManager = res["auth_manager"]

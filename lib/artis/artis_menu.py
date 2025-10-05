@@ -6,11 +6,11 @@ from InquirerPy import inquirer
 
 from static.color import Color
 from static.api_error_handle import api_error_handle
+from static.parameter import paramstore
 from unit.http.request_berriz_api import Community
 from unit.http.request_berriz_api import Arits
 from unit.handle.handle_log import setup_logging
 from unit.handle.handle_board_from import BoardMain, BoardNotice
-from static.parameter import paramstore
 
 from typing import Dict, Optional, Any, List, Tuple, Union
 
@@ -91,14 +91,14 @@ class Board:
         return [
             {"name": f"{idx}. {i['name']}", "value": i}
             for idx, i in enumerate(data.get("data", {}).get("menus", []))
-            if i["name"] not in ("MEDIA", "LIVE", "Media", "Live", "live", "media", "Media")
+            if i["name"] not in ("MEDIA", "LIVE", "Media", "Live", "live", "media")
         ]
 
     async def get_artis_board_list(self) -> Optional[Tuple[Any, str]]:
         # Community().community_menus 回傳 Optional[Dict[str, Any]]
         community_menu: Optional[Dict[str, Any]] = await Community().community_menus(self.communityid) 
         
-        if community_menu is None or community_menu.get('code') != '0000':
+        if community_menu is None:
             return None
         selected, selected_list = await self.match_noticeonly(self.make_choice(community_menu))
         if selected is None:
@@ -115,7 +115,7 @@ class Board:
             result_notice: Any = await self.handle_artist_notice(selected_list[0])
             data = [result, result_notice]
             return (data, 'notice+board')
-        if iconType in('artist', 'user', 'artist-fanclub', 'user-fanclub', 'shop'):
+        if iconType in('artist', 'user', 'artist-fanclub', 'user-fanclub', 'shop', 'Shop', 'SHOP', 'event'):
             result: Any = await self.handle_artist_board(selected)
             return (result, 'artist')
         if iconType == 'notice':
@@ -125,8 +125,7 @@ class Board:
             logger.warning(
                 f"Fail to parse {Color.bg('magenta')}{iconType}"
                 f"{Color.reset()}{Color.fg('light_gray')}  {selected}"
-                           )
-            sys.exit(1)
+            )
 
     def parse_user_select(self, selected: Dict[str, Any]) -> Tuple[str, str, Union[int, str], str]:
         _type: str = selected['type']
@@ -146,14 +145,14 @@ class Board:
     async def sort_board_list(self, data: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
         boards_id: Union[int, str] = data.get('id', '')
         boards_name: Union[int, str] = data.get('name', '')
-        if data.get('type') in('board', 'shop'):
+        if data.get('type') in('board', 'shop', 'event', 'SHOP', 'Shop'):
             return await self.get_all_board_content_lists(str(boards_id), str(boards_name))
         elif data.get('type') == 'notice':
             return await Notice(self.communityid, self.communityname).get_all_notice_content_lists()
         return None
         
     def basic_sort_json(self) -> Tuple[List[Dict[str, Any]], Dict[str, Any], bool]:
-        if not self.json_data or self.json_data.get('code') != '0000':
+        if not self.json_data:
             return [], {}, False
         
         data: Dict[str, Any] = self.json_data.get('data', {})
@@ -161,7 +160,6 @@ class Board:
         hasNext: bool = data.get('hasNext', False)
         contents: List[Dict[str, Any]] = data.get('contents', [])
         params: Dict[str, Any] = self.build_params(cursor)
-        
         return contents, params, hasNext
         
     def build_params(self, cursor: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -240,7 +238,7 @@ class Board:
 
     async def _fetch_board_data(self, boards_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
         data: Optional[Dict[str, Any]] = await Arits()._board_list(boards_id, str(self.communityid), params)
-        return data if data is not None else {} # 處理 _board_list 可能回傳 None 的情況
+        return data if data is not None else {}
 
 
 class Notice(Board):

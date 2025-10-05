@@ -2,8 +2,6 @@ import re
 import sys
 from typing import Optional, Dict, Any
 
-import aiohttp
-
 from cookies.cookies import Refresh_JWT, Berriz_cookie
 from static.color import Color
 from mystate.parse_my import request_my
@@ -46,7 +44,7 @@ class Change_Password:
         Returns:
             Optional[bool]: 密碼是否變更成功並完成 Cookie 更新
         """
-        await request_my() # 假設是初始化會話或狀態
+        await request_my()
         
         try:
             currentPassword: str

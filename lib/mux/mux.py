@@ -5,10 +5,10 @@ from typing import List, Optional, Any, Union
 
 from lib.__init__ import container
 from lib.load_yaml_config import CFG, ConfigLoader
-from lib.mux.tools_path import ToolsPath
 from static.color import Color
-from unit.handle.handle_log import setup_logging
+from static.route import Route
 from static.parameter import paramstore
+from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('mux', 'lavender')
@@ -79,7 +79,7 @@ class FFmpegMuxer:
                 return await self._decrypt_file_packager()
 
     async def _decrypt_file_mp4decrypt(self) -> bool:
-        mp4decrypt_path = ToolsPath().mp4decrypt_path
+        mp4decrypt_path = Route().mp4decrypt_path
 
         if not mp4decrypt_path.exists():
             logger.error(f"mp4decrypt.exe not found at: {mp4decrypt_path}")
@@ -111,7 +111,7 @@ class FFmpegMuxer:
             return False
     
     async def _decrypt_file_packager(self) -> bool:
-        packager_path = ToolsPath().packager_path
+        packager_path = Route().packager_path
         packager_output_path = Path(self.output_path).with_suffix(".m4v")
 
         if not packager_path.exists():
@@ -199,7 +199,7 @@ class FFmpegMuxer:
         except AttributeError:
             ConfigLoader.print_warning('MUX', mux_tool, 'ffmpeg')
             mux_tool = 'FFMPEG'
-        MKVTOOLNIX_path: Path = ToolsPath().mkvmerge_path
+        MKVTOOLNIX_path: Path = Route().mkvmerge_path
         if not MKVTOOLNIX_path.exists():
             logger.error(f"shaka-packager.exe not found at: {MKVTOOLNIX_path}")
             return False

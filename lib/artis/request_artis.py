@@ -4,15 +4,20 @@ from typing import Dict, Union, List, Optional
 
 import aiofiles
 
+from static.color import Color
+from static.route import Route
 from unit.http.request_berriz_api import Arits
 from unit.handle.handle_log import setup_logging
-from static.color import Color
+
 
 logger = setup_logging('request_artis', 'lemon')
 
+
 AritsDict = Dict[str, Union[int, str]]
 
-BASE_ARTIS_KEY_DICT = Path('static') / 'artis_keys.json'
+
+BASE_ARTIS_KEY_DICT = Route().BASE_ARTIS_KEY_DICT
+
 
 class ArtisDict:
     def __init__(self):
@@ -61,18 +66,7 @@ class ArtisDict:
                     return {"data": {"communityArtists": [item for item in contents if item.get("communityId") == result]}}
                 # 如果查詢的是 communityId，繼續使用 community_id
         # 如果沒有查詢條件或找不到結果，從 API 取得
-        try:
-            artis_json = await Arits().artis_list(community_id)
-            if artis_json.get('code') != '0000':
-                logger.warning(
-                    f"取得【{Color.fg('light_yellow')}社群 id: {community_id} 藝術家列表{Color.fg('gold')}】資料失敗"
-                )
-                return {}
-        except AttributeError:
-            logger.warning(
-                f"取得【{Color.fg('light_yellow')}社群 id: {community_id} 藝術家列表{Color.fg('gold')}】資料失敗"
-            )
-            return {}
+        artis_json = await Arits().artis_list(community_id)
         async with aiofiles.open(BASE_ARTIS_KEY_DICT, 'rb') as f:
             old_bytes = await f.read()
         old_items = orjson.loads(old_bytes)

@@ -1,3 +1,4 @@
+import asyncio
 import sys
 
 import httpx
@@ -8,7 +9,7 @@ from static.color import Color
 from unit.__init__ import USERAGENT
 from unit.handle.handle_log import setup_logging
 
-
+PCID = 'ZOqaqhZDP51ktDutTpV_F'
 logger = setup_logging('unban_account', 'linen')
 
 
@@ -17,7 +18,7 @@ class Request:
     HTTP 請求客戶端，封裝了 POST 和 PUT 方法
     """
     cookies: Dict[str, str] = {
-        'pcid': 'lI7rkSE16xpDltz1A14Zn',
+        'pcid': str(PCID),
         'pacode': 'fanplatf::app:android:phone',
         '__T_': '1',
         '__T_SECURE': '1',
@@ -37,37 +38,71 @@ class Request:
     def __init__(self) -> None:
         pass
         
-    async def post(self, url: str, json_data: Dict[str, Any]) -> Response:
-        """發送異步 POST 請求"""
+    async def post(self, url: str, p: Dict[str, Any], json_data: Dict[str, Any]) -> httpx.Response:
         async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            response: Response = await client.post(
-                url,
-                params=Request.params,
-                cookies=Request.cookies,
-                headers=Request.headers,
-                json=json_data,
-            )
-            if response.status_code < 400:
-                return response
-            else:
-                logger.error(f"{response.status_code} - {response.url}")
-                raise RuntimeError(str(response.status_code))
+            attempt: int = 0
+            while attempt < 3:
+                try:
+                    response: httpx.Response = await client.post(
+                        url,
+                        params=p,
+                        cookies=Request.cookies,
+                        headers=Request.headers,
+                        json=json_data,
+                    )
+                    if response.status_code <= 400:
+                        raise httpx.HTTPStatusError(
+                            f"Retryable server error: {response.status_code}",
+                            request=response.request,
+                            response=response,
+                        )
+                    response.raise_for_status()
+                    return response
+                except httpx.HTTPStatusError as e:
+                    if e.response is not None and e.response.status_code <= 400:
+                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                    else:
+                        logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                        return None
+                attempt += 1
+                sleep: float = min(2.0, 0.5 * (2 ** attempt))
+                await asyncio.sleep(sleep)
+        logger.error(f"Retry exceeded for {url}")
+        return None
         
     async def put(self, url: str, json_data: Dict[str, Any]) -> Response:
         """發送異步 PUT 請求"""
         async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            response: Response = await client.put(
-                url,
-                params=Request.params,
-                cookies=Request.cookies,
-                headers=Request.headers,
-                json=json_data,
-            )
-            if response.status_code < 400:
-                return response
-            else:
-                logger.error(f"{response.status_code} - {response.url}")
-                raise RuntimeError(str(response.status_code))
+            attempt: int = 0
+            while attempt < 3:
+                try:
+                    response: Response = await client.put(
+                        url,
+                        params=Request.params,
+                        cookies=Request.cookies,
+                        headers=Request.headers,
+                        json=json_data,
+                    )
+                    if response.status_code <= 400:
+                        raise httpx.HTTPStatusError(
+                            f"Retryable server error: {response.status_code}",
+                            request=response.request,
+                            response=response,
+                        )
+                    response.raise_for_status()
+                    return response
+                except httpx.HTTPStatusError as e:
+                    if e.response is not None and e.response.status_code <= 400:
+                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                    else:
+                        logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                        return None
+                attempt += 1
+                sleep: float = min(2.0, 0.5 * (2 ** attempt))
+                await asyncio.sleep(sleep)
+        logger.error(f"Retry exceeded for {url}")
+        return None
+
 
 R = Request()
 

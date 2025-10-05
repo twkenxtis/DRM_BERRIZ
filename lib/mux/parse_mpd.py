@@ -1,8 +1,11 @@
 from dataclasses import dataclass
 import xml.etree.ElementTree as ET
 from urllib.parse import urljoin
-
-from typing import Dict, List, Optional, Any, Callable, Union
+from typing import Dict, List, Optional, Any
+from rich.console import Console
+from rich.table import Table
+from rich import box
+from typing import Optional
 
 
 @dataclass
@@ -29,88 +32,118 @@ class MediaTrack:
 
 @dataclass
 class MPDContent:
-    video_track: Optional[MediaTrack] 
+    video_track: Optional[MediaTrack]
     audio_track: Optional[MediaTrack]
     base_url: str
     drm_info: Dict[str, Any]
 
 
 class MPDParser:
-    # 屬性類型註釋
     mpd_url: str
     root: ET.Element
     namespaces: Dict[str, str]
 
     def __init__(self, raw_mpd_text: Any, mpd_url: str):
         self.mpd_url: str = mpd_url
-        self.root: ET.Element = self.str_to_lxml(raw_mpd_text)
+        self.root: ET.Element = self._parse_xml(raw_mpd_text)
         self.namespaces: Dict[str, str] = {
             "": "urn:mpeg:dash:schema:mpd:2011",
             "cenc": "urn:mpeg:cenc:2013",
             "mspr": "urn:microsoft:playready",
         }
-    
-    # 註釋輸入 obj 應具有 .text 屬性，回傳 ElementTree.Element
-    def str_to_lxml(self, obj: Any) -> ET.Element:
-        # 假設 obj.text 是一個 str
-        return ET.fromstring(obj.text)
 
-    # 註釋回傳值為字典
+    def _parse_xml(self, obj: object) -> ET.Element:
+        """解析 XML 文本為 ElementTree Element"""
+        if hasattr(obj, 'text'):
+            xml_text = getattr(obj, 'text')
+            if not isinstance(xml_text, str):
+                raise TypeError(f"Expected text attribute to be str, got {type(xml_text)}")
+            return ET.fromstring(xml_text)
+        raise TypeError(f"Object must have 'text' attribute, got {type(obj)}")
+
+    def _get_required_attr(self, element: ET.Element, attr: str, elem_name: str = "Element") -> str:
+        """獲取必需屬性，若缺失則拋出描述性錯誤"""
+        value = element.get(attr)
+        if value is None:
+            raise ValueError(f"{elem_name} missing required attribute '{attr}'")
+        return value
+
+    def _get_int_attr(
+        self, element: ET.Element, attr: str, default: Optional[int] = None
+    ) -> Optional[int]:
+        """安全獲取整數屬性"""
+        value = element.get(attr)
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except ValueError:
+            raise ValueError(f"Invalid integer value '{value}' for attribute '{attr}'")
+
     def _parse_drm_info(self) -> Dict[str, Any]:
+        """從 MPD 解析 DRM/ContentProtection 資訊"""
         drm_info: Dict[str, Any] = {}
 
-        # 1. 尋找 cenc:default_KID
-        kid_prot_info: Optional[ET.Element] = self.root.find(
+        # 解析 default_KID
+        kid_prot = self.root.find(
             ".//ContentProtection[@schemeIdUri='urn:mpeg:dash:mp4protection:2011']",
             self.namespaces,
         )
-        if kid_prot_info is not None:
-            # 確保 get() 的回傳值被處理為 str，以防為 None
-            kid: str = kid_prot_info.get("{urn:mpeg:cenc:2013}default_KID", "").strip().replace('-', '')
-            drm_info["default_KID"] = kid if len(kid) == 32 else None
+        if kid_prot is not None:
+            kid_raw = kid_prot.get("{urn:mpeg:cenc:2013}default_KID", "")
+            kid = kid_raw.strip().replace('-', '')
+            if len(kid) == 32:
+                drm_info["default_KID"] = kid
 
-        # 2. 尋找 PlayReady 資訊
-        playready_prot_info: Optional[ET.Element] = self.root.find(
+        # 解析 PlayReady
+        playready_prot = self.root.find(
             ".//ContentProtection[@schemeIdUri='urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95']",
             self.namespaces,
         )
-        widevine_prot_info: Optional[ET.Element] = self.root.find(
-            ".//ContentProtection[@schemeIdUri='urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed']",
-            self.namespaces,
-        )
-        if playready_prot_info is not None or widevine_prot_info is not None:
-            # findtext 回傳 str 或 default 值 (這裡為 "")
-            pro_value: str = playready_prot_info.findtext("./mspr:pro", "", namespaces=self.namespaces)
+        if playready_prot is not None:
+            pro_value = playready_prot.findtext("./mspr:pro", "", namespaces=self.namespaces)
             if pro_value:
                 drm_info["playready_pssh"] = pro_value
 
-            pssh_value: str = widevine_prot_info.findtext("./cenc:pssh", "", namespaces=self.namespaces)
+        # 解析 Widevine
+        widevine_prot = self.root.find(
+            ".//ContentProtection[@schemeIdUri='urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed']",
+            self.namespaces,
+        )
+        if widevine_prot is not None:
+            pssh_value = widevine_prot.findtext("./cenc:pssh", "", namespaces=self.namespaces)
             if pssh_value and len(pssh_value) == 76 and pssh_value.endswith("="):
                 drm_info["widevine_pssh"] = pssh_value
-        
+
         return drm_info
 
-    # 註釋參數和回傳值
     def _parse_segment_timeline(self, seg_template: ET.Element) -> List[Segment]:
-        seg_timeline: Optional[ET.Element] = seg_template.find("./SegmentTimeline", self.namespaces)
+        """解析 SegmentTimeline 為 Segment 列表"""
+        seg_timeline = seg_template.find("./SegmentTimeline", self.namespaces)
         if seg_timeline is None:
             return []
-        
-        # 使用 Union[str, Any] 處理 get() 可能回傳 None 的情況，但在 int() 轉換前被處理為 str 或 int
-        return [
-            Segment(
-                # get() 回傳 str 或 None，但這裡提供 default value (0)
-                t=int(s.get("t", 0)), 
-                d=int(s.get("d")),
-                r=int(s.get("r", 0)),
-            )
-            for s in seg_timeline.findall("./S", self.namespaces)
-        ]
 
-    # 註釋參數和回傳值
+        segments = []
+        for s_elem in seg_timeline.findall("./S", self.namespaces):
+            try:
+                t = self._get_int_attr(s_elem, "t", default=0)
+                d = self._get_int_attr(s_elem, "d")
+                r = self._get_int_attr(s_elem, "r", default=0)
+
+                if d is None:
+                    raise ValueError("Segment 'S' element missing required 'd' attribute")
+
+                segments.append(Segment(t=t, d=d, r=r))
+            except ValueError as e:
+                print(f"Warning: Skipping invalid segment: {e}")
+                continue
+
+        return segments
+
     def _generate_segment_urls(
         self, rep_id: str, media_template: str, segments: List[Segment], base_url: str
     ) -> List[str]:
+        """生成所有片段的 URL 列表"""
         segment_urls: List[str] = []
         for seg in segments:
             current_time: int = seg.t
@@ -122,15 +155,13 @@ class MPDParser:
                 current_time += seg.d
         return segment_urls
 
-    # 註釋參數和回傳值
     def _parse_representation(
         self,
         rep: ET.Element,
         adapt_set: ET.Element,
         base_url: str,
     ) -> Optional[MediaTrack]:
-        
-        # SegmentTemplate 可能在 Representation 或 AdaptationSet 層級
+        """解析單個 Representation 為 MediaTrack"""
         seg_template: Optional[ET.Element] = rep.find(
             "./SegmentTemplate", self.namespaces
         ) or adapt_set.find("./SegmentTemplate", self.namespaces)
@@ -139,74 +170,87 @@ class MPDParser:
             return None
 
         segments: List[Segment] = self._parse_segment_timeline(seg_template)
-        rep_id: str = rep.get("id")
-        
-        init_template: str = seg_template.get("initialization")
+
+        # 安全屬性提取
+        rep_id = self._get_required_attr(rep, "id", "Representation")
+        bandwidth = self._get_int_attr(rep, "bandwidth")
+        if bandwidth is None:
+            raise ValueError(f"Representation {rep_id} missing required 'bandwidth'")
+
+        codecs = self._get_required_attr(rep, "codecs", f"Representation {rep_id}")
+
+        # 模板 URL
+        init_template = seg_template.get("initialization")
+        if not init_template:
+            raise ValueError(f"SegmentTemplate missing 'initialization' attribute")
+
+        media_template = seg_template.get("media")
+        if not media_template:
+            raise ValueError(f"SegmentTemplate missing 'media' attribute")
+
         init_url: str = urljoin(
             base_url,
             init_template.replace("$RepresentationID$", rep_id),
         )
-        media_template: str = seg_template.get("media")
-        
+
         segment_urls: List[str] = self._generate_segment_urls(
             rep_id, media_template, segments, base_url
         )
 
-        # 處理 Optional 屬性和 int 轉換
-        width: Optional[str] = rep.get("width")
-        height: Optional[str] = rep.get("height")
-        audio_sampling_rate: Optional[str] = rep.get("audioSamplingRate")
-        
-        # 假設 get("timescale") 總是可以轉換為 int
-        timescale_str: str = seg_template.get("timescale", "1")
+        # 可選屬性處理
+        width = self._get_int_attr(rep, "width")
+        height = self._get_int_attr(rep, "height")
+        audio_sampling_rate = self._get_int_attr(rep, "audioSamplingRate")
+        timescale = self._get_int_attr(seg_template, "timescale", default=1)
+
+        mime_type = adapt_set.get("mimeType", "")
 
         return MediaTrack(
             id=rep_id,
-            bandwidth=int(rep.get("bandwidth")),
-            codecs=rep.get("codecs"),
+            bandwidth=bandwidth,
+            codecs=codecs,
             segments=segments,
             init_url=init_url,
             segment_urls=segment_urls,
-            mime_type=adapt_set.get("mimeType", ""),
-            width=int(width) if width else None,
-            height=int(height) if height else None,
-            timescale=int(timescale_str),
-            audio_sampling_rate=(
-                int(audio_sampling_rate)
-                if audio_sampling_rate
-                else None
-            ),
+            mime_type=mime_type,
+            width=width,
+            height=height,
+            timescale=timescale,
+            audio_sampling_rate=audio_sampling_rate,
         )
 
-    # 註釋回傳值為 MPDContent
     def get_highest_mpd_content(self) -> MPDContent:
+        """提取 MPD 中最高質量的視頻和音頻軌道"""
         base_url: str = self.mpd_url.rsplit("/", 1)[0] + "/"
-        
-        period: ET.Element = self.root.find("./Period", self.namespaces)
-        
+
+        period = self.root.find("./Period", self.namespaces)
+        if period is None:
+            raise ValueError("MPD contains no Period elements")
+
         video_reps: List[MediaTrack] = []
         audio_reps: List[MediaTrack] = []
 
         for adapt_set in period.findall("./AdaptationSet", self.namespaces):
-            mime_type: str = adapt_set.get("mimeType", "")
+            mime_type = adapt_set.get("mimeType", "")
+
             for rep_element in adapt_set.findall("./Representation", self.namespaces):
-                track: Optional[MediaTrack] = self._parse_representation(rep_element, adapt_set, base_url)
-                if track is None:
+                try:
+                    track = self._parse_representation(rep_element, adapt_set, base_url)
+                    if track is None:
+                        continue
+
+                    if mime_type.startswith("video"):
+                        video_reps.append(track)
+                    elif mime_type.startswith("audio"):
+                        audio_reps.append(track)
+                except (ValueError, TypeError) as e:
+                    rep_id = rep_element.get("id", "unknown")
+                    print(f"Warning: Failed to parse Representation {rep_id}: {e}")
                     continue
 
-                if mime_type.startswith("video"):
-                    video_reps.append(track)
-                elif mime_type.startswith("audio"):
-                    audio_reps.append(track)
-
-
-        highest_video: Optional[MediaTrack] = (
-            max(video_reps, key=lambda x: x.bandwidth) if video_reps else None
-        )
-        highest_audio: Optional[MediaTrack] = (
-            max(audio_reps, key=lambda x: x.bandwidth) if audio_reps else None
-        )
-        drm_info: Dict[str, Any] = self._parse_drm_info()
+        highest_video = max(video_reps, key=lambda x: x.bandwidth) if video_reps else None
+        highest_audio = max(audio_reps, key=lambda x: x.bandwidth) if audio_reps else None
+        drm_info = self._parse_drm_info()
 
         return MPDContent(
             video_track=highest_video,
@@ -214,3 +258,81 @@ class MPDParser:
             base_url=base_url,
             drm_info=drm_info,
         )
+
+    def validate_mpd_structure(self) -> List[str]:
+        """Validate MPD structure and return warnings/errors list"""
+        issues = []
+
+        if self.root.find("./Period", self.namespaces) is None:
+            issues.append("ERROR: No Period element found")
+        return issues
+
+    def rich_table_print(self, mpd_content: Optional[MPDContent] = None) -> None:
+        """Print MPD content details using a single Rich Table"""
+        if mpd_content is None:
+            mpd_content = self.get_highest_mpd_content()
+
+        console = Console()
+
+        table = Table(
+            title="MPEG-DASH MPD Parsing Result",
+            box=box.ROUNDED,
+            show_header=False,
+            border_style="bright_blue",
+        )
+
+        table.add_column("Field", style="cyan", no_wrap=True)
+        table.add_column("Value", style="white")
+
+        table.add_row("[bold magenta]Basic Info[/bold magenta]", "")
+        table.add_row("MPD URL", mpd_content.base_url)
+        table.add_row("Video Track", "[green]Present[/green]" if mpd_content.video_track else "[red]Not Present[/red]")
+        table.add_row("Audio Track", "[green]Present[/green]" if mpd_content.audio_track else "[red]Not Present[/red]")
+
+        if mpd_content.video_track:
+            vt = mpd_content.video_track
+            table.add_row("[bold green]Video Track Info[/bold green]", "")
+            table.add_row("ID", f"[cyan]{vt.id}[/]")
+            table.add_row("Bandwidth", f"[orange_red1]{vt.bandwidth:,}[/] bps")
+            table.add_row("Codec", f"[light_salmon1]{vt.codecs}[/]")
+            table.add_row("MIME Type", f"[light_goldenrod2]{vt.mime_type}[/]")
+            table.add_row("Resolution", f"[green]{vt.width} × {vt.height}[/]" if vt.width and vt.height else "[red]N/A[/]")
+            table.add_row("Timescale", f"[yellow]{vt.timescale}[/]" if vt.timescale else "[red]N/A[/]")
+            table.add_row("Segment Count", f"[magenta]{len(vt.segments)}[/]")
+            table.add_row("URL Count", f"[magenta]{len(vt.segment_urls)}[/]")
+            table.add_row("Init URL", f"[white]{vt.init_url}[/]")
+
+            if mpd_content.audio_track:
+                at = mpd_content.audio_track
+                table.add_row("[bold blue]Audio Track Info[/bold blue]", "")
+                table.add_row("ID", f"[cyan]{at.id}[/]")
+                table.add_row("Bandwidth", f"[orange_red1]{at.bandwidth:,}[/] bps")
+                table.add_row("Codec", f"[light_salmon1]{at.codecs}[/]")
+                table.add_row("MIME Type", f"[light_goldenrod2]{at.mime_type}[/]")
+                table.add_row("Sampling Rate", f"[green]{at.audio_sampling_rate} Hz[/]" if at.audio_sampling_rate else "[red]N/A[/]")
+                table.add_row("Timescale", f"[yellow]{at.timescale}[/]" if at.timescale else "[red]N/A[/]")
+                table.add_row("Segment Count", f"[magenta]{len(at.segments)}[/]")
+                table.add_row("URL Count", f"[magenta]{len(at.segment_urls)}[/]")
+                table.add_row("Init URL", f"[white]{at.init_url}[/]")
+
+
+        if mpd_content.drm_info:
+            table.add_row("[bold red]DRM Protection Info[/bold red]", "")
+            for key, value in mpd_content.drm_info.items():
+                display_value = value
+                table.add_row(key, display_value)
+
+        if mpd_content.video_track and mpd_content.video_track.segments:
+            table.add_row("[bold yellow]Video Segment Info (first 5)[/bold yellow]", "")
+            for idx, seg in enumerate(mpd_content.video_track.segments[:5], 1):
+                table.add_row(f"Segment {idx}", f"t={seg.t}, d={seg.d}, r={seg.r}")
+            if len(mpd_content.video_track.segments) > 5:
+                table.add_row("...", f"[dim]{len(mpd_content.video_track.segments) - 5} more segments[/dim]")
+
+        issues = self.validate_mpd_structure()
+        if issues:
+            table.add_row("[bold red]Validation Issues[/bold red]", "")
+            for issue in issues:
+                table.add_row("•", issue)
+
+        console.print(table)

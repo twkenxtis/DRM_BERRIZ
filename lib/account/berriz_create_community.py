@@ -1,5 +1,4 @@
 import asyncio
-import sys
 
 from typing import Optional, Dict, Any, Union, Tuple
 
@@ -53,8 +52,6 @@ class BerrizCreateCommunity:
                 if 'data' in data and isinstance(data['data'], dict):
                     self.print_data_with_fstring(data['data'])
                 return True
-        except (EOFError, AttributeError, TypeError, ValueError):
-            sys.exit(1)
         except Exception:
             return False
 
@@ -88,7 +85,5 @@ class BerrizCreateCommunity:
                     f"community.{Color.reset()}"
                 )
                 return True
-        except (EOFError, AttributeError, TypeError, ValueError):
-            sys.exit(1)
         except Exception:
             return False

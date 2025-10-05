@@ -131,9 +131,6 @@ class MediaDownloader:
             logger.info(
                 f"{Color.fg('light_gray')}Start downloading{Color.reset()} "
                 f"{Color.bg('cyan')}{track_type}{Color.reset()} track: {Color.fg('cyan')}{track_id}{Color.reset()} "
-                f"[Bitrate: {Color.fg('violet')}{track.bandwidth / 1000}k{Color.reset()}]"
-                f"[Codec: {Color.fg('light_green')}{track.codecs}{Color.reset()}]"
-                f"[Type: {Color.fg('light_yellow')}{track.mime_type}{Color.reset()}]"
             )
         return await self.task_and_dl(slice_parameters, track_dir, file_ext, track_type)
 
@@ -244,10 +241,12 @@ class MediaDownloader:
         return False
 
 async def run_dl(mpd_uri: str, decryption_key: Optional[str], json_data: Dict[str, Any], raw_mpd: str, hls_playback_url: str, raw_hls: str) -> None:
-    parser: MPDParser = MPDParser(raw_mpd, mpd_uri)
-    mpd_content: MPDContent = parser.get_highest_mpd_content()
-    hls_content: Any = await HLS_Paser()._parse_media_m3u8(raw_hls)
-
+    mpd_parser: MPDParser = MPDParser(raw_mpd, mpd_uri)
+    hls_parser: HLS_Paser = HLS_Paser()
+    mpd_content: MPDContent = mpd_parser.get_highest_mpd_content()
+    hls_content: Any = await hls_parser._parse_media_m3u8(raw_hls)
+    mpd_parser.rich_table_print(mpd_content)
+    hls_parser.rich_table_print(hls_content)
     if not mpd_content.video_track and not mpd_content.audio_track:
         logger.error("Error: No valid audio or video tracks found in MPD.")
         return
@@ -269,5 +268,4 @@ async def run_dl(mpd_uri: str, decryption_key: Optional[str], json_data: Dict[st
         use_hls: Any = mpd_content
     elif paramstore.get('hls_only_dl') is True:
         use_hls: Any = hls_content
-
     await start_download_queue(decryption_key, json_data, use_hls, raw_mpd, hls_playback_url, raw_hls)
