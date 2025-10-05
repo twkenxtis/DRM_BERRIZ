@@ -8,11 +8,12 @@ duplicate:
 
 
 headers:
-  User-Agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_1 like Mac OS X) AppleWebKit/605.1.16 (KHTML, like Gecko) Mobile/15E148; iPhone18.6.1; iPhone17,2'
+  #User-Agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_1 like Mac OS X) AppleWebKit/605.1.16 (KHTML, like Gecko) Mobile/15E148; iPhone18.6.1; iPhone17,2'
+  User-Agent: 'curl/7.64.1'
 
 
 output_template:
-  # '{date} {community_name} - {title} {source}.WEB-DL.{quality}.{video}.{audio}-{tag}'
+  # '{date} {community_name} - {title} {artis}.WEB-DL.{quality}.{video}.{audio}-{tag}'
   video: '{date}.{title}.{quality}.{community_name}.{artis}.{source}.WEB-DL.{video}.{audio}-{tag}'
   tag: 'slime'
   # Default File datetime
@@ -48,7 +49,7 @@ TimeZone:
 
 KeyService:
   # mspr wv watora_wv cdrm_wv cdrm_mspr
-  source: mspr
+  source: watora_wv
 
 
 CDM:
@@ -59,6 +60,7 @@ CDM:
 
 
 berriz:
+  # only support Berriz account no auth support (Google/Apple)
   account: mrqi7@powerscrews.com
   password: jO2^Gopc7rkv
 
