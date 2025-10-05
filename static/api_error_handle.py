@@ -16,4 +16,4 @@ def api_error_handle(code: str) -> Optional[str]:
     if code == 'FS_CU9900':
         return '(Fanclub) This is a fanclub-only content, Fanclub not subscribed'
     
-    return None
+    return code
