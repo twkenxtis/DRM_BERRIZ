@@ -75,8 +75,7 @@ def handle_response(obj):
                     )
             elif obj['code'] == "0000":
                 return raw_response
-    except Exception as e:
-        logger.error(e)
+    except Exception:
         return raw_response
 
 
