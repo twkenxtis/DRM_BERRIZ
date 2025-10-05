@@ -6,6 +6,7 @@ from typing import Optional, List, Dict, Any, Tuple, Callable
 from lib.artis.artis_menu import Board
 from lib.media_queue import MediaQueue
 from mystate.parse_my import request_my
+from static.parameter import paramstore
 from static.color import Color
 from unit.getall.GetMediaList import MediaFetcher
 from unit.handle.handle_log import setup_logging
@@ -13,7 +14,6 @@ from unit.main_process import MediaProcessor
 from unit.media.media_json_process import MediaJsonProcessor
 from unit.user_choice import InquirerPySelector
 from unit.getall.GetNotifyList import NotifyFetcher
-from static.parameter import paramstore
 
 
 logger = setup_logging('handle_choice', 'light_slate_gray')
@@ -128,7 +128,6 @@ class Handle_Choice:
         return FilteredMediaLists(result_vod_list, result_photo_list, result_live_list, result_post_list, result_notice_list)
 
     async def handle_choice(self) -> Optional[SelectedMediaDict]:
-        # 假設 paramstore.get 返回 bool
         if paramstore.get('no_cookie') is not True:
             await request_my()
 
@@ -145,7 +144,6 @@ class Handle_Choice:
             filter_media = await self.fetch_filtered_media()
             filter_vod_list, filter_photo_list, filter_live_list, filter_post_list, filter_notice_list = filter_media
 
-            # 假設 paramstore.get 返回 bool
             if paramstore.get('notify_mod') is True:
                 # notify_only
                 filter_live_list = await NotifyFetcher().get_all_notify_lists(self.time_a, self.time_b)

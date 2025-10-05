@@ -127,7 +127,7 @@ async def main():
     if leave_community():
         await BerrizCreateCommunity(await cm(leave_community()), leave_community()).leave_community_main()
     if not community():
-        community_id, communityname =await BerrizCreateCommunity(await cm(group()), group()).community_id_name()
+        community_id, communityname = await BerrizCreateCommunity(await cm(group()), group()).community_id_name()
         await Handle_Choice(community_id, communityname, time_a, time_b).handle_choice()
     else:
         await get_community_print()
