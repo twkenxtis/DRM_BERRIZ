@@ -144,6 +144,29 @@ max_retries: int = 5
 retry_http_status: set[int] = frozenset({400, 401, 500, 502, 503, 504})
 
 
+def handle_response(obj):
+    raw_response = obj
+    if obj is None:
+        raise ValueError("response is None")
+    try:
+        while not isinstance(obj, dict):
+            try:
+                obj = obj[0]
+            except (TypeError, IndexError, KeyError):
+                raise TypeError(f"Cannot unpack into dict: {obj!r}")
+            if obj['code'] != "0000":
+                logger.error(api_error_handle(obj['code']))
+                raise ValueError(
+                    f"Error code: {Color.bg('orange')}{obj['code']}{Color.reset()}{Color.fg('ruby')}"
+                    f", message: {Color.fg('iron')}{obj['message']}{Color.reset()}"
+                    )
+            elif obj['code'] == "0000":
+                return raw_response
+    except Exception as e:
+        logger.error(e)
+        raise KeyboardInterrupt("System exit due to api response error")
+
+
 class BerrizAPIClient:
     
     _re_request_cookie: bool = True
@@ -342,6 +365,7 @@ class BerrizAPIClient:
         logger.error(f"Retry exceeded for {url}")
         return None
 
+
 class Playback_info(BerrizAPIClient):
     async def get_playback_context(self, media_ids: Union[str, List[str]]) -> List[Dict[str, Any]]:
         media_ids = [media_ids] if isinstance(media_ids, str) else media_ids
@@ -354,7 +378,7 @@ class Playback_info(BerrizAPIClient):
                     results.append(data)
             else:
                 logger.warning(f"Invalid media ID format: {media_id}")
-        return results
+        return handle_response(results)
 
     async def get_live_playback_info(self, media_ids: Union[str, List[str]]) -> List[Dict[str, Any]]:
         """Fetch playback information for given media IDs."""
@@ -368,7 +392,7 @@ class Playback_info(BerrizAPIClient):
                     results.append(data)
             else:
                 logger.warning(f"Invalid media ID format: {media_id}")
-        return results
+        return handle_response(results)
 
 
 class Public_context(BerrizAPIClient):
@@ -413,7 +437,8 @@ class Live(BerrizAPIClient):
             return None
 
     async def fetch_mpd(self, url: str) -> Optional[str]:
-        return await self._send_request_http1(url, usecookie=False)
+        d = await self._send_request_http1(url, usecookie=False)
+        if d is not None: return d
 
     async def fetch_statics(self) -> Optional[Dict[str, Any]]:
         """Fetch static media information for the given media sequence."""
@@ -555,11 +580,7 @@ class Community(BerrizAPIClient):
 
         url: str = "https://svc-api.berriz.in/service/v1/community/keys"
 
-        headers: Dict[str, str] = {
-            **self.headers,
-            "Accept": "application/json",
-        }
-        d = await self._send_request(url, params, headers)
+        d = await self._send_request(url, params)
         if d is not None: return d
 
     async def community_menus(self, communityId: int) -> Optional[Dict[str, Any]]:
@@ -573,24 +594,19 @@ class Community(BerrizAPIClient):
             raise ValueError(f'{communityId} should be int')
 
         url: str = f"https://svc-api.berriz.in/service/v1/community/info/{communityId}/menus"
-
-        headers: Dict[str, str] = {
-            **self.headers,
-            "Accept": "application/json",
-        }
-        d = await self._send_request(url, params, headers)
+        d = await self._send_request(url, params)
         if d is not None: return d
     
     async def community_name(self, communityId:int) -> Optional[Dict[str, Any]]:
         params = {'communityid': f'{communityId}', 'languageCode': 'en'}
         url = "https://svc-api.berriz.in/service/v1/my/state"
-        d = await self._send_request(url, params, self.headers)
+        d = await self._send_request(url, params)
         if d is not None: return d
 
     async def community_id(self, communityname:str) -> Optional[Dict[str, Any]]:
         params = {'languageCode': 'en'}
         url = f"https://svc-api.berriz.in/service/v1/community/id/{communityname}"
-        d = await self._send_request(url, params, self.headers)
+        d = await self._send_request(url, params)
         if d is not None: return d
         
     async def create_community(self, communityId: int, name: str) -> Optional[Dict[str, Any]]:
@@ -605,7 +621,7 @@ class Community(BerrizAPIClient):
             'communityTermsIds': [],
         }
         url: str = 'https://svc-api.berriz.in/service/v1/community/user/create'
-        d = await self._send_post(url, json_data, params, self.headers)
+        d = await self._send_post(url, json_data, params)
         if d is not None: return d
     
     async def leave_community(self, communityId: int) -> Optional[Dict[str, Any]]:
@@ -622,13 +638,14 @@ class Community(BerrizAPIClient):
 class MediaList(BerrizAPIClient):
     async def media_list(self, community_id: Union[int, str], params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         url: str = f"https://svc-api.berriz.in/service/v1/community/{community_id}/medias/recent"
-        d = await self._send_request(url, params, self.headers)
+        d = await self._send_request(url, params)
         if d is not None: return d
 
 
 class GetRequest(BerrizAPIClient):
     async def get_request(self, url: str) -> Optional[httpx.Response]:
-        return await self._send_request_http1(url, usecookie=False)
+        d = await self._send_request_http1(url, usecookie=False)
+        if d is not None: return d
 
 
 _pw_re: re.Pattern = re.compile(
@@ -727,11 +744,7 @@ class Translate(BerrizAPIClient):
             'postId': post_id,
             'translateLanguageCode': target_lang,
         }
-        headers: Dict[str, str] = {
-            'User-Agent': f"{USERAGENT}",
-            'Accept': 'application/json',
-        }
-        data: Optional[Dict[str, Any]] = await self._send_post(url, json_data, params, headers)
+        data: Optional[Dict[str, Any]] = await self._send_post(url, json_data, params)
         if data is None: # 處理 _send_post 回傳 None 的情況
             return None
         if data.get('code') != '0000':
