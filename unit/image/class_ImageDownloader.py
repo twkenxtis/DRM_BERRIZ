@@ -142,7 +142,7 @@ class ImageDownloader:
                 
                 except (OSError, IOError) as e:
                     # File write error after retries
-                    logger.error(f"File I/O error for {url} -> {file_path}: {e}")
+                    logger.warning(f"File I/O error for {url} -> {file_path}: {e}")
                     return False
                     
                 except asyncio.CancelledError:
