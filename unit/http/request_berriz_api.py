@@ -422,11 +422,14 @@ class Live(BerrizAPIClient):
 
 class Notify(BerrizAPIClient):
     async def fetch_notify(
-        self, community_id: str, page_size: str, language_code: str) -> Optional[Dict]:
+        self, community_id: str, params: Dict[str, Any]) -> Optional[Dict]:
+        language_code = params.get('languageCode', 'en')
+        page_size = params.get('pageSize', 100)
+        next = params.get('next', '')
         if community_id == '':
-            params: Dict[str, str] = {"languageCode": language_code, "pageSize": page_size}
+            params: Dict[str, str] = {"languageCode": language_code, "pageSize": page_size, "next": next}
         else:
-            params: Dict[str, str] = {"languageCode": language_code, "communityId": community_id, "pageSize": page_size}
+            params: Dict[str, str] = {"languageCode": language_code, "communityId": community_id, "pageSize": page_size, "next": next}
 
         url: str = "https://svc-api.berriz.in/service/v1/notifications"
         headers: Dict[str, str] = {
