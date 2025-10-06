@@ -2,14 +2,13 @@ import asyncio
 import os
 import re
 import uuid
-from typing import List, FrozenSet, Union
+from typing import List, FrozenSet
 import html
 from urllib.parse import urlparse, ParseResult
 from pathlib import Path
 
-import aiofiles
-
-from unit.http.request_berriz_api import GetRequest
+from lib.__init__ import FilenameSanitizer
+from unit.image.class_ImageDownloader import ImageDownloader
 
 
 # 允許的圖片副檔名集合 frozenset 確保不可變
@@ -93,32 +92,41 @@ class DownloadImage(Get_image_from_body):
         super().__init__(html_content)
         self.all_image_urls: List[str] = self.find_valid_image_urls_in_file()
         self.folderpath: Path = folder_path
-
-    async def request_image(self) -> Union[str, List[Path]]:
+        self.ImageDownloader: classmethod = ImageDownloader()
+    
+    async def download_images(self) -> List[Path]:
+        """Download all images concurrently and return list of file paths."""
         if not self.all_image_urls:
-            return 'NO-IMAGE'
-
-        self.folderpath.mkdir(parents=True, exist_ok=True)
-        req: GetRequest = GetRequest()
-
-        tasks: List["asyncio.Task[Path]"] = [
-            asyncio.create_task(self._fetch_and_save(url, req))
+            return []
+        
+        # Create tasks using list comprehension
+        tasks: List[asyncio.Task] = [
+            asyncio.create_task(
+                ImageDownloader.download_image(
+                    url=url,
+                    file_path=self._generate_filepath(url),
+                )
+            )
             for url in self.all_image_urls
         ]
-        return await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        successful_paths = [
+            result for result in results 
+            if isinstance(result, Path) or result is True
+        ]
+        return successful_paths
 
-    async def _fetch_and_save(self, url: str, req: GetRequest) -> Path:
-        resp = await req.get_request(url)
-        try:
-            data: bytes = resp.content
-        except AttributeError:
-            data = await resp.read()
-
-        # 產生檔名（URL path 裡面沒有檔名就用 uuid）
-        name: str = Path(urlparse(url).path).name or f"{uuid.uuid4()}"
-        filepath: Path = self.folderpath / name
-
-        async with aiofiles.open(filepath, "wb") as f:
-            await f.write(data)
-
-        return filepath
+    def _generate_filepath(self, url: str) -> Path:
+        """Generate safe file path from URL."""
+        # Extract filename from URL
+        parsed_url = urlparse(url)
+        filename = Path(parsed_url.path).name
+        
+        # Fallback to UUID if no filename
+        if not filename or not Path(filename).suffix:
+            # Try to extract extension from URL
+            ext = Path(parsed_url.path).suffix or '.png'
+            filename = f"{uuid.uuid4()}{ext}"
+        # Sanitize filename (reuse the sanitize method from ImageDownloader)
+        filename = FilenameSanitizer.sanitize_filename(filename)
+        return self.folderpath / filename
