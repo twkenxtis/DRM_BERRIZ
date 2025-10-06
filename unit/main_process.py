@@ -100,7 +100,6 @@ class MediaProcessor:
             "POST": self._process_post_items,
             "NOTICE": self._process_notice_items,
         }
-        self.IMGmediaDownloader = IMGmediaDownloader()
 
     def cookie_check(self, media_ids: List[str]) -> bool:
         if cookie_session == {} and paramstore.get('no_cookie') is True:
@@ -158,36 +157,28 @@ class MediaProcessor:
 
     async def _process_photo_items(self, media_ids: List[str]) -> None:
         """Process a list of photo items concurrently."""
-        try:
-            self.print_process_items(media_ids, 'Photo')
-            # Assuming run_image_dl can handle a list of media_ids
-            await self.IMGmediaDownloader.run_image_dl(media_ids)
-            if image_dup is False:
-                self.add_to_duplicate(media_ids)
-        except Exception as e:
-            logger.error(f"Error processing Photo IDs {media_ids}: {e}")
+        self.print_process_items(media_ids, 'Photo')
+        # Assuming run_image_dl can handle a list of media_ids
+        await IMGmediaDownloader().run_image_dl(media_ids)
+        if image_dup is False:
+            self.add_to_duplicate(media_ids)
+
 
     async def _process_post_items(self, post_ids: List[str]) -> None:
         """Process a list of photo items concurrently."""
-        try:
-            self.print_process_items(post_ids, 'Post')
-            # Assuming run_post_dl can handle a list of post_ids
-            await Run_Post_dl(self.selected_media['post']).run_post_dl()
-            if post_dup is False:
-                self.add_to_duplicate(post_ids)
-        except Exception as e:
-            logger.error(f"Error processing Post IDs {post_ids}: {e}")
+        self.print_process_items(post_ids, 'Post')
+        # Assuming run_post_dl can handle a list of post_ids
+        await Run_Post_dl(self.selected_media['post']).run_post_dl()
+        if post_dup is False:
+            self.add_to_duplicate(post_ids)
 
     async def _process_notice_items(self, notice_ids: List[str]) -> None:
         """Process a list of photo items concurrently."""
-        try:
-            self.print_process_items(notice_ids, 'Notice')
-            # Assuming run_notice_dl can handle a list of notice_ids
-            await RunNotice(self.selected_media['notice']).run_notice_dl()
-            if notice_dup is False:
-                self.add_to_duplicate(notice_ids)
-        except Exception as e:
-            logger.error(f"Error processing Notice IDs {notice_ids}: {e}")
+        self.print_process_items(notice_ids, 'Notice')
+        # Assuming run_notice_dl can handle a list of notice_ids
+        await RunNotice(self.selected_media['notice']).run_notice_dl()
+        if notice_dup is False:
+            self.add_to_duplicate(notice_ids)
 
     async def _check_download_pkl(self, media_id: str | int) -> str | None:
         """Check if media_id exists in the store."""
