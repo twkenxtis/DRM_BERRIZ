@@ -100,7 +100,7 @@ class MediaProcessor:
             "POST": self._process_post_items,
             "NOTICE": self._process_notice_items,
         }
-        self.run_post_dl = Run_Post_dl()
+        self.run_post_dl = Run_Post_dl(selected_media['post'])
         self.IMGmediaDownloader = IMGmediaDownloader()
         self.RunNotice = RunNotice(selected_media['notice'])
 
@@ -174,7 +174,7 @@ class MediaProcessor:
         try:
             self.print_process_items(post_ids, 'Post')
             # Assuming run_post_dl can handle a list of post_ids
-            await self.run_post_dl(self.selected_media['post'])
+            await self.run_post_dl.run_post_dl()
             if post_dup is False:
                 self.add_to_duplicate(post_ids)
         except Exception as e:
@@ -185,7 +185,7 @@ class MediaProcessor:
         try:
             self.print_process_items(notice_ids, 'Notice')
             # Assuming run_notice_dl can handle a list of notice_ids
-            await self.RunNotice(self.selected_media['notice']).run_notice_dl()
+            await self.RunNotice.run_notice_dl()
             if notice_dup is False:
                 self.add_to_duplicate(notice_ids)
         except Exception as e:
