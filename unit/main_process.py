@@ -12,6 +12,7 @@ from lib.lock_cookie import cookie_session
 from lib.media_queue import MediaQueue
 from lock.donwnload_lock import UUIDSetStore
 from static.color import Color
+from static.route import Route
 from static.parameter import paramstore
 from unit.media.berriz_drm import BerrizProcessor
 from unit.handle.handle_log import setup_logging
@@ -24,7 +25,7 @@ logger = setup_logging('main_process', 'light_peach')
 
 
 class DuplicateConfig:
-    path: Path = Path("config") / "berrizconfig.yaml"
+    path: Path = Route().YAML_path
     @classmethod
     @lru_cache(maxsize=1)
     def load(cls, path: str) -> Tuple[bool, bool, bool, bool]:
@@ -73,11 +74,13 @@ video_dup = DuplicateConfig.get_video_dup()
 post_dup = DuplicateConfig.get_post_dup()
 notice_dup = DuplicateConfig.get_notice_dup()
 
+
 logger.info(
     f"Loaded duplicates → "
     f"{Color.fg('coral')}image: {image_dup}, video: {video_dup}, post: {post_dup}, notice: {notice_dup}"
     f"{Color.reset()}"
 )
+
 
 class MediaProcessor:
     """A class to process media items from a queue, handling VOD and photo items."""
@@ -192,7 +195,6 @@ class MediaProcessor:
         # 如果任何一個重複檢查為 False 且存在於 store 中，則返回 media_id
         if any(dup is False for dup in [image_dup, video_dup, post_dup, notice_dup]) and self.store.exists(media_id_str):
             return media_id_str
-        
         return None
 
     async def _handle_choice(self, skip_media_id: str) -> None:
