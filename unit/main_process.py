@@ -18,7 +18,7 @@ from unit.media.berriz_drm import BerrizProcessor
 from unit.handle.handle_log import setup_logging
 from unit.image.image import IMGmediaDownloader
 from unit.notice.notice import RunNotice
-from unit.post.post import run_post_dl
+from unit.post.post import Run_Post_dl
 
 
 logger = setup_logging('main_process', 'light_peach')
@@ -100,6 +100,9 @@ class MediaProcessor:
             "POST": self._process_post_items,
             "NOTICE": self._process_notice_items,
         }
+        self.run_post_dl = Run_Post_dl()
+        self.IMGmediaDownloader = IMGmediaDownloader()
+        self.RunNotice = RunNotice(selected_media['notice'])
 
     def cookie_check(self, media_ids: List[str]) -> bool:
         if cookie_session == {} and paramstore.get('no_cookie') is True:
@@ -160,7 +163,7 @@ class MediaProcessor:
         try:
             self.print_process_items(media_ids, 'Photo')
             # Assuming run_image_dl can handle a list of media_ids
-            await IMGmediaDownloader().run_image_dl(media_ids)
+            await self.IMGmediaDownloader.run_image_dl(media_ids)
             if image_dup is False:
                 self.add_to_duplicate(media_ids)
         except Exception as e:
@@ -171,7 +174,7 @@ class MediaProcessor:
         try:
             self.print_process_items(post_ids, 'Post')
             # Assuming run_post_dl can handle a list of post_ids
-            await run_post_dl(self.selected_media['post'])
+            await self.run_post_dl(self.selected_media['post'])
             if post_dup is False:
                 self.add_to_duplicate(post_ids)
         except Exception as e:
@@ -182,7 +185,7 @@ class MediaProcessor:
         try:
             self.print_process_items(notice_ids, 'Notice')
             # Assuming run_notice_dl can handle a list of notice_ids
-            await RunNotice(self.selected_media['notice']).run_notice_dl()
+            await self.RunNotice(self.selected_media['notice']).run_notice_dl()
             if notice_dup is False:
                 self.add_to_duplicate(notice_ids)
         except Exception as e:
