@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import inspect
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable, Awaitable, Iterator
+from typing import Any, Dict, List, Optional, Tuple, Union, Callable, Awaitable
 
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import Notify
@@ -33,7 +33,7 @@ class NotifyFetcher:
     async def _fetch_data(
         self, params: Dict[str, Any]
     ) -> Dict[str, Any]:
-        return await Notify().fetch_notify(params)
+        return await Notify().fetch_notify('', params)
 
     async def basic_sort_josn(self) -> Tuple[List[Dict[str, Any]], Dict[str, Any], bool]:
         if self.json_data and self.json_data.get('code') == '0000':
