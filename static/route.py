@@ -17,6 +17,8 @@ class Route:
         self.mkvmerge_path: Path = mainpath.parent.parent.joinpath("lib", "tools","mkvmerge.exe")
         self.BASE_ARTIS_KEY_DICT: Path = mainpath.parent.parent.joinpath("static", "artis_keys.json")
         self.download_info_pkl: Path = mainpath.parent.parent.joinpath("lock", "download_info.pkl")
+        self.BASE_COMMUNITY_KEY_DICT = mainpath.parent.parent.joinpath("static", "community_keys.json")
+        self.BASE_COMMUNITY_NAME_DICT = mainpath.parent.parent.joinpath("static", "community_name.json")
 
 
 if __name__ == '__main__':
