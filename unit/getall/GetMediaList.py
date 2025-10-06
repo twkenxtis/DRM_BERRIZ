@@ -1,5 +1,4 @@
 import asyncio
-import random
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -153,6 +152,8 @@ class MediaFetcher:
         self.community_id: int = community_id
         self.communityname: str = communityname
         self.MP: MediaParser = MediaParser(community_id, communityname, time_a, time_b)
+        self.LIVE: classmethod = Live()
+        self.MediaList: classmethod = MediaList()
 
     async def get_all_media_lists(self) -> Tuple[List[Dict], List[Dict], List[Dict]] | bool:
         vod_total: List[Dict] = []
@@ -205,8 +206,8 @@ class MediaFetcher:
         self, params: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             async with asyncio.TaskGroup() as tg:
-                media_task = tg.create_task(MediaList().media_list(self.community_id, params))
-                live_task = tg.create_task(Live().fetch_live_replay(self.community_id, params))
+                media_task = tg.create_task(self.MediaList.media_list(self.community_id, params))
+                live_task = tg.create_task(self.LIVE.fetch_live_replay(self.community_id, params))
             
             media_data = media_task.result()
             live_data = live_task.result()
@@ -225,7 +226,7 @@ class MediaFetcher:
         return lives, next_params, has_next
     
     async def _build_params(self, cursor: Optional[str]) -> Dict[str, Any]:
-        pagesize: int = random.randint(25000, 30000)
+        pagesize: int = 999999999
         params: Dict[str, Any] = {"pageSize": pagesize, "languageCode": "en"}
         if cursor:
             params["next"] = cursor
