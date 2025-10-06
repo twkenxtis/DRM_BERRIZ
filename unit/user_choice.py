@@ -1,5 +1,4 @@
 import asyncio
-import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -71,35 +70,34 @@ class InquirerPySelector:
         for disp_no, (t, idx, item) in enumerate(entries, start=1):
             display_map[disp_no] = (t, idx)
             core: str = format_core(item, t)
-            prefix: str = "|Fanclub| " if item.get("isFanclubOnly") else ""
+            prefix: str = "|Fanclub|    " if item.get("isFanclubOnly") else "|Not Fanclub|"
             community_name = await custom_dict(await get_community(item.get('communityId')))
             if community_name is None:
-                community_name: str = f"| {await get_community(item.get('communityId'))} |"
+                community_name: str = f"{await get_community(item.get('communityId'))}"
             else:
-                community_name: str = f"| {community_name} |"
+                community_name: str = f"{community_name}"
             ts: str = await convert_to_korea_time(item["publishedAt"])
             match core:
                 case 'NOTICE-NO-INFO':
                     name = (
-                        f"{disp_no:4d} {ts} {t.upper():5s} {prefix} "
+                        f"{disp_no:4d} {ts} {t.upper():6s} {prefix} "
                         f"{community_name} {item['title']} "
                     )
                 case _:
                     name = (
-                        f"{disp_no:4d} {ts} {t.upper():5s} {prefix} "
-                        f"{community_name} [{core}] {item['title']} "
-                    )
+                        f"{disp_no:4d} {ts} {t.upper():6s} {prefix} "
+                        f"{community_name} {core, item['title']}"
+                    ).replace("'", "").replace("(", "").replace(")", "")
             item_choices.append(Choice(value=disp_no, name=name))
             
         if item_choices == []:
             logger.info(f"No items found")
             return None
         
-        separator: str = '━' * 70
         # Initial selection with fuzzy search
         cmd: Union[str, int] = await inquirer.fuzzy(
             message="Select items or quick command:",
-            choices=quick_commands + [separator] + item_choices,
+            choices=quick_commands + item_choices,
             default="",
             cycle=False,
             border=True,
@@ -195,13 +193,13 @@ async def convert_to_korea_time(iso_string_utc: str) -> str:
 def format_core(item: Dict[str, Any], t: str) -> str:
     try:
         if t == "vod":
-            return f"{item['vod']['duration'] / 60:.1f}  min"
+            return f"{item['vod']['duration'] / 60:.1f}min"
         elif t == "photo":
-            return f"{item['photo']['imageCount']}    imgs"
+            return f" {item['photo']['imageCount']} imgs"
         elif t == "live":
             match item['live']['liveStatus']:
                 case 'REPLAY':
-                    return f"{item['live']['replay']['duration'] / 60:.1f}  min"
+                    return f"{item['live']['replay']['duration'] / 60:.1f}min"
                 case 'END':
                     return 'NO-Replay'
 
@@ -211,7 +209,7 @@ def format_core(item: Dict[str, Any], t: str) -> str:
                 case '0':
                     return "POST-ONLY"
                 case _:
-                    return f"{image_count}    imgs"
+                    return f" {image_count} imgs"
         elif t == "notice":
             return 'NOTICE-NO-INFO'
     except TypeError:
