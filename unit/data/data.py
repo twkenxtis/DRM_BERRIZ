@@ -1,10 +1,8 @@
 import re
-import sys
 from datetime import datetime, timedelta, timezone
 from dateutil import parser as dateutil_parser
 from typing import List, Optional, Tuple
 
-from static.color import Color
 from lib.load_yaml_config import CFG, ConfigLoader
 from unit.handle.handle_log import setup_logging
 
