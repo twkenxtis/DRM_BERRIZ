@@ -13,10 +13,13 @@ from typing import Any, Optional
 
 
 from static.color import Color
+from static.route import Route
 
 
 
-YAML_PATH: Path = Path('config') / 'berrizconfig.yaml'
+YAML_PATH: Path = Route().YAML_path
+
+
 try:
     with open(YAML_PATH, 'r', encoding='utf-8') as f:
         CFG: dict[str, Any] = yaml.safe_load(f)
