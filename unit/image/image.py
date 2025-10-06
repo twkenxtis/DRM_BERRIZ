@@ -180,7 +180,7 @@ class ImageUrlParser:
     downloader: ImageDownloader
     semaphore: asyncio.Semaphore
 
-    def __init__(self, max_concurrent: int = 5) -> None:
+    def __init__(self, max_concurrent: int = 50) -> None:
         self.downloader: ImageDownloader = ImageDownloader()
         self.semaphore: asyncio.Semaphore = asyncio.Semaphore(max_concurrent)
 
@@ -230,6 +230,9 @@ class IMGmediaDownloader:
     def __init__(self, max_concurrent: int = 7) -> None:
         self.semaphore: asyncio.Semaphore = asyncio.Semaphore(max_concurrent)
         self.folder_manager: FolderManager = FolderManager(logger=logger)
+        self.Playback_info: classmethod = Playback_info()
+        self.Public_context: classmethod = Public_context()
+        self.ImageUrlParser: classmethod = ImageUrlParser()
 
     # process_single_media 是一個協程，沒有明確的回傳值 (None)
     async def process_single_media(self, media_id: str) -> None:
@@ -270,7 +273,7 @@ class IMGmediaDownloader:
                     return
                 
                 # 實例化並執行下載
-                await ImageUrlParser().parse_and_download(images, folder)
+                await self.ImageUrlParser.parse_and_download(images, folder)
 
             # 使用 ExceptionGroup (try* ... except*) 來處理 TaskGroup 異常
             except* Exception as eg:
@@ -301,7 +304,6 @@ class IMGmediaDownloader:
             logger.error(f"Failed to fetch contexts for {media_id}")
             return None, None
             
-        # 假設 public_ctxs[0]['data']['media'] 返回 Dict[str, Any]
         media: Dict[str, Any] = public_ctxs[0]['data']['media']
         communityArtists: List[Dict[str, Any]] = public_ctxs[0]['data']['communityArtists']
         
@@ -315,18 +317,14 @@ class IMGmediaDownloader:
         
         # 檢查 API 錯誤碼
         if playback_ctxs[0]['code'] != '0000':
-            # 假設 api_error_handle 返回 str
             error_message: str = api_error_handle(playback_ctxs[0]['code'])
             logger.warning(f"{Color.bg('maroon')}{error_message}{Color.reset()}")
             
         # 由於上面檢查了 Exception，這裡可以確定是 ContextList
         return public_ctxs, playback_ctxs
 
-    # 假設 Public_context().get_public_context 返回 ContextList (實際是 Future/Awaitable，這裡假設它返回 ContextList)
     def get_public_context(self, media_id: str) -> Any:
-        # 假設 Public_context() 返回一個包含 get_public_context 方法的物件
-        return Public_context().get_public_context(media_id)
+        return self.Public_context.get_public_context(media_id)
 
     def get_playback_context(self, media_id: str) -> Any:
-        # 假設 Playback_info() 返回一個包含 get_playback_context 方法的物件
-        return Playback_info().get_playback_context(media_id)
+        return self.Playback_info.get_playback_context(media_id)
