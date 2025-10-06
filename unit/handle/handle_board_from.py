@@ -1,7 +1,6 @@
 import asyncio
 
 from datetime import datetime
-import pytz
 
 from typing import Dict, List, Optional, Tuple, Any
 
@@ -12,8 +11,7 @@ from lib.__init__ import OutputFormatter, FilenameSanitizer
 from unit.data.data import get_timestamp_formact, get_formatted_publish_date
 from unit.handle.handle_log import setup_logging
 from unit.community.community import get_community, custom_dict
-from unit.http.request_berriz_api import Translate
-from unit.http.request_berriz_api import Arits
+from unit.http.request_berriz_api import Arits, Translate
 
 
 logger = setup_logging('handle_board_from', 'midnight_blue')
@@ -259,10 +257,11 @@ class BoardNoticeINFO(BoardMain):
         self.notice: Dict[str, Any] = notice_list
         self.noticefetcher: Any = NoticeFetcher
         self.noticeinfofetcher: Any = NoticeINFOFetcher
+        self.Artis: classmethod = Arits()
 
     async def call_notice_page(self, communityNoticeId: int, communityId: int, retry: int = 3) -> Optional[Dict[str, Any]]:
         for _ in range(retry):
-            if (data := await Arits().request_notice_page(communityId, communityNoticeId)) and data.get('code') == '0000':
+            if (data := await self.Artis.request_notice_page(communityId, communityNoticeId)) and data.get('code') == '0000':
                 return data
         return None
 
@@ -308,7 +307,7 @@ class BoardNoticeINFO(BoardMain):
 
 class JsonBuilder:
     def __init__(self, index: Dict[str, Any], postid: str):
-        self.translate: Any = Translate()
+        self.translate: classmethod  = Translate()
         self.index: Dict[str, Any] = index
         self.postid: str = postid
     
