@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Tuple, Optional
 import aiofiles
 import orjson
 from httpx import URL
+from lib.processbar import ProgressBar
 
 from lib.__init__ import dl_folder_name, OutputFormatter
 from lib.load_yaml_config import CFG
@@ -92,8 +93,6 @@ class MainProcessor:
             return
         try:
             if TYPE:
-                logger.info("Processing image-type media...")
-
                 raw_images = data[1]
                 if not isinstance(raw_images, list):
                     logger.warning("data[1] is not a list.")
@@ -111,54 +110,52 @@ class MainProcessor:
                 first_name = Path(str(image_list[0])).name.split("?")[0] if image_list else "image-media"
                 file_path = self.folder_path / f"{first_name}.json"
             else:
-                logger.info("Processing non-image media...")
                 file_path = self.folder_path / "non-image-media.json"
             await self.process_and_save(file_path, image_list, TYPE)
-
         except Exception as e:
             logger.exception(f"Error during media processing: {e}")
-
             
     async def process_and_save(self, file_path: Path, image_list: List[URL], TYPE: bool) -> None:
-        tasks = [
-            asyncio.create_task(self.json_data_obj.save_json_file_to_folder(file_path, self.folder_path)),
-            asyncio.create_task(make_html(self.post_media, self.folder_path, image_list, self.new_file_name).process_html(TYPE))
-        ]
-        await asyncio.gather(*tasks)
+        await asyncio.gather(self.json_data_obj.save_json_file_to_folder(file_path, self.folder_path),
+        make_html(self.post_media, self.folder_path, image_list, self.new_file_name).process_html(TYPE))
+
 
     def safe_filename_from_url(url: str, fallback: str = "image") -> str:
         name = Path(url).name or fallback
         return name.split("?")[0]
 
     async def download_images_concurrently(self, image_list: List[URL], folder_path: Path) -> None:
-        tasks = []
-
         for idx, image in enumerate(image_list):
             try:
                 name = Path(str(image)).name or f"image_{idx}.jpg"
                 name = name.split("?")[0]
                 file_path = folder_path / name
 
-                logger.debug(f"Scheduling download: {image} → {file_path}")
-                task = asyncio.create_task(ImageDownloader.download_image(image, file_path))
-                tasks.append(task)
-
+                logger.debug(f"Downloading: {image} → \n{file_path}")
+                await ImageDownloader.download_image(image, file_path)
             except Exception as e:
-                logger.warning(f"Failed to prepare download task for image {image}: {e}")
+                logger.warning(f"Failed to download image {image}: {e}")
 
-        if tasks:
-            logger.info(f"Starting concurrent download of {len(tasks)} images...")
-            await asyncio.gather(*tasks, return_exceptions=True)
 
     def filter_post_data(self) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-        image_data, none_image_data = [], []
-        image_info: Tuple[List[Optional[str]], List[Optional[str]], List[Tuple[Optional[int], Optional[int]]], List[Optional[str]]] = self.fetcher.get_photos()
-        for item in image_info:
-            if isinstance(item, (list, tuple)) and any(item):
-                image_data.append(item)
-            else:
-                none_image_data.append(item)
-        return image_data, none_image_data
+            """過濾貼文資料，將包含圖片的資料與不包含圖片的資料分開
+            
+            Returns:
+                Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]: 
+                    包含圖片的資料列表, 不包含圖片的資料列表
+            """
+            image_info = self.fetcher.get_photos()
+            image_data, none_image_data = [], []
+            
+            for item in image_info:
+                # 判斷條件：如果是列表或元組且包含任何內容（非空）
+                if isinstance(item, (list, tuple)) and any(item):
+                    # 符合條件：加入到圖片資料列表
+                    image_data.append(item)
+                else:
+                    # 不符合條件：加入到無圖片資料列表
+                    none_image_data.append(item)
+            return image_data, none_image_data
 
 
 class PostJsonDate:
@@ -212,44 +209,59 @@ class make_html:
             return f"<p>{body}</p>"
 
 
-async def run_post_dl(selected_media, max_concurrent: int = 13):
-    semaphore = asyncio.Semaphore(max_concurrent)
-    completed = 0
-    total = len(selected_media)
+async def run_post_dl(selected_media: List[Dict]):
+    """
+    一次性接收全部selected_media資料，用迴圈處理每一筆
+    使用semaphore控制並發數量
+    """
+    if not selected_media:
+        return []
+    logger.debug(selected_media)
+    semaphore = asyncio.Semaphore(41)
+    results = []
+    async def process_media_with_limit(media):
+        """內部函數：用semaphore控制單筆資料處理"""
+        folder = None
+        async with semaphore:
+            try:
+                if media is None:
+                    return False
+                    
+                folder = await FolderManager(media).create_folder()
+                make_html.created_folders.add(folder)
+                await MainProcessor(media, folder).parse_and_download()
+                return True
+            except asyncio.CancelledError:
+                await handle_cancel(folder)
+                return False
+            except Exception as e:
+                if folder and await aiofiles.os.path.exists(folder):
+                    shutil.rmtree(folder, ignore_errors=True)
+                logger.exception(f"Error processing media: {e}")
+                return False
+    # TASK APPEND
     try:
-        async def process_single_media(post_media: dict):
-            async with semaphore:
-                try:
-                    if post_media is None:
-                        return False
-                    folder: str = await FolderManager(post_media).create_folder()
-                    make_html.created_folders.add(folder) 
-                    await MainProcessor(post_media, folder).parse_and_download()
-                    return True
-                except asyncio.CancelledError:
-                    try:
-                        if await aiofiles.os.path.exists(folder):
-                            shutil.rmtree(folder, ignore_errors=True)
-                            logger.info(f"Removed partial file: {folder}")
-                    except OSError as e:
-                        logger.warning(f"Failed to remove file {folder}: {e}")
-                    raise
-                finally:
-                    nonlocal completed
-                    completed += 1
-                    logger.info(
-                        f"{Color.fg('gray')}POST: [{Color.fg('mint')}{completed}"
-                        f"{Color.fg('gray')}/{Color.fg('mint')}{total}{Color.fg('gray')}]"
-                        f"({Color.fg('fern')}{completed/total*100:.1f}{Color.fg('gray')}%)"
-                        )
-        tasks = [asyncio.create_task(process_single_media(media)) for media in selected_media]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        tasks = [asyncio.create_task(process_media_with_limit(media)) 
+                 for media in selected_media]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        return results
     except Exception as e:
+        # 只在整體失敗時清理所有資料夾
         for folder_path in make_html.created_folders:
             if folder_path and os.path.isdir(folder_path):
                 shutil.rmtree(folder_path, ignore_errors=True)
         logger.exception(f"Unexpected error during download: {e}")
+        return []
 
+
+async def handle_cancel(folder: str) -> None:
+    try:
+        if folder and await aiofiles.os.path.exists(folder):
+            shutil.rmtree(folder, ignore_errors=True)
+            logger.info(f"Removed partial file: {folder}")
+    except OSError as e:
+        logger.warning(f"Failed to remove file {folder}: {e}")
+        
 
 class File_date_time_formact:
     def __init__(self, folder_name: str, video_meta: dict) -> str:

@@ -179,8 +179,8 @@ class ImageUrlParser:
     
     semaphore: asyncio.Semaphore
 
-    def __init__(self, max_concurrent: int = 50) -> None:
-        self.semaphore: asyncio.Semaphore = asyncio.Semaphore(max_concurrent)
+    def __init__(self) -> None:
+        self.semaphore: asyncio.Semaphore = asyncio.Semaphore(41)
 
     async def parse_and_download(
         self, images: List[Dict[str, Any]], folder: str

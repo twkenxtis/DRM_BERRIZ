@@ -56,8 +56,11 @@ class FolderManager:
 
 
 class MainProcessor:
+    
+    completed = 0
+    
     """Parses data & image URLs and manages their download."""
-    def __init__(self, notice_media: Dict, folder: str):
+    def __init__(self, notice_media: Dict, folder: str, total :int):
         self.notice_media = notice_media
         self.fetcher: NoticeINFOFetcher = self.notice_media['fetcher']
         self.folder_path: Path = Path(folder)
@@ -65,6 +68,7 @@ class MainProcessor:
         self.new_file_name = self.FDTF.new_file_name()
         self.body: str = self.fetcher.get_body()
         self.DownloadImage = DownloadImage(self.body, self.folder_path)
+        self.total = total
 
     async def parse_and_download(self) -> None:
         """Parse data image URLs and download them with concurrency control."""
@@ -75,7 +79,12 @@ class MainProcessor:
         await asyncio.gather(*tasks)
     
     async def process_html(self) -> None:
-        
+        MainProcessor.completed += 1
+        logger.info(
+            f"{Color.fg('gray')}Notice: [{Color.fg('mint')}{MainProcessor.completed}"
+            f"{Color.fg('gray')}/{Color.fg('mint')}{self.total}{Color.fg('gray')}]"
+            f"({Color.fg('fern')}{MainProcessor.completed/self.total*100:.1f}{Color.fg('gray')}%)"
+        )
         title: str = self.fetcher.get_title()
         ISO8601: str = self.fetcher.get_reservedAt()
         await SaveHTML(title, ISO8601, self.body, self.folder_path, self.new_file_name).update_template_file()
@@ -93,14 +102,14 @@ class RunNotice:
 
     async def run_notice_dl(self):
         """Top Async ENTER"""
-        semaphore = asyncio.Semaphore(7)
+        semaphore = asyncio.Semaphore(41)
         async def process(index: Dict[str, Any]) -> str:
             async with semaphore:
                 try:
                     self.folder_name.add((index['title']))
                     notice_media: dict = await self.notice_media(index)
                     folder: str = await self.folder(notice_media)
-                    await MainProcessor(notice_media, folder).parse_and_download()
+                    await MainProcessor(notice_media, folder, len(self.selected_media)).parse_and_download()
                     return "OK"
                 except asyncio.CancelledError:
                     await self.handle_cancel()
