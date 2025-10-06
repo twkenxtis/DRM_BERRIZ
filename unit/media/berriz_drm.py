@@ -202,19 +202,22 @@ class BerrizProcessor:
         self.media_id: str = media_id
         self.media_type: str = media_type
         self.selected_media: dict[str, Any] = selected_media
+        self.Live: classmethod = Live()
+        self.Playback_info: classmethod = Playback_info()
+        self.Public_context: classmethod = Public_context()
 
     async def fetch_contexts(self) -> None:
         # Live-replay and VOD different
         if self.media_type == 'VOD':
             playback, public = await asyncio.gather(
-                Playback_info().get_playback_context(self.media_id),
-                Public_context().get_public_context(self.media_id),
+                self.Playback_info.get_playback_context(self.media_id),
+                self.Public_context.get_public_context(self.media_id),
             )
         elif self.media_type == 'LIVE':
             LP = self.selected_media.get('lives', [])[0]['live']['liveStatus']
             if LP == 'REPLAY':
-                playback = await Playback_info().get_live_playback_info(self.media_id)
-                public = await Public_context().get_public_context(self.media_id)
+                playback = await self.Playback_info.get_live_playback_info(self.media_id)
+                public = await self.Public_context.get_public_context(self.media_id)
         return playback, public
 
     async def prepare_download_tasks(self, playback, public) -> None:
@@ -271,9 +274,9 @@ class BerrizProcessor:
         raw_mpd: Any = None
         raw_hls: Optional[str] = None
         if getattr(playback_info, "dash_playback_url", None):
-            raw_mpd = await Live().fetch_mpd(playback_info.dash_playback_url)
+            raw_mpd = await self.Live.fetch_mpd(playback_info.dash_playback_url)
         if getattr(playback_info, "hls_playback_url", None):
-            response_hls = await Live().fetch_mpd(playback_info.hls_playback_url)
+            response_hls = await self.Live.fetch_mpd(playback_info.hls_playback_url)
             raw_hls = await rebuild_master_playlist(response_hls, playback_info.hls_playback_url)
         if getattr(playback_info, "is_drm", None) is True:
             key_handler = Key_handle(playback_info, self.media_id, raw_mpd)
