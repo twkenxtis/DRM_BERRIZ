@@ -10,10 +10,11 @@ import aiofiles
 import httpagentparser
 
 from static.color import Color
+from static.route import Route
 from unit.handle.handle_log import setup_logging
 
 
-YAML_PATH: Path = Path(__file__).parent.parent.joinpath('config', 'berrizconfig.yaml')
+YAML_PATH: Path = Route().YAML_path
 
 
 logger = setup_logging('unit.__init__', 'green')
