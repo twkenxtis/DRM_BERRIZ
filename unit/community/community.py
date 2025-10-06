@@ -6,6 +6,7 @@ import aiofiles
 import orjson
 
 from static.color import Color
+from static.route import Route
 from unit.http.request_berriz_api import Community, My
 from unit.handle.handle_log import setup_logging
 
@@ -17,8 +18,8 @@ logger = setup_logging('community', 'ivory')
 CommunityDict = Dict[str, Union[int, str]]
 
 
-BASE_COMMUNITY_KEY_DICT = Path('static') / 'community_keys.json'
-BASE_COMMUNITY_NAME_DICT = Path('static') /'community_name.json'
+BASE_COMMUNITY_KEY_DICT: Path = Route().BASE_COMMUNITY_KEY_DICT
+BASE_COMMUNITY_NAME_DICT: Path = Route().BASE_COMMUNITY_NAME_DICT
 
 
 async def file_Check() -> None:
@@ -74,7 +75,6 @@ def search_community(contents: List[CommunityDict], query: Union[str, int, None]
         for item in contents:
             if item.get("communityId") == query:
                 return item.get("communityKey")
-
     return None
 
 # custom_dict 的回傳值可以是 str (對應的 key/value) 或 None
