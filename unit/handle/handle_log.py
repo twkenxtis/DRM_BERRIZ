@@ -136,8 +136,8 @@ class ColoredConsoleFormatter(Formatter):
             level_color = Color.fg('gold')
             msg_color = Color.fg('gold')
         elif level in ["ERROR", "CRITICAL"]:
-            level_color = Color.bg('dark_honey')
-            msg_color = Color.fg('ruby')
+            level_color = Color.fg('dark_honey')
+            msg_color = Color.bg('ruby')
         else:  # DEBUG 等
             level_color = ""
             msg_color = ""
