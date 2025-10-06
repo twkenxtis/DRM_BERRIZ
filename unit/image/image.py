@@ -180,7 +180,7 @@ class ImageUrlParser:
     semaphore: asyncio.Semaphore
 
     def __init__(self) -> None:
-        self.semaphore: asyncio.Semaphore = asyncio.Semaphore(41)
+        self.semaphore: asyncio.Semaphore = asyncio.Semaphore(7)
 
     async def parse_and_download(
         self, images: List[Dict[str, Any]], folder: str

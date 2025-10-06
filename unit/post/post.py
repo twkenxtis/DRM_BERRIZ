@@ -172,8 +172,8 @@ class MainProcessor:
         elif none_image_data:
             self.TYPE = False
             await asyncio.gather(
-            await self.json_data_obj.save_json_file_to_folder(self.folder_path),
-            await self.process_and_save([])
+                self.json_data_obj.save_json_file_to_folder(self.folder_path),
+                self.process_html([''])
             )
                     
     async def process_image(self, data: List[Dict[str, Any]]) -> None:
@@ -185,14 +185,11 @@ class MainProcessor:
             if not isinstance(data[1], list):
                 logger.warning("data[1] is not a list.")
                 List_images = []
-            await self.download_images_concurrently(List_images)
-            await self.process_and_save(List_images)
-            
-    async def process_and_save(self, image_list: List[URL]) -> None:
-        await asyncio.gather(
-            self.json_data_obj.save_json_file_to_folder(self.folder_path),
-            self.process_html(image_list)
-        )
+            await asyncio.gather(
+                self.download_images_concurrently(List_images),
+                self.json_data_obj.save_json_file_to_folder(self.folder_path),
+                self.process_html(List_images)
+            )
 
     async def download_images_concurrently(self, image_list: List[URL]) -> None:
         for idx, image in enumerate(image_list):
@@ -226,10 +223,19 @@ class MainProcessor:
             return image_data, none_image_data
 
     async def process_html(self, image_list: List[str: URL]):
-        logger.info("Generating HTML...")
         html_body = self.make_body(image_list)
         avatar_link = await self.ArtisManger.get_artis_avatar(self.artis)
-        await SaveHTML(self.title, self.time, html_body, self.artis, self.folder_path, avatar_link, self.new_file_name).update_template_file()
+        logger.info("Generating HTML...")
+        html_generator = SaveHTML(
+            self.title,
+            self.time,
+            html_body,
+            self.artis,
+            self.folder_path,
+            avatar_link,
+            self.new_file_name
+        )
+        await html_generator.update_template_file()
 
     def make_body(self, image_list: List[str: URL]) -> str:
         if self.TYPE is True:
@@ -265,7 +271,7 @@ class Run_Post_dl:
         self.selected_media = selected_media
     
     async def run_post_dl(self):
-        semaphore = asyncio.Semaphore(41)
+        semaphore = asyncio.Semaphore(7)
         results = []
         try:
             async def process(index: Dict[str, Any]) -> str:

@@ -102,7 +102,7 @@ class RunNotice:
 
     async def run_notice_dl(self):
         """Top Async ENTER"""
-        semaphore = asyncio.Semaphore(41)
+        semaphore = asyncio.Semaphore(7)
         async def process(index: Dict[str, Any]) -> str:
             async with semaphore:
                 try:
