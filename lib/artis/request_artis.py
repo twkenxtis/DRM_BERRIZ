@@ -16,7 +16,7 @@ logger = setup_logging('request_artis', 'lemon')
 AritsDict = Dict[str, Union[int, str]]
 
 
-BASE_ARTIS_KEY_DICT = Route().BASE_ARTIS_KEY_DICT
+BASE_ARTIS_KEY_DICT: Path = Route().BASE_ARTIS_KEY_DICT
 
 
 class ArtisDict:
