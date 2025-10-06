@@ -176,12 +176,10 @@ class FolderManager:
 
 class ImageUrlParser:
     """Parses image URLs and manages their download."""
-
-    downloader: ImageDownloader
+    
     semaphore: asyncio.Semaphore
 
     def __init__(self, max_concurrent: int = 50) -> None:
-        self.downloader: ImageDownloader = ImageDownloader()
         self.semaphore: asyncio.Semaphore = asyncio.Semaphore(max_concurrent)
 
     async def parse_and_download(
