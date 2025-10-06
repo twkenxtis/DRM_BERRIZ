@@ -135,4 +135,7 @@ async def main():
 try:
     asyncio.run(main())
 except KeyboardInterrupt as e:
-    logger.warning(f"Program interrupted: {Color.fg('light_gray')}{e}{Color.reset()}")
+    if str(e) == "":
+        logger.warning(f"Program interrupted: {Color.fg('light_gray')}User canceled{Color.reset()}")
+    else:
+        logger.warning(f"Program interrupted: {Color.fg('light_gray')}{e}{Color.reset()}")
