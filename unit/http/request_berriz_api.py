@@ -93,12 +93,12 @@ class BerrizAPIClient:
     @lru_cache(maxsize=1)
     def _build_headers(self) -> Dict[str, str]:
         return {
-            "Host": "svc-api.berriz.in",
-            "Referer": "https://berriz.in/",
-            "Origin": "https://berriz.in",
-            "Accept": "application/json",
+            "host": "svc-api.berriz.in",
+            "referer": "https://berriz.in/",
+            "origin": "https://berriz.in",
+            "accept": "application/json",
             'pragma': 'no-cache',
-            "User-Agent": f"{USERAGENT}"
+            "user-agent": f"{USERAGENT}"
             }
 
     async def ensure_cookie(self) -> Dict[str, str]:
@@ -427,9 +427,9 @@ class Live(BerrizAPIClient):
             return None
         params: Dict[str, str] = {"": ""}
         headers: Dict[str, str] = {
-            "User-Agent": f"{USERAGENT}",
-            "Accept": "application/x-mpegURL, application/vnd.apple.mpegurl, application/json, text/plain",
-            "Referer": "Berriz/20250704.1139 CFNetwork/1498.700.2 Darwin/23.6.0",
+            "user-Agent": f"{USERAGENT}",
+            "accept": "application/x-mpegURL, application/vnd.apple.mpegurl, application/json, text/plain",
+            "eeferer": "Berriz/20250704.1139 CFNetwork/1498.700.2 Darwin/23.6.0",
         }
         try:
             if response := await self._send_request(playback_url, params, headers, use_proxy):
@@ -469,8 +469,8 @@ class Live(BerrizAPIClient):
         url: str = f"https://chat-api.berriz.in/chat/v1/sync"
         headers: Dict[str, str] = {
             **self.headers,
-            "Host": "chat-api.berriz.in",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "host": "chat-api.berriz.in",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         }
         d = await self._send_request(url, params, headers, use_proxy)
         if d is not None: return handle_response(d)
@@ -495,13 +495,9 @@ class Notify(BerrizAPIClient):
 
         url: str = "https://svc-api.berriz.in/service/v1/notifications"
         headers: Dict[str, str] = {
-            'User-Agent': f"{USERAGENT}",
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Alt-Used': 'svc-api.berriz.in',
-            'Connection': 'keep-alive',
-            'Sec-Fetch-Site': 'cross-site',
-            'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache',
+            'user-Agent': f"{USERAGENT}",
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'alt-Used': 'svc-api.berriz.in',
         }
         if response := await self._send_request(url, params, headers, use_proxy):
             return handle_response(response)
@@ -555,10 +551,9 @@ class My(BerrizAPIClient):
         params: Dict[str, str] = {"languageCode": 'en'}
         url: str = "https://account.berriz.in/member/v1/members/me"
         headers: Dict[str, str] = {
-            'User-Agent': f"{USERAGENT}",
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Alt-Used': 'account.berriz.in',
-            'Connection': 'keep-alive',
+            'user-Agent': f"{USERAGENT}",
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'alt-Used': 'account.berriz.in',
         }
         d = await self._send_request(url, params, headers, use_proxy)
         if d is not None: return handle_response(d)
@@ -657,13 +652,12 @@ class Password_Change(BerrizAPIClient):
                 'newPassword': newPassword,
             }
             headers: Dict[str, str] = {
-                'User-Agent': f"{USERAGENT}",
-                'Accept': 'application/json',
-                'Referer': 'https://berriz.in/',
-                'Content-Type': 'application/json',
-                'Origin': 'https://berriz.in',
-                'Alt-Used': 'account.berriz.in',
-                'Connection': 'keep-alive',
+                'user-agent': f"{USERAGENT}",
+                'accept': 'application/json',
+                'referer': 'https://berriz.in/',
+                'content-Type': 'application/json',
+                'origin': 'https://berriz.in',
+                'alt-Used': 'account.berriz.in',
             }
             url: str = 'https://account.berriz.in/auth/v1/accounts:update-password'
             d = await self._patch_request(url, json_data, params, headers, use_proxy)
@@ -677,10 +671,9 @@ class Arits(BerrizAPIClient):
         
     def header(self) -> Dict[str, str]:
         return {
-            'User-Agent': f"{USERAGENT}",
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Alt-Used': 'svc-api.berriz.in',
-            'Connection': 'keep-alive',
+            'user-agent': f"{USERAGENT}",
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'alt-Used': 'svc-api.berriz.in',
         }
         
     async def artis_list(self, community_id: int, use_proxy: bool) -> Optional[Dict[str, Any]]:
