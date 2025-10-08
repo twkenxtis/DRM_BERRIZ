@@ -6,6 +6,7 @@ dependencies = [
     "PyJWT",
     "aiofiles",
     "aiohttp",
+    "aioquic",
     "bs4",
     "joblib",
     "ffmpeg-python",
