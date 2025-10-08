@@ -8,7 +8,9 @@ duplicate:
 
 
 headers:
+  # fakeuseragent: false
   Fake-User-Agent: true
+  # default user agent when fake-User-Agent is false
   User-Agent: 'curl/7.64.1'
 
 
