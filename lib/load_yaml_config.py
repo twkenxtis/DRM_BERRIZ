@@ -2,10 +2,10 @@ import asyncio
 import re
 import sys
 import os
-import yaml
 
 from pathlib import Path
 from functools import lru_cache
+from ruamel.yaml import YAML
 
 import aiofiles
 import rich.traceback
@@ -81,8 +81,8 @@ class ConfigLoader:
             raw = await f.read()
 
         try:
-            return yaml.safe_load(raw)
-        except yaml.YAMLError as e:
+            return YAML().load(raw)
+        except ValueError as e:
             raise ValueError(f"Failed to parse YAML: {e}")
 
     @staticmethod
