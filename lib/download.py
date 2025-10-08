@@ -56,10 +56,9 @@ class MediaDownloader:
             timeout: aiohttp.ClientTimeout = aiohttp.ClientTimeout(total=600, connect=10, sock_connect=10, sock_read=30)
             self.session = aiohttp.ClientSession(
                 connector=connector, timeout=timeout, headers={
-                    f"User-Agent": USERAGENT,
-                    "Accept": "*/*",
-                    "Accept-Encoding": "identity",
-                    "Connection": "keep-alive",
+                    f"user-Agent": USERAGENT,
+                    "accept": "*/*",
+                    "accept-Encoding": "identity",
                     }
             )
 
