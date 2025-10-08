@@ -1,5 +1,6 @@
-from rich.console import Console
 from time import time
+
+from rich.console import Console
 
 class ProgressBar:
     def __init__(self, total: int, prefix: str = "", length: int = 65):
@@ -30,7 +31,7 @@ class ProgressBar:
         elapsed_str = self._format_time(elapsed)
 
         text = (
-            f"[gray]{self.prefix:6}[/gray]: {bar} "
+            f"[cyan]{self.prefix:6}[/]: {bar} "
             f"{percent*100:6.2f} % | {self.current}/{self.total} "
             f" [red]{elapsed_str}[/red]"
         )

@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional
 import orjson
 
+
 class PlaybackInfo:
     def __init__(self, playback_context: Dict[str, Any]):
         if isinstance(playback_context, dict):

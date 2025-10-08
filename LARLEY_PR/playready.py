@@ -2,11 +2,11 @@ from typing import List, Optional
 
 import httpx
 
-from unit.handle.handle_log import setup_logging
 from pyplayready.cdm import Cdm
 from pyplayready.device import Device
 from pyplayready.system.pssh import PSSH
-from lib.load_yaml_config import CFG
+from unit.handle.handle_log import setup_logging
+from unit.__init__ import USERAGENT
 
 
 logger = setup_logging('playready', 'graphite')
@@ -39,7 +39,7 @@ class PlayReadyDRM:
             challenge: bytes = self.cdm.get_license_challenge(self.session_id, pssh_obj.wrm_headers[0])
 
             headers: dict[str, str] = {
-                'User-Agent': f"{CFG['headers']['User-Agent']}",
+                'User-Agent': f"{USERAGENT}",
                 'Connection': 'Keep-Alive',
                 'Content-Type': 'application/octet-stream',
                 'acquirelicenseassertion': acquirelicenseassertion

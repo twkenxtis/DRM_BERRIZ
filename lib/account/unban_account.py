@@ -1,16 +1,21 @@
 import asyncio
 import sys
+import random
 
 import httpx
 from httpx import Response
 from typing import Dict, Any, Optional
 
+from lib.Proxy import Proxy
 from static.color import Color
+from static.api_error_handle import api_error_handle
 from unit.__init__ import USERAGENT
 from unit.handle.handle_log import setup_logging
 
+
 PCID = 'ZOqaqhZDP51ktDutTpV_F'
 logger = setup_logging('unban_account', 'linen')
+_session: Optional[httpx.AsyncClient] = None
 
 
 class Request:
@@ -34,72 +39,90 @@ class Request:
     }
 
     params: Dict[str, str] = {'languageCode': 'en'}
+
+    def get_session(self) -> httpx.AsyncClient:
+        global _session
+        if _session is None:
+            _session = httpx.AsyncClient(http2=True, timeout=4, verify=True)
+        return _session
     
-    def __init__(self) -> None:
-        pass
-        
+    async def close_session(self):
+        global _session
+        if _session is not None:
+            await _session.aclose()
+            _session = None
+    
+    def __init__(self):
+        self.retry_http_status: set[int] = frozenset({400, 401, 403, 500, 502, 503, 504})
+
+    async def _get_random_proxy(self) -> Dict[str, str]:
+        """Select a random proxy from the proxy list, throttled to one call per second."""
+        raw: str = random.choice(Proxy._load_proxies())
+        raw = raw.strip().rstrip(',')
+        host, port, user, password = raw.split(':', maxsplit=3)
+        proxy_url: str = f"http://{user}:{password}@{host}:{port}"
+        return {"http://": proxy_url}
+
     async def post(self, url: str, p: Dict[str, Any], json_data: Dict[str, Any]) -> httpx.Response:
-        async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            attempt: int = 0
-            while attempt < 3:
-                try:
-                    response: httpx.Response = await client.post(
-                        url,
-                        params=p,
-                        cookies=Request.cookies,
-                        headers=Request.headers,
-                        json=json_data,
+        attempt: int = 0
+        while attempt < 3:
+            try:
+                session = self.get_session()
+                response: httpx.Response = await session.post(
+                    url,
+                    params=p,
+                    cookies=Request.cookies,
+                    headers=Request.headers,
+                    json=json_data,
+                )
+                if response.status_code in self.retry_http_status:
+                    raise httpx.HTTPStatusError(
+                        f"Retryable server error: {response.status_code}",
+                        request=response.request,
+                        response=response,
                     )
-                    if response.status_code <= 400:
-                        raise httpx.HTTPStatusError(
-                            f"Retryable server error: {response.status_code}",
-                            request=response.request,
-                            response=response,
-                        )
-                    response.raise_for_status()
-                    return response
-                except httpx.HTTPStatusError as e:
-                    if e.response is not None and e.response.status_code <= 400:
-                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
-                    else:
-                        logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
-                        return None
-                attempt += 1
-                sleep: float = min(2.0, 0.5 * (2 ** attempt))
-                await asyncio.sleep(sleep)
+                return response
+            except httpx.HTTPStatusError as e:
+                if e.response is not None:
+                    logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                else:
+                    logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                    return None
+            attempt += 1
+            sleep: float = min(2.0, 0.5 * (2 ** attempt))
+            await asyncio.sleep(sleep)
         logger.error(f"Retry exceeded for {url}")
         return None
         
     async def put(self, url: str, json_data: Dict[str, Any]) -> Response:
         """發送異步 PUT 請求"""
-        async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            attempt: int = 0
-            while attempt < 3:
-                try:
-                    response: Response = await client.put(
-                        url,
-                        params=Request.params,
-                        cookies=Request.cookies,
-                        headers=Request.headers,
-                        json=json_data,
+        attempt: int = 0
+        while attempt < 3:
+            try:
+                session = self.get_session()
+                response: httpx.Response = await session.put(
+                    url,
+                    params=Request.params,
+                    cookies=Request.cookies,
+                    headers=Request.headers,
+                    json=json_data,
+                )
+                if response.status_code in self.retry_http_status:
+                    raise httpx.HTTPStatusError(
+                        f"Retryable server error: {response.status_code}",
+                        request=response.request,
+                        response=response,
                     )
-                    if response.status_code <= 400:
-                        raise httpx.HTTPStatusError(
-                            f"Retryable server error: {response.status_code}",
-                            request=response.request,
-                            response=response,
-                        )
-                    response.raise_for_status()
-                    return response
-                except httpx.HTTPStatusError as e:
-                    if e.response is not None and e.response.status_code <= 400:
-                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
-                    else:
-                        logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
-                        return None
-                attempt += 1
-                sleep: float = min(2.0, 0.5 * (2 ** attempt))
-                await asyncio.sleep(sleep)
+                return response
+            except httpx.HTTPStatusError as e:
+                if e.response is not None:
+                    logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                else:
+                    logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                    return None
+            attempt += 1
+            sleep: float = min(2.0, 0.5 * (2 ** attempt))
+            await asyncio.sleep(sleep)
         logger.error(f"Retry exceeded for {url}")
         return None
 
@@ -127,12 +150,10 @@ async def berriz_verification_email_code(email: str) -> bool:
     if response.status_code == 201:
         if response_json.get('code') == '0000':
             return True
-        elif response_json.get('code') == 'FS_ME2020':
-            logger.error(f"{Color.bg('cyan')}You've exceeded the code request limit. Please try again after 1 hour.{Color.reset()}")
+        elif response_json.get('code') != '0000':
+            logger.error(api_error_handle(response_json.get('code')))
             raise RuntimeWarning('Max exceeded e-mail code')
-        
-        logger.warning(f"{Color.fg('golden')}{response_json.get('message', 'Unknown message')}{Color.reset()}")
-        return False
+        return False # 未知錯誤
     else:
         logger.error(f" {response.status_code} 'https://account.berriz.in/member/v1/verification-emails:send/UNBLOCK'")
         return False
@@ -187,10 +208,9 @@ async def member_unlock(email: str, verifiedKey: str) -> bool:
     if code == '0000':
         logger.info(f"{Color.fg('green')}{response_json.get('message', 'Account unlocked successfully')}{Color.reset()}")
         return True
-    elif code == 'FS_ER5010':
-        logger.warning(f"{response_json.get('message', 'Error 5010')} This account may not be registered in the Berriz database")
+    elif code != '0000':
+        logger.warning(f"{response_json.get('message', 'Error 5010')} {api_error_handle(code)}")
         return False
-    
     logger.error(f"{Color.fg('golden')}{response_json.get('message', 'Unknown unlock error')}{Color.reset()}")
     return False
 
@@ -206,7 +226,6 @@ def handle_user_input(email: str) -> str:
         if otpCode.isdigit() and len(otpCode) == 6:
             otpInt: str = otpCode.strip()
             return otpInt
-        
         logger.warning("Invalid OTP: must be exactly 6 digits")
 
 
@@ -237,8 +256,6 @@ async def unban_main(email: str) -> bool:
     except RuntimeWarning:
         # 處理郵箱發送次數超限
         return False
-    except SystemExit:
-        raise # 重新拋出 sys.exit(1)
     except Exception as e:
         logger.error(f"An unexpected error occurred in unban_main: {e}", exc_info=True)
         return False

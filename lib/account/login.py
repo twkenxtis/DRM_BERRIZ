@@ -15,6 +15,7 @@ import yaml
 from lib.account.unban_account import unban_main
 from static.color import Color
 from static.route import Route
+from static.api_error_handle import api_error_handle
 from unit.__init__ import USERAGENT
 from unit.handle.handle_log import setup_logging
 
@@ -24,6 +25,7 @@ logger = setup_logging('login', 'flamingo_pink')
 
 YAML_PATH: Path = Route().YAML_path
 PCID = 'ZOqaqhZDP51ktDutTpV_F'
+_session: Optional[httpx.AsyncClient] = None
 
 class AuthManager:
     # 單例管理：確保全局只有一個 AuthManager 實例
@@ -41,17 +43,17 @@ class AuthManager:
         """
         創建新的認證管理器實例，對應 JS 端 a.R.create() 的行為
         - 生成 code_verifier、code_challenge、state
-        - 設定實例的有效期限（10 分鐘）
+        - 設定實例的有效期限 10 分鐘
         """
         instance: "AuthManager" = cls()
-        # 1. 生成符合 JS 實作的 21 字符 code_verifier
+        # 生成符合 JS 實作的 21 字符 code_verifier
         instance.code_verifier = cls._generate_code_verifier()
-        # 2. 根據 code_verifier 生成相同格式的 code_challenge
+        # 根據 code_verifier 生成相同格式的 code_challenge
         instance.challenge = cls._generate_challenge(
             instance.code_verifier,
             challenge_method
         )
-        # 3. 生成防 CSRF 的 state（21 字符）
+        # 生成防 CSRF 的 state（21 字符）
         instance.state = cls._generate_state()
         # 實例時間標記與過期時間
         instance.created_at = datetime.now()
@@ -83,14 +85,14 @@ class AuthManager:
         """
         random_bytes: bytes = secrets.token_bytes(16)
         verifier: str = base64.urlsafe_b64encode(random_bytes).decode()
-        verifier = verifier.replace('=', '')  # 去掉填充符
-        return verifier[:21]                 # 確保長度
+        verifier = verifier.replace('=', '') # 去掉填充符
+        return verifier[:21]# 確保長度
 
     @classmethod
     def _generate_challenge(cls, code_verifier: str, method: str = 'S256') -> str:
         """
         生成 PKCE code_challenge，對應 JS 端的行為
-        - S256: 對 code_verifier 做 SHA256，輸出十六進製字串（64 字符）
+        - S256: 對 code_verifier 做 SHA256，輸出HEX字串 = 64 字符
         - plain: 直接返回 code_verifier
         """
         if method == 'S256':
@@ -122,8 +124,8 @@ class AuthManager:
 
     def to_dict(self) -> Dict[str, str]:
         """
-        轉換實例為字典，用於持久化存儲
-        包含 code_verifier、challenge、state 及時間資訊
+        轉換實例為字典 用於持久化存儲
+        包含 code_verifier / challenge / state / 10MIN
         """
         return {
             'code_verifier': self.code_verifier,
@@ -136,7 +138,7 @@ class AuthManager:
     @classmethod
     def from_dict(cls, data: Dict[str, str]) -> "AuthManager":
         """
-        從字典恢復 AuthManager 實例，對應 JS 端 a.R 從 localStorage 讀取行為
+        從字典恢復AuthManager實例 JS 端 a.R 從 localStorage 讀取行為
         """
         instance: "AuthManager" = cls()
         instance.code_verifier = data['code_verifier']
@@ -155,7 +157,7 @@ class AuthManager:
         language_code: str = 'en'
     ) -> str:
         """
-        生成 OAuth 授權請求的 URL，對應 JS 端 authorize:init 參數
+        生成 OAuth 授權請求的 URL 對應 JS 端 authorize:init 參數
         """
         base_url: str = "https://account.berriz.in/auth/v1/authorize:init"
         params: Dict[str, str] = {
@@ -232,68 +234,81 @@ class Request:
         'Pragma': 'no-cache',
         'Cache-Control': 'no-cache',
     }
+    
+    def __init__(self):
+        self.retry_http_status: set[int] = frozenset({400, 401, 403, 500, 502, 503, 504})
+
+    def get_session(self) -> httpx.AsyncClient:
+        global _session
+        if _session is None:
+            _session = httpx.AsyncClient(http2=True, timeout=4, verify=True)
+        return _session
+    
+    async def close_session(self):
+        global _session
+        if _session is not None:
+            await _session.aclose()
+            _session = None
 
     async def post(self, url: str, p: Dict[str, Any], json_data: Dict[str, Any]) -> httpx.Response:
-        async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            attempt: int = 0
-            while attempt < 3:
-                try:
-                    response: httpx.Response = await client.post(
-                        url,
-                        params=p,
-                        cookies=Request.cookies,
-                        headers=Request.headers,
-                        json=json_data,
+        attempt: int = 0
+        while attempt < 3:
+            try:
+                session = self.get_session()
+                response: httpx.Response = await session.post(
+                    url,
+                    params=p,
+                    cookies=Request.cookies,
+                    headers=Request.headers,
+                    json=json_data,
+                )
+                if response.status_code in self.retry_http_status:
+                    raise httpx.HTTPStatusError(
+                        f"Retryable server error: {response.status_code}",
+                        request=response.request,
+                        response=response,
                     )
-                    if response.status_code <= 400:
-                        raise httpx.HTTPStatusError(
-                            f"Retryable server error: {response.status_code}",
-                            request=response.request,
-                            response=response,
-                        )
-                    response.raise_for_status()
-                    return response
-                except httpx.HTTPStatusError as e:
-                    if e.response is not None and e.response.status_code <= 400:
-                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
-                    else:
-                        logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
-                        return None
-                attempt += 1
-                sleep: float = min(2.0, 0.5 * (2 ** attempt))
-                await asyncio.sleep(sleep)
+                return response
+            except httpx.HTTPStatusError as e:
+                if e.response is not None:
+                    logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                else:
+                    logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                    return None
+            attempt += 1
+            sleep: float = min(2.0, 0.5 * (2 ** attempt))
+            await asyncio.sleep(sleep)
         logger.error(f"Retry exceeded for {url}")
         return None
 
 
     async def get(self, url: str, p: Dict[str, Any]) -> httpx.Response:
-        async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            attempt: int = 0
-            while attempt < 3:
-                try:
-                    response: httpx.Response = await client.get(
-                        url,
-                        params=p,
-                        cookies=Request.cookies,
-                        headers=Request.headers,
+        attempt: int = 0
+        while attempt < 3:
+            try:
+                session = self.get_session()
+                response: httpx.Response = await session.get(
+                    url,
+                    params=p,
+                    cookies=Request.cookies,
+                    headers=Request.headers,
+                )
+                if response.status_code in self.retry_http_status:
+                    raise httpx.HTTPStatusError(
+                        f"Retryable server error: {response.status_code}",
+                        request=response.request,
+                        response=response,
                     )
-                    if response.status_code <= 400:
-                        raise httpx.HTTPStatusError(
-                            f"Retryable server error: {response.status_code}",
-                            request=response.request,
-                            response=response,
-                        )
-                    response.raise_for_status()
-                    return response
-                except httpx.HTTPStatusError as e:
-                    if e.response is not None and e.response.status_code <= 400:
-                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
-                    else:
-                        logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
-                        return None
-                attempt += 1
-                sleep: float = min(2.0, 0.5 * (2 ** attempt))
-                await asyncio.sleep(sleep)
+                return response
+            except httpx.HTTPStatusError as e:
+                if e.response is not None:
+                    logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                else:
+                    logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                    return None
+            attempt += 1
+            sleep: float = min(2.0, 0.5 * (2 ** attempt))
+            await asyncio.sleep(sleep)
         logger.error(f"Retry exceeded for {url}")
         return None
 
@@ -415,11 +430,11 @@ class LoginManager:
                     self.account = acct
                     self.password = pwd
                     return await self.run_login()
+            logger.error(f"No valid account/password found in YAML!")
             raise ValueError('No valid account/password in YAML')
         except ValueError as e:
             logger.error(f"{e} - Fail to use account password re-login in")
             
-
     async def run_login(self) -> bool:
         # 校驗郵箱
         ok: bool = await self.check_mail()
@@ -440,7 +455,7 @@ class LoginManager:
         # authenticateKey
         ak_data: Dict[str, Any] = await authenticateKey(
             authkey, challenge, state,
-            self.account, self.password, self.CLIENTID  # type: ignore[arg-type]
+            self.account, self.password, self.CLIENTID
         )
         authk: str = await self.check_authenticatekey(ak_data)
         # 拿到重定向 URL 回應header裡面有資料
@@ -497,9 +512,10 @@ class LoginManager:
         return key
 
     async def check_authenticatekey(self, data: Dict[str, Any]) -> str:
-        if data["code"] != "0000":
-            if data["code"] == 'FS_AU4030':
-                logger.info(f"{Color.fg('gold')}{data['message']}{Color.reset()}")
+        code :str = data["code"]
+        if code != "0000":
+            if code == 'FS_AU4030':
+                logger.error(f"{api_error_handle(code)}")
                 """{'code': 'FS_AU4030', 'message': 'Unfortunately, 
                 your account has been suspended. Additional authentication is required to re-enable.'}"""
                 if await unban_main(self.account or "") is True:

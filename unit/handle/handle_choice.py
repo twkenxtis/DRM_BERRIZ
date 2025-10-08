@@ -139,18 +139,14 @@ class Handle_Choice:
         return await self.process_selected_media()
     
     async def media_list(self):
-        try:
-            # 接收 ListDataTuple, 5個 List[dict]
-            filter_media = await self.fetch_filtered_media()
-            filter_vod_list, filter_photo_list, filter_live_list, filter_post_list, filter_notice_list = filter_media
+        # 接收 ListDataTuple, 5個 List[dict]
+        filter_media = await self.fetch_filtered_media()
+        filter_vod_list, filter_photo_list, filter_live_list, filter_post_list, filter_notice_list = filter_media
 
-            if paramstore.get('notify_mod') is True:
-                # notify_only
-                filter_live_list = await NotifyFetcher().get_all_notify_lists(self.time_a, self.time_b)
-                filter_vod_list, filter_photo_list, filter_post_list, filter_notice_list = [], [], [], []
-        except TypeError as e:
-            logger.error(e)
-            return
+        if paramstore.get('notify_mod') is True:
+            # notify_only
+            filter_live_list = await NotifyFetcher().get_all_notify_lists(self.time_a, self.time_b)
+            filter_vod_list, filter_photo_list, filter_post_list, filter_notice_list = [], [], [], []
         selected_media = await InquirerPySelector(filter_vod_list, filter_photo_list, filter_live_list, filter_post_list, filter_notice_list).run()
         return selected_media
 

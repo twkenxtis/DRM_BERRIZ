@@ -11,10 +11,8 @@ from logging.handlers import TimedRotatingFileHandler
 from logging import LogRecord, Formatter, Logger, StreamHandler
 from typing import Any, Optional
 
-
 from static.color import Color
 from static.route import Route
-
 
 
 YAML_PATH: Path = Route().YAML_path

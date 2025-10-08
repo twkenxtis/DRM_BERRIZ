@@ -4,6 +4,7 @@ import aiohttp
 
 from typing import Any, Dict, List, Optional, Tuple, Union, Type
 
+from lib.__init__ import use_proxy
 from unit.handle.handle_log import setup_logging
 from unit.__init__ import USERAGENT
 

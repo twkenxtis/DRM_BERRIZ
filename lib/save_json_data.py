@@ -36,13 +36,14 @@ class save_json_data:
                         content = content.decode('utf-8')
                     elif not is_text_mode and isinstance(content, str):
                         content = content.encode('utf-8')
-                    
+                    logger.info(f"Writing {file_path})")
                     await f.write(content)
                 await aios.replace(tmp_path, file_path)
                 return
             except Exception as e:
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(self.retry_delay)
+                    logger.warning(f"Failed to write to {file_path} (attempt {attempt+1}/{self.max_retries}): {e}")
                     continue
                 if await aios.path.exists(tmp_path):
                     await aios.remove(tmp_path)

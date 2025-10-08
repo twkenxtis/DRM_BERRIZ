@@ -8,9 +8,7 @@ from static.color import Color
 from unit.handle.handle_log import setup_logging
 
 
-logger = setup_logging(
-    'pssh', 'aquamarine'
-)
+logger = setup_logging('pssh', 'aquamarine')
 
 
 def extract_pssh(response: requests.Response) -> List[str]:

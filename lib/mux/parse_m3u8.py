@@ -1,7 +1,7 @@
 import os
 import re
 import urllib.parse
-from typing import List, Any, Pattern, Awaitable, Union, Dict
+from typing import List, Any, Pattern, Union
 
 
 URI_PATTERN: Pattern[str] = re.compile(r'URI="([^"]+)"')
@@ -21,7 +21,6 @@ async def rebuild_master_playlist(m3u8: Any, m3u8_uri: str) -> str:
     rebuilt_lines: List[str] = []
     
     for line_raw in lines:
-        # 類型註釋：每行經過 strip() 處理後仍是字串
         line: str = line_raw.strip()
         if not line:
             continue

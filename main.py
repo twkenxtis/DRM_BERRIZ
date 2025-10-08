@@ -2,11 +2,12 @@
 import asyncio
 import sys
 
-from typing import Union
+from typing import Union, Optional
 
 import rich.traceback
 
 from lib.account.berriz_create_community import BerrizCreateCommunity
+from unit.community.community import custom_dict
 from static.args import (
     had_key, clean_dl, skip_merge, fanclub, nofanclub,
     community, group, time_date, had_nocookie,
@@ -89,7 +90,11 @@ else:
     paramstore._store["hls_only_dl"] = False
 
 if signup():
-    asyncio.run(run_signup())
+    try:
+        asyncio.run(run_signup())
+    except KeyboardInterrupt:
+        logger.info(f"Program interrupted: {Color.fg('light_gray')}User canceled{Color.reset()}")
+        sys.exit(0)
     
 from unit.handle.handle_choice import Handle_Choice
 from unit.community.community import get_community, get_community_print
@@ -128,6 +133,11 @@ async def main():
         await BerrizCreateCommunity(await cm(leave_community()), leave_community()).leave_community_main()
     if not community():
         community_id, communityname = await BerrizCreateCommunity(await cm(group()), group()).community_id_name()
+        custom_name: Optional[str] = await custom_dict(communityname)
+        logger.info(
+            f"{Color.fg('spring_green')}Community:"
+            f"{Color.reset()}［{Color.fg('turquoise')}{custom_name}{Color.reset()}］"
+        )
         await Handle_Choice(community_id, communityname, time_a, time_b).handle_choice()
     else:
         await get_community_print()

@@ -9,7 +9,7 @@ import aiofiles
 import aiofiles.os as aios
 import httpx
 
-from lib.__init__ import container, FilenameSanitizer, OutputFormatter, get_artis_list
+from lib.__init__ import container, FilenameSanitizer, OutputFormatter, get_artis_list, use_proxy
 from lib.mux.videoinfo import VideoInfo
 from lib.mux.mux import FFmpegMuxer
 from lib.load_yaml_config import CFG
@@ -26,31 +26,37 @@ logger = setup_logging('reName', 'violet')
 
 
 class SUCCESS:
-    def __init__(self, downloader: Any, json_data: Dict[str, Any], community_name: str) -> None:
+    def __init__(self, downloader: Any, json_data: Dict[str, Any], community_name: str, custom_community_name: str) -> None:
         self.downloader: Any = downloader
         self.json_data: Dict[str, Any] = json_data
         self.publicinfo: PublicInfo_Custom = PublicInfo_Custom(json_data)
         self.community_name: str = community_name
+        self.custom_community_name: str = custom_community_name
         self.base_dir: Path = self.downloader.base_dir
         self.tempname: str = f"temp_output_DO_NOT_DEL.{container}"
         self.path: Path = self.base_dir / self.tempname
         self.artis_list: List[Dict[str, Optional[str]]] = self.publicinfo.artist_list
+        self.filenameSanitizer = FilenameSanitizer.sanitize_filename
 
-    async def when_success(self, success: bool, decryption_key: Optional[Union[bytes, str]], merge_type: str) -> str:
+    async def when_success(self, success: bool, decryption_key: Optional[Union[bytes, str]], merge_type: str) -> str | bool:
         """處理下載成功後的邏輯：下載縮圖、混流、重新命名與清理檔案"""
         if success:
             logger.info(f"{Color.fg('light_gray')}Video file: {self.base_dir / f'video.{container}'}{Color.reset()}")
             logger.info(f"{Color.fg('light_gray')}Audio file: {self.base_dir / f'audio.{container}'}{Color.reset()}")
-            await self.dl_thumbnail()
-        
+        await self.dl_thumbnail()
         # Mux video and audio with FFmpeg
         muxer: FFmpegMuxer = FFmpegMuxer(self.base_dir, decryption_key)
         video_file_name = ''
-        if await muxer.mux_main(merge_type, self.tempname) and paramstore.get('skip_mux') is not True:
-            video_file_name = await SUCCESS.re_name(self)
+        mux_bool_status = await muxer.mux_main(merge_type, self.tempname)
+        if paramstore.get('skip_mux') is not True:
+            if mux_bool_status is True:
+                video_file_name = await SUCCESS.re_name(self)
+            else:
+                logger.warning("Mux failed, check console output for details")
+                video_file_name = '[ Mux failed ]' + f'\n{Color.bg("ruby")}Keep all segments in temp folder{Color.reset()}'
             # 傳遞給 clean_file 的 had_drm 實際上是 decryption_key
-            if paramstore.get('clean_dl') is not False:
-                await SUCCESS.clean_file(self, decryption_key, merge_type) # type: ignore[arg-type] # 傳遞了 decryption_key
+            if paramstore.get('clean_dl') is not False and mux_bool_status is True:
+                await SUCCESS.clean_file(self, decryption_key, merge_type)
             else:
                 logger.info(f"{Color.fg('yellow')}Skipping file cleaning, keep segments after done{Color.reset()}")
         elif paramstore.get('skip_merge') is True: 
@@ -62,7 +68,7 @@ class SUCCESS:
                 if paramstore.get('skip_mux'):
                     return '[ User choese SKIP MUX ]'
             case _:
-                return video_file_name
+                return video_file_name, mux_bool_status
 
     async def clean_file(self, had_drm: Optional[Union[bytes, str]], merge_type: str) -> None:
         """清理下載過程中的暫存檔案、加密檔案和暫存目錄"""
@@ -117,44 +123,29 @@ class SUCCESS:
         fm:str = get_timestamp_formact(fmt) # %y%m%d_%H-%M
         dt: datetime = datetime.strptime(self.publicinfo.formatted_published_at, fm)
         d:str = dt.strftime(fm)
-        safe_title: str = FilenameSanitizer.sanitize_filename(self.publicinfo.media_title)
+        safe_title: str = self.filenameSanitizer(self.publicinfo.media_title)
         video_codec: str
         video_quality_label: str
         video_audio_codec: str
         video_codec, video_quality_label, video_audio_codec = await self.extract_video_info()
-        community_name = (
-            # 嘗試取得並處理社羣名稱這個表達式會先被執行
-            # 1. 呼叫 get_community_name() 取得原始資料
-            # 2. 呼叫 custom_dict() 處理原始資料
-            #    如果 custom_dict() 的結果是「有值的」（即非 None, 非 False, 非 0, 非空容器），
-            #    則整個 or 運算式結束，將結果賦值給 community_name
-            #    如果 custom_dict() 的結果是「無值的」（例如 None 或空字串），
-            #    則執行 or 後面的部分
-            await custom_dict(self.community_name) 
-        ) or (
-            # 只有當 or 之前的表達式結果為「無值」時，這個部分才會被執行
-            # 目的：作為一個備用方案 (Fallback)，重新執行一次 get_community_name()，
-            #      並將這次的結果（未經 custom_dict 處理）賦值給 community_name
-            self.community_name
-        )
-        if get_artis_list(self.artis_list) == community_name:
+        if get_artis_list(self.artis_list) == self.community_name or get_artis_list(self.artis_list) == self.custom_community_name:
             video_meta: Dict[str, str] = {
                 "date": d,
                 "title": safe_title,
                 "artis": get_artis_list(self.artis_list).lower(),
-                "community_name": community_name,
+                "community_name": self.custom_community_name,
                 "quality": video_quality_label,
                 "source": "Berriz",
                 "video": video_codec,
                 "audio": video_audio_codec,
                 "tag": CFG['output_template']['tag']
             }
-        elif get_artis_list(self.artis_list) != community_name:
+        elif get_artis_list(self.artis_list) != self.community_name or get_artis_list(self.artis_list) != self.custom_community_name:
             video_meta: Dict[str, str] = {
                 "date": d,
                 "title": safe_title,
                 "artis": get_artis_list(self.artis_list),
-                "community_name": community_name,
+                "community_name": self.custom_community_name,
                 "quality": video_quality_label,
                 "source": "Berriz",
                 "video": video_codec,
@@ -178,6 +169,12 @@ class SUCCESS:
         video_codec: str = codec_task.result()
         video_quality_label: str = quality_task.result()
         video_audio_codec: str = audio_task.result()
+        if video_audio_codec == 'unknown':
+            logger.warning(f"Unknown audio codec: {video_audio_codec}")
+            video_audio_codec = 'x'
+        if video_codec == 'unknown':
+            logger.warning(f"Unknown video codec: {video_codec}")
+            video_codec = 'x'
         return video_codec, video_quality_label, video_audio_codec
 
     async def dl_thumbnail(self) -> None:
@@ -186,7 +183,7 @@ class SUCCESS:
         if not thumbnail_url:
             logger.warning("No thumbnail URL found")
             return
-        response: httpx.Response = await GetRequest().get_request(thumbnail_url)
+        response: httpx.Response = await GetRequest().get_request(thumbnail_url, use_proxy)
         thumbnail_name: str = os.path.basename(thumbnail_url)
         save_path: Path = Path(self.base_dir).parent / thumbnail_name
         try:

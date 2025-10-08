@@ -4,6 +4,7 @@ from typing import Dict, Union, List, Optional
 
 import aiofiles
 
+from lib.__init__ import use_proxy
 from static.color import Color
 from static.route import Route
 from unit.http.request_berriz_api import Arits
@@ -21,7 +22,7 @@ BASE_ARTIS_KEY_DICT: Path = Route().BASE_ARTIS_KEY_DICT
 
 class ArtisDict:
     def __init__(self):
-        pass
+        self.Artis = Arits()
     
     async def file_check(self) -> None:
         """確保 JSON 檔案存在，如果不存在則建立它"""
@@ -66,7 +67,7 @@ class ArtisDict:
                     return {"data": {"communityArtists": [item for item in contents if item.get("communityId") == result]}}
                 # 如果查詢的是 communityId，繼續使用 community_id
         # 如果沒有查詢條件或找不到結果，從 API 取得
-        artis_json = await Arits().artis_list(community_id)
+        artis_json = await self.Artis.artis_list(community_id, use_proxy)
         async with aiofiles.open(BASE_ARTIS_KEY_DICT, 'rb') as f:
             old_bytes = await f.read()
         old_items = orjson.loads(old_bytes)

@@ -8,14 +8,16 @@ import secrets
 from typing import List, Tuple, Union, Optional, Dict, Any, Literal
 
 import httpx
-from urllib.parse import parse_qs, urlparse
 
+from static.api_error_handle import api_error_handle
 from static.color import Color
 from unit.__init__ import USERAGENT
+from urllib.parse import parse_qs, urlparse
 from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('signup', 'periwinkle')
+_session: Optional[httpx.AsyncClient] = None
 
 
 # 密碼強度正則表達式檢查
@@ -226,68 +228,80 @@ class Request:
         'Connection': 'keep-alive',
         'Pragma': 'no-cache',
     }
+    
+    def __init__(self):
+        self.retry_http_status: set[int] = frozenset({400, 401, 403, 500, 502, 503, 504})
+
+    def get_session(self) -> httpx.AsyncClient:
+        global _session
+        if _session is None:
+            _session = httpx.AsyncClient(http2=True, timeout=4, verify=True)
+        return _session
+    
+    async def close_session(self):
+        global _session
+        if _session is not None:
+            await _session.aclose()
+            _session = None
 
     async def post(self, url: str, p: Dict[str, Any], json_data: Dict[str, Any]) -> httpx.Response:
-        async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            attempt: int = 0
-            while attempt < 3:
-                try:
-                    response: httpx.Response = await client.post(
-                        url,
-                        params=p,
-                        cookies=Request.cookies,
-                        headers=Request.headers,
-                        json=json_data,
+        attempt: int = 0
+        while attempt < 3:
+            try:
+                session = self.get_session()
+                response: httpx.Response = await session.post(
+                    url,
+                    params=p,
+                    cookies=Request.cookies,
+                    headers=Request.headers,
+                    json=json_data,
+                )
+                if response.status_code in self.retry_http_status:
+                    raise httpx.HTTPStatusError(
+                        f"Retryable server error: {response.status_code}",
+                        request=response.request,
+                        response=response,
                     )
-                    if response.status_code <= 400:
-                        raise httpx.HTTPStatusError(
-                            f"Retryable server error: {response.status_code}",
-                            request=response.request,
-                            response=response,
-                        )
-                    response.raise_for_status()
-                    return response
-                except httpx.HTTPStatusError as e:
-                    if e.response is not None and e.response.status_code <= 400:
-                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
-                    else:
-                        logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
-                        return None
-                attempt += 1
-                sleep: float = min(2.0, 0.5 * (2 ** attempt))
-                await asyncio.sleep(sleep)
+                return response
+            except httpx.HTTPStatusError as e:
+                if e.response is not None:
+                    logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                else:
+                    logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                    return None
+            attempt += 1
+            sleep: float = min(2.0, 0.5 * (2 ** attempt))
+            await asyncio.sleep(sleep)
         logger.error(f"Retry exceeded for {url}")
         return None
 
-
     async def get(self, url: str, p: Dict[str, Any]) -> httpx.Response:
-        async with httpx.AsyncClient(http2=True, verify=True, timeout=13.0) as client:
-            attempt: int = 0
-            while attempt < 3:
-                try:
-                    response: httpx.Response = await client.get(
-                        url,
-                        params=p,
-                        cookies=Request.cookies,
-                        headers=Request.headers,
+        attempt: int = 0
+        while attempt < 3:
+            try:
+                session = self.get_session()
+                response: httpx.Response = await session.get(
+                    url,
+                    params=p,
+                    cookies=Request.cookies,
+                    headers=Request.headers,
+                )
+                if response.status_code in self.retry_http_status:
+                    raise httpx.HTTPStatusError(
+                        f"Retryable server error: {response.status_code}",
+                        request=response.request,
+                        response=response,
                     )
-                    if response.status_code <= 400:
-                        raise httpx.HTTPStatusError(
-                            f"Retryable server error: {response.status_code}",
-                            request=response.request,
-                            response=response,
-                        )
-                    response.raise_for_status()
-                    return response
-                except httpx.HTTPStatusError as e:
-                    if e.response is not None and e.response.status_code <= 400:
-                        logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
-                    else:
-                        logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
-                        return None
-                attempt += 1
-                sleep: float = min(2.0, 0.5 * (2 ** attempt))
-                await asyncio.sleep(sleep)
+                return response
+            except httpx.HTTPStatusError as e:
+                if e.response is not None:
+                    logger.warning(f"HTTP server error: {e.response.status_code}, retry {attempt + 1}/{3}")
+                else:
+                    logger.error(f"HTTP error for {url}: {e} {Color.bg('gold')}{response}{Color.reset()}")
+                    return None
+            attempt += 1
+            sleep: float = min(2.0, 0.5 * (2 ** attempt))
+            await asyncio.sleep(sleep)
         logger.error(f"Retry exceeded for {url}")
         return None
 
@@ -307,17 +321,16 @@ async def valid_email(email: str) -> Optional[bool]:
     url: str = 'https://account.berriz.in/member/v1/members:signup-email-exists'
     response: httpx.Response = await R.get(url, params)
     response_json: Dict[str, Any] = response.json()
-
-    if response_json.get('code') == '0000':
+    code: str = response_json.get('code')
+    if code == '0000':
         # 預期是 False (不存在)
         return response_json.get('data', {}).get('exists')
-    elif response_json.get('code') == 'FS_ME1010':
-        logger.info(response_json.get('message'), '->', email)
-        return None # 處理完畢，但無法確定 exists 狀態
+    elif code != '0000':
+        logger.warning(f"{api_error_handle(code)} → {email}")
+        return None
     else:
         logger.error(response_json)
         raise Exception(response_json)
-
 
 async def step2(email: str) -> bool:
     """
@@ -340,7 +353,6 @@ async def step2(email: str) -> bool:
         logger.error(response_json)
         return False
 
-
 async def post_verification_key(email: str, otpInt: str) -> Optional[str]:
     """
     提交 OTP 碼並獲取 verifiedKey
@@ -356,23 +368,21 @@ async def post_verification_key(email: str, otpInt: str) -> Optional[str]:
     url: str = 'https://account.berriz.in/member/v1/verification-emails:verify/SIGN_UP'
     response: httpx.Response = await R.post(url, params, json_data)
     response_json: Dict[str, Any] = response.json()
-
-    if response_json.get('code') == '0000' and response_json.get('message') == 'OK':
+    code: str = response_json.get('code')
+    if code == '0000' and response_json.get('message') == 'OK':
         verifiedKey: Optional[str] = response_json.get('data', {}).get('verifiedKey')
         if verifiedKey and len(verifiedKey) == 36:
             return verifiedKey
         else:
             logger.error('verifiedKey not valid uuid')
             raise ValueError('Check verifiedKey is uuid or not.')
-
-    elif response_json.get('code') == 'FS_ME2050':
+    elif code == 'FS_ME2050':
         logger.error(f"{response_json.get('message')} resend a new code for {email}")
         await SignupManager(email, '', '').sign_up()
         return None
     else:
         logger.error(response_json)
         return None
-
 
 async def terms(email: str, password: str, verifiedKey: str) -> bool:
     """
@@ -401,19 +411,15 @@ async def terms(email: str, password: str, verifiedKey: str) -> bool:
     url: str = 'https://account.berriz.in/member/v1/members:sign-up'
     response: httpx.Response = await R.post(url, params, json_data)
     response_json: Dict[str, Any] = response.json()
-
-    if response_json.get('code') == '0000' and response_json.get('message') == 'OK':
+    code :str = response_json.get('code')
+    if code == '0000' and response_json.get('message') == 'OK':
         return True
-    elif response_json.get('code') == 'FS_ME1050':
-        logger.error(f"{response_json.get('message')}")
-        return False
-    elif response_json.get('code') == 'FS_ER4010':
-        logger.error('Please enter a combination of alphanumeric and special characters')
+    elif code != '0000':
+        logger.error(f"{api_error_handle(code)}")
         return False
     else:
         logger.error(response_json)
         raise Exception(response_json)
-
 
 async def authorizeKey(codeChallenge: str, state: str, clientId: str) -> Optional[str]:
     """
@@ -437,7 +443,6 @@ async def authorizeKey(codeChallenge: str, state: str, clientId: str) -> Optiona
     else:
         logger.error(response_json)
         raise Exception(response_json)
-
 
 async def authenticateKey(
     authorizeKey: str,
@@ -468,19 +473,18 @@ async def authenticateKey(
     url: str = 'https://account.berriz.in/auth/v1/authenticate'
     response: httpx.Response = await R.post(url, params, json_data)
     response_json: Dict[str, Any] = response.json()
-
-    if response_json.get("code") == "0000":
+    code: str = response_json.get("code")
+    if code == "0000":
         key: Optional[str] = response_json.get("data", {}).get("authenticateKey")
         if not key or len(key) != 30:
             raise ValueError(f"Bad authenticateKey: {key}")
         return key
-    elif response_json.get("code") == "FS_AU4002":
+    elif code == "FS_AU4002":
         logger.error(response_json.get("message"))
         raise ValueError('DATA_INVALID')
     else:
         logger.error(response_json)
         raise Exception(response_json)
-
 
 async def get_code(CLIENTID: str, challenge: str, state_csrf: str, authenticatekey: str) -> Optional[str]:
     """
@@ -500,7 +504,6 @@ async def get_code(CLIENTID: str, challenge: str, state_csrf: str, authenticatek
     location_header: Optional[str] = response.headers.get('location')
     return location_header
 
-
 async def token_issue(CLIENTID: str, code_value: str, code_verifier: str) -> Dict[str, Any]:
     """
     使用授權碼 (code) 和 code_verifier 獲取存取令牌 (token)
@@ -519,7 +522,6 @@ async def token_issue(CLIENTID: str, code_value: str, code_verifier: str) -> Dic
     url: str = 'https://account.berriz.in/auth/v1/token:issue'
     response: httpx.Response = await R.post(url, params, json_data)
     return response.json()
-
 
 def extract_url_params(url_string: str) -> Tuple[Optional[str], Optional[str]]:
     """
@@ -578,7 +580,7 @@ class SignupManager:
         d: Dict[str, Any] = data.get("data", {})
         a: Any = d.get("accessToken")
         r: Any = d.get("refreshToken")
-        # 這裡假設 access token 長度為 598 是有效的驗證標準
+        # 這裡假設 access token 長度為 598 是有效的驗證標準 和 refresh token 長度為 80 以上是有效的驗證標準 (bz_r 長度不一定 80是隨機測試的avg)
         if isinstance(a, str) and isinstance(r, str) and len(a) == 598 and len(r) > 79:
             return a.strip(), r.strip()
         return None
@@ -606,7 +608,7 @@ class SignupManager:
         """
         if not self.validate_password_regex():
             logger.warning('Your password must contain 8 to 32 alphanumeric and special characters')
-            raise ValueError('Invalid password format')
+            return False
 
         # PKCE 請求
         codeChallenge, state, verifier = SignupManager.get_auth_request(self.password, self.CLIENTID)
@@ -622,15 +624,13 @@ class SignupManager:
                 verifiedKey: Optional[str] = await post_verification_key(self.account, otpInt)
 
                 if verifiedKey:
-                    if await terms(self.account, self.password, verifiedKey):
+                    if await terms(self.account, self.password, verifiedKey) is True:
                         authkey: Optional[str] = await authorizeKey(codeChallenge, state, self.CLIENTID)
-
                         if authkey:
                             ak_data: str = await authenticateKey(
                                 authkey, codeChallenge, state, self.account, self.password, self.CLIENTID,
                             )
-                            return f"({ak_data}) Success create account → {self.account}"
-                return 'Fail'
+                            return f"{Color.fg('gray')}One-time auth temp_token: {ak_data}{Color.reset()} Success create account → {Color.fg('gold')}{self.account}"
             return False
         elif email_exists is True:
             logger.info(f'{self.account}: This email address is already registered')
@@ -649,7 +649,7 @@ class SignupManager:
             try:
                 otp_code: str = input(prompt).strip()
             except EOFError:
-                logging.error("Input not available. Cannot prompt for OTP code.")
+                logger.error("Input not available. Cannot prompt for OTP code.")
                 raise
                 
             if otp_code.isdigit() and len(otp_code) == 6:
@@ -658,13 +658,18 @@ class SignupManager:
 
 
 async def run_signup() -> Union[str, bool]:
-    email = input("Enter your email: ")
-    password = input("Enter your password: ")
-    resp = await SignupManager(email, password).sign_up()
-    logging.info(resp)
-
-
-if __name__ == '__main__':
-    email: str = ''
-    password: str = ''
-    print(asyncio.run(SignupManager(email, password).sign_up()))
+    EMAIL_REGEX: "re.Pattern[str]" = re.compile(r".+@.+\..+")
+    try:
+        while True:
+            email = input("Enter your email: ")
+            if EMAIL_REGEX.match(email):
+                logger.info('Password is contain 8 to 32 alphanumeric and special characters.')
+                password = input("Enter your password: ")
+                resp = await SignupManager(email, password).sign_up()
+                if resp is not False:
+                    logger.info(f"{resp}{Color.reset()} | {Color.fg('cyan')}{password}{Color.reset()}")
+                    break
+            else:
+                logger.warning("Invalid email format")
+    except EOFError:
+        pass

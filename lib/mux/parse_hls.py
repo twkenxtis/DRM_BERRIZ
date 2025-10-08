@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 
+from lib.__init__ import use_proxy
 from static.color import Color
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import GetRequest
@@ -25,6 +26,7 @@ class HLSContent:
     audio_track: Any
     base_url: Optional[str]
     audio_link: str
+    video_link: str
     best_info: str
 
 
@@ -39,6 +41,7 @@ class HLS_Paser:
         self.audio_encryption_key_uri: Optional[str] = None
         self.audio_encryption_key: Optional[bytes] = None
         self._logged_key_iv: bool = False
+        self.GetRequest = GetRequest()
 
     def make_obj(self, highest_video: Any, highest_audio: Any, base_url: Optional[str], best_info:str) -> HLSContent:
         return HLSContent(
@@ -46,6 +49,7 @@ class HLS_Paser:
             audio_track=highest_audio,
             base_url=base_url,
             audio_link=self.audio_link,
+            video_link=self.m3u8_highest,
             best_info=best_info
         )
 
@@ -53,7 +57,7 @@ class HLS_Paser:
         self,
         m3u8_content_str: str,
     ) -> HLSContent:
-        """Main method to parse M3U8 playlist and orchestrate processing."""
+        """Main method to parse M3U8 playlist and orchestrate processing"""
         # Master Playlist 分支
         lines: List[str] = self._preprocess_content(m3u8_content_str)
         if self._check_master_playlist(lines):
@@ -61,7 +65,7 @@ class HLS_Paser:
 
         # 定義共用 helper：取回並過濾出 ts 與 tag
         async def _fetch_and_filter(url: str) -> List[str]:
-            resp = await GetRequest().get_request(url)
+            resp = await self.GetRequest.get_request(url, use_proxy)
             return [line.strip() for line in re.findall(REGEX_HLS_PATTERN, resp.text) if line.strip()]
         tasks: Dict[str, "asyncio.Task[List[str]]"] = {}
         async with asyncio.TaskGroup() as tg:
@@ -75,12 +79,11 @@ class HLS_Paser:
 
         video_segments: tuple[str] = []
         audio_segments: tuple[str] = []
-
         if video_list:
             video_segments = self._process_media_playlist(video_list, self.m3u8_highest or "")
-        elif audio_list:
+        # 不可使用elif，避免條件只符合一個就退出判斷
+        if audio_list:
             audio_segments = self._process_media_playlist(audio_list, self.audio_link or "")
-
         # 組出 base_url 並回傳最終物件
         base_url: Optional[str] = (
             re.sub(r'/\d+/playlist\.m3u8$', '', self.m3u8_highest)
@@ -94,7 +97,7 @@ class HLS_Paser:
         )
     
     def _preprocess_content(self, content: str) -> List[str]:
-        """Split and clean M3U8 content into a list of non-empty lines."""
+        """Split and clean M3U8 content into a list of non-empty lines"""
         return [line.strip() for line in content.splitlines() if line.strip()]
 
     def _check_master_playlist(self, lines: List[str]) -> bool:
@@ -104,7 +107,7 @@ class HLS_Paser:
     async def _process_master_playlist(
             self, lines: List[str], m3u8_str: str
         ) -> str:
-            """Select and parse the best resolution sub-playlist from a master playlist."""
+            """Select and parse the best resolution sub-playlist from a master playlist"""
             
             best_height: int = -1
             best_link: Optional[str] = None
@@ -201,7 +204,7 @@ class HLS_Paser:
             logger.warning(f"Unsupported {prefix} encryption method: {line}")
             
     def rich_table_print(self, obj: HLSContent):
-        """Print rich table of HLS content."""
+        """Print rich table of HLS content"""
         console = Console()
         
         info = obj.best_info.split(":", 1)[1]
@@ -234,7 +237,8 @@ class HLS_Paser:
 
         joined_values = " | ".join(colored_values)
         table.add_row("[bold magenta]INFO[/bold magenta]", joined_values)
-        table.add_row("[bold yellow]Playlist[/bold yellow]", f"[cornsilk1]{obj.base_url}[/]")
+        table.add_row("[bold yellow]Base Url[/bold yellow]", f"[cornsilk1]{obj.base_url}[/]")
+        table.add_row("[bold cyan]Video Link[/bold cyan]", f"[cornsilk1]{obj.video_link}[/]")
         table.add_row("[bold blue]Audio Link[/bold blue]", f"[cornsilk1]{obj.audio_link}[/]")
 
         console.print(table)

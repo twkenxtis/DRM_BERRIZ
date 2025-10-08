@@ -1,10 +1,10 @@
-import functools
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Union, Tuple, Callable
+from typing import List, Dict, Any, Optional, Union
 
 import aiofiles
 import orjson
 
+from lib.__init__ import use_proxy
 from static.color import Color
 from static.route import Route
 from unit.http.request_berriz_api import Community, My
@@ -30,34 +30,6 @@ async def file_Check() -> None:
     if not BASE_COMMUNITY_NAME_DICT.exists():
         async with aiofiles.open(BASE_COMMUNITY_NAME_DICT, 'w') as f:
             await f.write(orjson.dumps({}).decode('utf-8'))
-
-# 定義 async_cache 裝飾器的回傳型別，它是一個接受函式並返回函式的函式
-Decorator = Callable[[Callable[..., Any]], Callable[..., Any]]
-
-def async_cache(maxsize: int = 13) -> Decorator:
-    # 緩存的鍵是 Tuple (args)，值是 Any (函式的回傳值)
-    cache: Dict[Tuple[Any, ...], Any] = {}
-
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        @functools.wraps(func)
-        async def wrapper(*args: Any) -> Any:
-            # 由於裝飾的是一個非同步函式，所以 wrapper 必須是 async
-            if args in cache:
-                return cache[args]
-                
-            # 呼叫原始的非同步函式
-            result: Any = await func(*args) 
-            
-            if len(cache) >= maxsize:
-                # 移除最舊的項目 (第一個鍵)
-                cache.pop(next(iter(cache)))
-            
-            cache[args] = result
-            return result
-            
-        return wrapper
-        
-    return decorator
 
 def search_community(contents: List[CommunityDict], query: Union[str, int, None]) -> Union[str, int, None]:
     if query is None:
@@ -104,7 +76,7 @@ async def custom_dict(input_str: Union[str, int]) -> Optional[str]:
             case _:
                 merged_dict = {}
                 try:
-                    resp: dict = await My().fetch_home()
+                    resp: dict = await My().fetch_home(use_proxy)
                     if resp.get("code") != '0000':
                         return None
                 except AttributeError:
@@ -121,7 +93,6 @@ async def custom_dict(input_str: Union[str, int]) -> Optional[str]:
     return data
     
 # get_community 的回傳值是 str (communityKey) 或 int (communityId) 或 None
-@async_cache(maxsize=256)
 async def get_community(query: Union[str, int, None] = None) -> Union[str, int, None]:
     await file_Check()
     try:
@@ -134,12 +105,6 @@ async def get_community(query: Union[str, int, None] = None) -> Union[str, int, 
     # 先查本地預設資料
     result: Union[str, int, None] = search_community(PRELOADED_COMMUNITIES, query)
     if isinstance(result, str):
-        # 假設 custom_dict 返回 str 或 None
-        name: Optional[str] = await custom_dict(result) or result
-        logger.info(
-            f"{Color.fg('spring_green')}Community: "
-            f"{Color.reset()}［{Color.fg('turquoise')}{name}{Color.reset()}］"
-        )
         return result.strip()
     if result is not None:
         # 如果 result 是 int (communityId)
@@ -180,7 +145,7 @@ async def get_community_print() -> None:
         
 async def request_community_community_keys() -> Dict[str, Any]:
     try:
-        data: Dict[str, Any] = await Community().community_keys()
+        data: Dict[str, Any] = await Community().community_keys(use_proxy)
         if data.get("code") == '0000':
             return data
     except AttributeError:

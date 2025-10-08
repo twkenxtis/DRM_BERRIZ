@@ -1,8 +1,5 @@
-import os
-from pprint import pprint
 from pathlib import Path
 
-from rich.console import Console
 
 class Route:
     def __init__(self):
@@ -19,10 +16,5 @@ class Route:
         self.download_info_pkl: Path = mainpath.parent.parent.joinpath("lock", "download_info.pkl")
         self.BASE_COMMUNITY_KEY_DICT = mainpath.parent.parent.joinpath("static", "community_keys.json")
         self.BASE_COMMUNITY_NAME_DICT = mainpath.parent.parent.joinpath("static", "community_name.json")
-
-
-if __name__ == '__main__':
-    route = Route()
-    console = Console()
-    console.print(route.berrizconfig)
-    
+        self.Proxy_list = mainpath.parent.parent.joinpath("static", "proxy", "proxy.txt")
+        self.download_info_bin = mainpath.parent.parent.joinpath("lock", "download_info.bin")

@@ -1,14 +1,13 @@
 import asyncio
-import sys
 from datetime import datetime
 
 from InquirerPy import inquirer
 
+from lib.__init__ import use_proxy
 from static.color import Color
 from static.api_error_handle import api_error_handle
 from static.parameter import paramstore
-from unit.http.request_berriz_api import Community
-from unit.http.request_berriz_api import Arits
+from unit.http.request_berriz_api import Arits, Community
 from unit.handle.handle_log import setup_logging
 from unit.handle.handle_board_from import BoardMain, BoardNotice
 
@@ -21,7 +20,25 @@ logger = setup_logging('artis_menu', 'ivory')
 boardonly: Optional[bool] = paramstore.get('board')
 noticeonly: Optional[bool] = paramstore.get('noticeonly')
         
-        
+
+class Board_ERROR_Hanldle:
+    @classmethod
+    def board_error_handle(cls, json_data: Dict[str, Any], boards_name: str) -> None:
+        try:
+            if json_data['code'] != '0000':
+                logger.warning(
+                    f"Fail to get 【{Color.fg('light_yellow')}{boards_name}"
+                    f"{Color.fg('gold')}】 {api_error_handle(json_data['code'])}"
+                )
+                return []
+        except KeyError:
+            logger.warning(
+                f"Fail to get 【{Color.fg('light_yellow')}{boards_name}"
+                f"{Color.fg('gold')}】"
+            )
+            pass
+
+
 class Board:
     def __init__(self, community_id: int, communityname: str, time_a: Optional[datetime] = None, time_b: Optional[datetime] = None) -> None:
         self.communityid: int = community_id
@@ -29,6 +46,8 @@ class Board:
         self.json_data: Optional[Dict[str, Any]] = None
         self.time_a: Optional[datetime] = time_a
         self.time_b: Optional[datetime] = time_b
+        self.Arits = Arits()
+        self.Community = Community()
 
     async def match_noticeonly(self, choices: List[Dict[str, Any]]) -> List[Optional[Dict[str, Any]]]:
         match choices:
@@ -95,8 +114,7 @@ class Board:
         ]
 
     async def get_artis_board_list(self) -> Optional[Tuple[Any, str]]:
-        # Community().community_menus 回傳 Optional[Dict[str, Any]]
-        community_menu: Optional[Dict[str, Any]] = await Community().community_menus(self.communityid) 
+        community_menu: Optional[Dict[str, Any]] = await self.Community.community_menus(self.communityid, use_proxy) 
         
         if community_menu is None:
             return None
@@ -110,16 +128,17 @@ class Board:
         name: str
         _type, iconType, _id, name = self.parse_user_select(selected)
         selected_list: List[Dict[str:Any]]
+        selected: Dict[str]
         if len(selected_list) > 0:
-            result: Any = await self.handle_artist_board(selected)
-            result_notice: Any = await self.handle_artist_notice(selected_list[0])
+            result: List[Dict[str, Any]] = await self.handle_artist_board(selected)
+            result_notice: List[Dict[str]] = await self.handle_artist_notice(selected_list[0])
             data = [result, result_notice]
             return (data, 'notice+board')
         if iconType in('artist', 'user', 'artist-fanclub', 'user-fanclub', 'shop', 'Shop', 'SHOP', 'event'):
-            result: Any = await self.handle_artist_board(selected)
+            result: List[Dict[str, Any]] = await self.handle_artist_board(selected)
             return (result, 'artist')
         if iconType == 'notice':
-            result: Any = await self.handle_artist_notice(selected)
+            result: List[Dict[str, Any]] = await self.handle_artist_notice(selected)
             return (result, 'notice')
         else:
             logger.warning(
@@ -133,19 +152,19 @@ class Board:
         _id: Union[int, str] = selected['id']
         name: str = selected['name']
         return _type, iconType, _id, name
-
-    async def handle_artist_board(self, menu: Dict[str, Any]) -> Optional[Any]:
-        board_list: Optional[List[Dict[str, Any]]] = await self.sort_board_list(menu)
+    
+    async def handle_artist_board(self, selected: Dict[str, Any]) -> List[Dict[str, Any]]:
+        board_list: Optional[List[Dict[str, Any]]] = await self.sort_board_list(selected)
         return await BoardMain(board_list, self.time_a, self.time_b).main()
     
-    async def handle_artist_notice(self, menu: Dict[str, Any]) -> Optional[Any]:
-        board_list: Optional[List[Dict[str, Any]]] = await self.sort_board_list(menu)
+    async def handle_artist_notice(self, selected: Dict[str, Any]) -> List[Dict[str, Any]]:
+        board_list: Optional[List[Dict[str, Any]]] = await self.sort_board_list(selected)
         return await BoardNotice(board_list, self.communityid, self.time_a, self.time_b).notice_list()
     
     async def sort_board_list(self, data: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
         boards_id: Union[int, str] = data.get('id', '')
         boards_name: Union[int, str] = data.get('name', '')
-        if data.get('type') in('board', 'shop', 'event', 'SHOP', 'Shop'):
+        if data.get('type') in('board', 'shop', 'event', 'Event', 'SHOP', 'Shop'):
             return await self.get_all_board_content_lists(str(boards_id), str(boards_name))
         elif data.get('type') == 'notice':
             return await Notice(self.communityid, self.communityname).get_all_notice_content_lists()
@@ -179,21 +198,7 @@ class Board:
         contents: List[Dict[str, Any]]
         contents, _, hasNext = self.basic_sort_json()
         all_contents.extend(contents)
-        
-        try:
-            if self.json_data['code'] != '0000':
-                logger.warning(
-                    f"Fail to get 【{Color.fg('light_yellow')}{boards_name}"
-                    f"{Color.fg('gold')}】 {api_error_handle(self.json_data['code'])}"
-                )
-                return []
-        except KeyError:
-            logger.warning(
-                f"Fail to get 【{Color.fg('light_yellow')}{boards_name}"
-                f"{Color.fg('gold')}】"
-            )
-            pass
-        
+        Board_ERROR_Hanldle.board_error_handle(self.json_data, boards_name)
         if not hasNext:
             return self.deduplicate_contents(all_contents)
         # 取得初始 next_int
@@ -221,9 +226,7 @@ class Board:
                 next_int = actual_next
             else:
                 hasNext = False
-                
         return self.deduplicate_contents(all_contents)
-
 
     def deduplicate_contents(self, contents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         seen: set = set()
@@ -237,7 +240,7 @@ class Board:
         return deduped
 
     async def _fetch_board_data(self, boards_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        data: Optional[Dict[str, Any]] = await Arits()._board_list(boards_id, str(self.communityid), params)
+        data: Optional[Dict[str, Any]] = await self.Arits._board_list(boards_id, str(self.communityid), params, use_proxy)
         return data if data is not None else {}
 
 
@@ -246,7 +249,7 @@ class Notice(Board):
         super().__init__(community_id, communityname)
     
     async def fetch_notice_content_lists(self, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        return await Arits().request_notice(self.communityid, params)
+        return await self.Arits.request_notice(self.communityid, params, use_proxy)
 
     async def get_all_notice_content_lists(self) -> List[Dict[str, Any]]:
         params: Dict[str, Union[str, int]] = {'languageCode': 'en', 'pageSize': 999999999339134974}
@@ -264,7 +267,7 @@ class Notice(Board):
         contents: List[Dict[str, Any]]
         contents, _, hasNext = self.basic_sort_json()
         all_contents.extend(contents)
-
+        Board_ERROR_Hanldle.board_error_handle(self.json_data, 'NOTICE')
         if not hasNext:
             return all_contents
 
@@ -294,5 +297,4 @@ class Notice(Board):
                 next_int = actual_next
             else:
                 hasNext = False
-                
         return all_contents

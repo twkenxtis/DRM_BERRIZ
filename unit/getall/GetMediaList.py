@@ -2,8 +2,9 @@ import asyncio
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from lib.__init__ import use_proxy
 from lib.lock_cookie import cookie_session
-from mystate.fanclub import fanclub_main
+from mystate.fanclub import FanClub
 from static.color import Color
 from static.parameter import paramstore
 from unit.handle.handle_log import setup_logging
@@ -17,9 +18,12 @@ logger = setup_logging('GetMediaList', 'turquoise')
 
 
 class FanClubFilter:
-    async def is_fanclub() -> Optional[Any]:
+    def __init__(self):
+        self.FanClub = FanClub()
+
+    async def is_fanclub(self) -> Optional[Any]:
         if paramstore.get('no_cookie') is not True:
-            context: Optional[Any] = await fanclub_main()
+            context: Optional[Any] = await self.FanClub.fanclub_main()
             """None - not fanclub"""
             match context:
                 case 'NOFANCLUBINFO':
@@ -35,10 +39,11 @@ class MediaParser:
         self.time_a: Optional[datetime] = time_a
         self.time_b: Optional[datetime] = time_b
         self.fcinfo = None
+        self.FanClubFilter = FanClubFilter()
     
     async def parse(self, _data: Dict[str, Any]) -> Tuple[List[Dict], List[Dict], List[Dict], Optional[str], bool]:
         # Fanclub 身份檢查
-        FCINFO: Optional[Any] = await FanClubFilter.is_fanclub()
+        FCINFO: Optional[Any] = await self.FanClubFilter.is_fanclub()
         self.fcinfo = FCINFO
         
         # Chunk 1: extract core
@@ -206,8 +211,8 @@ class MediaFetcher:
         self, params: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             async with asyncio.TaskGroup() as tg:
-                media_task = tg.create_task(self.MediaList.media_list(self.community_id, params))
-                live_task = tg.create_task(self.LIVE.fetch_live_replay(self.community_id, params))
+                media_task = tg.create_task(self.MediaList.media_list(self.community_id, params, use_proxy))
+                live_task = tg.create_task(self.LIVE.fetch_live_replay(self.community_id, params, use_proxy))
             
             media_data = media_task.result()
             live_data = live_task.result()

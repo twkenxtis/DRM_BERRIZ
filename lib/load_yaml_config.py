@@ -63,7 +63,7 @@ class ConfigLoader:
     @classmethod
     @lru_cache(maxsize=1)
     def load(cls, path: Path = YAML_PATH) -> dict:
-        """同步介面，快取並返回完整、驗證過的 config 字典。"""
+        """同步介面，快取並返回完整、驗證過的 config 字典"""
         config = asyncio.run(cls._load_async(path))
         try:
             cls.check_cfg(config)
@@ -87,7 +87,7 @@ class ConfigLoader:
 
     @staticmethod
     def check_cfg(config: dict) -> None:
-        """驗證並填充 config 各區段的預設值。"""
+        """驗證並填充 config 各區段的預設值"""
         if not isinstance(config, dict):
             raise TypeError("Config must be a dictionary")
 
@@ -115,6 +115,10 @@ class ConfigLoader:
         if not isinstance(headers, dict):
             raise TypeError("headers must be a dict")
         ua = headers.get("User-Agent")
+        fakeua = headers.get("Fake-User-Agent")
+        if fakeua and not isinstance(fakeua, bool):
+            headers['Fake-User-Agent'] = False
+            raise TypeError("headers.Fake-User-Agent must be a bool")
         if not ua or not isinstance(ua, str):
             ConfigLoader.print_warning('User-Agent', ua, DEFAULT_UA)
             headers["User-Agent"] = DEFAULT_UA
@@ -263,6 +267,17 @@ class ConfigLoader:
         if not isinstance(log.get("format"), str):
             raise ValueError("logging.format must be a string")
         config["logging"] = log
+        
+        # 12. Proxy
+        proxy = config.get("Proxy", {})
+        if not isinstance(proxy, dict):
+            raise TypeError("Proxy must be a dict")
+        if not isinstance(proxy.get("Proxy_Enable"), bool):
+            ConfigLoader.print_warning('Proxy.Proxy_Enable', proxy.get("Proxy_Enable"), 'False')
+            proxy["use_proxy_list"] = False
+        if not isinstance(proxy.get("use_proxy_list"), bool):
+            ConfigLoader.print_warning('Proxy.use_proxy_list', proxy.get("use_proxy_list"), 'False')
+            proxy["use_proxy_list"] = False
 
     def print_warning(invaild_message: str, invaild_value: str,correct_message: str) -> None:
         logger.warning(

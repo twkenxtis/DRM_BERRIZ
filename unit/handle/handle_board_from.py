@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from static.Board_from import Board_from
 from static.Notice import Notice, Notice_info
 from lib.load_yaml_config import CFG
-from lib.__init__ import OutputFormatter, FilenameSanitizer
+from lib.__init__ import OutputFormatter, FilenameSanitizer, use_proxy
 from unit.data.data import get_timestamp_formact, get_formatted_publish_date
 from unit.handle.handle_log import setup_logging
 from unit.community.community import get_community, custom_dict
@@ -137,6 +137,7 @@ class BoardMain:
         self.time_a: Optional[datetime] = time_a
         self.time_b: Optional[datetime] = time_b
         self.fm:str = get_timestamp_formact(CFG['Donwload_Dir_Name']['date_formact']) # %y%m%d_%H-%M
+        self.FilenameSanitizer = FilenameSanitizer
 
     async def main(self) -> List[Dict[str, Any]]:
         task: List[List[Dict[str, Any]]] = []
@@ -151,13 +152,14 @@ class BoardMain:
             fanclub_only: bool = fetcher.get_board_is_fanclub_only()
             ISO8601: str = fetcher.get_createdAt()
             title: str = fetcher.get_plainbody()[:45].replace('\n', ' ').replace('\r', ' ').strip()
+            save_title = self.FilenameSanitizer.sanitize_filename(title)
             
             mediaid: List[Optional[str]] = image_info[0]
-            folder_name, formact_time_str, video_meta = self.get_folder_name(fetcher, title, ISO8601, board_name, writer_name)
+            folder_name, formact_time_str, video_meta = self.get_folder_name(fetcher, save_title, ISO8601, board_name, writer_name)
             community_name: str = await self.fetch_community_name(community_id)
             return_data: List[Dict[str, Any]] = [
                 {
-                    'publishedAt': ISO8601, 'title': title, 'mediaType': 'POST',
+                    'publishedAt': ISO8601, 'title': save_title, 'mediaType': 'POST',
                     'communityId': community_id, 'isFanclubOnly': fanclub_only,
                     'communityName': community_name, 'folderName': folder_name,
                     'timeStr': formact_time_str, 'postId': postid, 'imageInfo': image_info,
@@ -218,6 +220,7 @@ class BoardNotice(BoardMain):
         self.notice: List[Dict[str, Any]] = notice_list
         self.noticefetcher: Any = NoticeFetcher
         self.community_id: int = Community_id
+        self.FilenameSanitizer = FilenameSanitizer
 
     def sort_by_time(self) -> List[Dict[str, Any]]:
         sort_list: List[Dict[str, Any]] = []
@@ -239,7 +242,7 @@ class BoardNotice(BoardMain):
         return_data: List[Dict[str, Any]] = [
             {
                 "publishedAt": n["reservedAt"],
-                "title": n["title"],
+                "title": self.FilenameSanitizer.sanitize_filename(n["title"]),
                 "mediaType": "NOTICE",
                 "communityId": self.community_id,
                 "isFanclubOnly": False,
@@ -258,10 +261,11 @@ class BoardNoticeINFO(BoardMain):
         self.noticefetcher: Any = NoticeFetcher
         self.noticeinfofetcher: Any = NoticeINFOFetcher
         self.Artis: classmethod = Arits()
+        self.FilenameSanitizer = FilenameSanitizer
 
     async def call_notice_page(self, communityNoticeId: int, communityId: int, retry: int = 3) -> Optional[Dict[str, Any]]:
         for _ in range(retry):
-            if (data := await self.Artis.request_notice_page(communityId, communityNoticeId)) and data.get('code') == '0000':
+            if (data := await self.Artis.request_notice_page(communityId, communityNoticeId, use_proxy)) and data.get('code') == '0000':
                 return data
         return None
 
@@ -271,7 +275,7 @@ class BoardNoticeINFO(BoardMain):
     def get_folder_name(self, fetcher: BoardFetcher, title: str, ISO8601: str, custom_community_name: str) -> Tuple[str, str]:
         formact_ISO8601:str = get_formatted_publish_date(ISO8601, self.fm)
         dt: datetime = datetime.strptime(formact_ISO8601, self.fm)
-        safe_title: str = FilenameSanitizer.sanitize_filename(title)
+        safe_title: str = self.FilenameSanitizer.sanitize_filename(title)
         d:str = dt.strftime(self.fm)
         video_meta: Dict[str, str] = {
             "date": d,
@@ -310,6 +314,7 @@ class JsonBuilder:
         self.translate: classmethod  = Translate()
         self.index: Dict[str, Any] = index
         self.postid: str = postid
+        self.use_proxy: bool = use_proxy
     
     async def build_translated_json(self) -> Dict[str, Any]:
         translations: Dict[str, str] = await self.fetch_translations()
@@ -334,15 +339,20 @@ class JsonBuilder:
         return payload
     
     async def fetch_translations(self) -> Dict[str, str]:
-        async with asyncio.TaskGroup() as tg:
-            t_en = tg.create_task(self.translate.translate_post(self.postid, "en"))
-            t_jp = tg.create_task(self.translate.translate_post(self.postid, "ja"))
-            t_zhHant = tg.create_task(self.translate.translate_post(self.postid, "zh-Hant"))
-            t_zhHans = tg.create_task(self.translate.translate_post(self.postid, "zh-Hans"))
+        tasks = [
+            self.translate.translate_post(self.postid, "en", self.use_proxy),
+            self.translate.translate_post(self.postid, "ja", self.use_proxy),
+            self.translate.translate_post(self.postid, "zh-Hant", self.use_proxy),
+            self.translate.translate_post(self.postid, "zh-Hans", self.use_proxy),
+        ]
 
+        try:
+            results = await asyncio.gather(*tasks)
+        except Exception as e:
+            raise e 
         return {
-            "en": t_en.result(),
-            "jp": t_jp.result(),
-            "zh-Hant": t_zhHant.result(),
-            "zh-Hans": t_zhHans.result(),
+            "en": results[0],
+            "jp": results[1],
+            "zh-Hant": results[2],
+            "zh-Hans": results[3],
         }

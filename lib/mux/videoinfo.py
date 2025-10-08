@@ -36,10 +36,23 @@ class VideoInfo:
 
     @property
     def codec(self) -> str:
+        H265_NAMES = ["hevc", "h.265", "x265"]
+        AV1_NAMES = ["av1", "av01"]
+        VP9_NAMES = ["vp9"]
+        H264_NAMES = ["avc", "avc1", "h.264", "x264"]
+
         for stream in self._vstreams:
-            if stream["codec_type"] == "video":
-                codec = stream.get("codec_name", "unknown").upper()
-                return "H265" if "hevc" in codec.lower() else "H264"
+            if stream.get("codec_type") == "video":
+                codec_name = stream.get("codec_name", "unknown").lower()
+                if any(name in codec_name for name in H265_NAMES):
+                    return "H265"
+                if any(name in codec_name for name in AV1_NAMES):
+                    return "AV1"
+                if any(name in codec_name for name in VP9_NAMES):
+                    return "VP9"
+                if any(name in codec_name for name in H264_NAMES):
+                    return "H264"
+                return codec_name.upper()
         return "unknown"
 
     @property
@@ -73,9 +86,12 @@ class VideoInfo:
 
     @property
     def audio_codec(self) -> str:
-        for stream in self._vstreams:
-            if stream["codec_type"] == "audio":
-                return stream.get("codec_name", "unknown").upper()
+        audio_stream = next(
+            (stream for stream in self._vstreams if stream.get("codec_type") == "audio"),
+            None
+        )
+        if audio_stream:
+            return audio_stream.get("codec_name", "unknown").upper()
         return "unknown"
 
     def as_dict(self) -> dict:

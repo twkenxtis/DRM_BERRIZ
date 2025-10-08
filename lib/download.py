@@ -42,26 +42,33 @@ class MediaDownloader:
             return ".webm"
         if "audio/webm" in mime_type:
             return ".weba"
-        if "text/vtt" in mime_type or "application/x-subrip" in mime_type:
+        if "text/vtt" in mime_type:
             return ".vtt"
+        if "text/ttml" in mime_type:
+            return ".ttml"
         if "application/octet-stream" in mime_type:
             return ".m4s"
         return ".bin"
 
     async def _ensure_session(self) -> None:
         if self.session is None or self.session.closed:
-            connector: aiohttp.TCPConnector = aiohttp.TCPConnector(limit_per_host=50)
-            timeout: aiohttp.ClientTimeout = aiohttp.ClientTimeout(total=600)
+            connector: aiohttp.TCPConnector = aiohttp.TCPConnector(limit_per_host=200)
+            timeout: aiohttp.ClientTimeout = aiohttp.ClientTimeout(total=600, connect=10, sock_connect=10, sock_read=30)
             self.session = aiohttp.ClientSession(
-                connector=connector, timeout=timeout, headers={f"User-Agent": USERAGENT}
+                connector=connector, timeout=timeout, headers={
+                    f"User-Agent": USERAGENT,
+                    "Accept": "*/*",
+                    "Accept-Encoding": "identity",
+                    "Connection": "keep-alive",
+                    }
             )
 
     async def _download_file(
         self,
         url: str,
         save_path: Path,
-        chunk_size: int = 384 * 1024,
-        max_retries: int = 2,
+        chunk_size: int = 1.5 * 1024 * 1024,
+        max_retries: int = 3,
         progress_callback: Optional[Callable[[int], Any]] = None
     ) -> bool:
         retries: int = 0
@@ -97,6 +104,11 @@ class MediaDownloader:
                 else:
                     logger.error(f"Download failed after {max_retries} retries: {url}")
                     if save_path.exists():
+                        async with self.session.head(url) as head_resp:
+                            if head_resp.status == 200 and save_path.stat().st_size == int(head_resp.headers.get('Content-Length', 0)):
+                                if progress_callback:
+                                    progress_callback(save_path.stat().st_size)
+                                return True
                         try:
                             shutil.rmtree(save_path, ignore_errors=True)
                         except Exception as e:
@@ -137,12 +149,13 @@ class MediaDownloader:
     async def task_and_dl(self, slice_parameters: Any, track_dir: Path, file_ext: str, track_type: str) -> bool:
         total = len(slice_parameters)
         success_count = 0
+        semaphore = asyncio.Semaphore(50)
+        async def bounded_download(i, url):
+            async with semaphore:
+                seg_path = track_dir / f"seg_{i}{file_ext}"
+                return await self._download_file(url, seg_path)
 
-        tasks = []
-        for i, url in enumerate(slice_parameters):
-            seg_path = track_dir / f"seg_{i}{file_ext}"
-            logger.debug(url)
-            tasks.append(self._download_file(url, seg_path))
+        tasks = [bounded_download(i, url) for i, url in enumerate(slice_parameters)]
 
         progress_bar = ProgressBar(total, prefix=track_type)
         try:
@@ -200,7 +213,6 @@ class MediaDownloader:
             merge_type = 'hls'
         else:
             merge_type = 'mpd'
-
         try:
             tasks: List["asyncio.Task[bool]"] = []
             if mpd_content.audio_track:

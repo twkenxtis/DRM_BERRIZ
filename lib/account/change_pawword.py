@@ -3,6 +3,7 @@ import sys
 from typing import Optional, Dict, Any
 
 from cookies.cookies import Refresh_JWT, Berriz_cookie
+from lib.__init__ import use_proxy
 from static.color import Color
 from mystate.parse_my import request_my
 from unit.http.request_berriz_api import Password_Change
@@ -28,7 +29,6 @@ class Change_Password:
     負責驗證密碼格式、發起 API 請求、處理響應和更新本地 Cookie 文件
     """
     def __init__(self) -> None:
-        # 使用 Optional 標記可能為 None 的屬性
         self.response: Optional[Dict[str, Any]] = None
         self.bz_a: Optional[str] = None
         self.bz_r: Optional[str] = None
@@ -66,7 +66,7 @@ class Change_Password:
                 else:
                     break
             
-            data: Optional[Dict[str, Any]] = await Password_Change().update_password(currentPassword, newPassword)
+            data: Optional[Dict[str, Any]] = await Password_Change().update_password(currentPassword, newPassword, use_proxy)
             
             if data is not None:
                 self.response = data

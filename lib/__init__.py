@@ -1,4 +1,5 @@
 import re
+import unicodedata
 import string
 from typing import List, Dict, Optional
 
@@ -13,21 +14,20 @@ class FilenameSanitizer:
     """Handles sanitization of filenames to remove invalid characters."""
     @staticmethod
     def sanitize_filename(name: str) -> str:
-        """Sanitize filename by removing invalid Windows characters and replacing problematic symbols."""
-        # 替換全形引號為半形 '
-        name = name.replace('‘', "'").replace('’', "'").replace('“', '"').replace('”', '"')
-        # 移除非法字元（包含控制字元）
+        # Unicode 標準化 (NFC 形式)
+        name = unicodedata.normalize('NFC', name)
+        
+        # 移除非法字元（包含控製字元）
         name = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '', name)
-        # 移除尾部空白與句點
-        name = name.rstrip(' .')
-        # 移除開頭空白
-        name = name.lstrip()
+        
         # 避免保留名稱（不分大小寫）
         reserved = {
             "CON", "PRN", "AUX", "NUL",
             *(f"COM{i}" for i in range(1, 10)),
             *(f"LPT{i}" for i in range(1, 10)),
         }
+        if not name:
+            return "_empty_file"
         base = name.split('.')[0].upper()
         if base in reserved:
             name = f"_{name}"
@@ -58,8 +58,13 @@ def get_download_folder_name(yaml_container = CFG['Donwload_Dir_Name']['download
 dl_folder_name = get_download_folder_name()
 
 
+def use_proxy_list(yaml_container = CFG['Proxy']['Proxy_Enable']) -> bool:
+    return bool(yaml_container)
+use_proxy = use_proxy_list()
+
+
 class OutputFormatter:
-    def __init__(self, template: str):
+    def __init__(self, template: str) -> None:
         self.template = template
         self.fields = self.extract_fields(template)
 
@@ -84,7 +89,7 @@ class OutputFormatter:
         return re.sub(pattern, " ", template)
     
     
-def get_artis_list(artis_list: List[Dict[str, Optional[str]]]):
+def get_artis_list(artis_list: List[Dict[str, Optional[str]]]) -> str:
     all_artos_list = set()
     for i in artis_list:
         if i.get('name'):

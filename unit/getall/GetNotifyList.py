@@ -3,6 +3,7 @@ import inspect
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union, Callable, Awaitable
 
+from lib.__init__ import use_proxy
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import Notify
 
@@ -13,6 +14,7 @@ logger = setup_logging('GetMediaList', 'turquoise')
 class NotifyFetcher:
     def __init__(self):
         self.json_data: Optional[Dict[str, Any]] = None
+        self.Notify = Notify()
 
     async def get_all_notify_lists(self, time_a: Optional[datetime], time_b: Optional[datetime]) -> Optional[List[Dict[str, Any]]]:
         params: Dict[str, Any] = {"pageSize": 100, "languageCode": "en"}
@@ -33,7 +35,7 @@ class NotifyFetcher:
     async def _fetch_data(
         self, params: Dict[str, Any]
     ) -> Dict[str, Any]:
-        return await Notify().fetch_notify('', params)
+        return await self.Notify.fetch_notify('', params, use_proxy)
 
     async def basic_sort_josn(self) -> Tuple[List[Dict[str, Any]], Dict[str, Any], bool]:
         if self.json_data and self.json_data.get('code') == '0000':

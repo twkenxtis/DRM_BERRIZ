@@ -1,8 +1,7 @@
-import logging
 from typing import List, Optional
 
-import httpx
-
+from lib.__init__ import use_proxy
+from unit.__init__ import USERAGENT
 from unit.http.request_berriz_api import GetPost
 from unit.handle.handle_log import setup_logging
 
@@ -45,11 +44,11 @@ class CDRM:
                 'pssh': pssh,
                 'licurl': f'https://berriz.drmkeyserver.com/{drm_service}',
                 'headers': str({
-                    'User-Agent': 'Mozilla/5.0 (Linux; Android 11; AFTKA) AppleWebKit/537.36 (KHTML, like Gecko) Silk/112.5.1 like Chrome/112.0.5615.213 Safari/537.36',
+                    'User-Agent': f'{USERAGENT}',
                     'acquirelicenseassertion': acquirelicenseassertion
                 })
             }
-        data = await GetPost().get_post(url, json, {}, headers)
+        data = await GetPost().get_post(url, json, {}, headers, use_proxy)
         key: List[str] = []
         key.append(data.get('message', '').strip())
         return key

@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional
 
+
 class Notice:
     def __init__(self, payload: Any) -> None:
         # Root

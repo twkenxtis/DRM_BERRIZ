@@ -1,5 +1,6 @@
 from typing import Optional
 
+
 def api_error_handle(code: str) -> Optional[str]:
     if code == 'FS_MD9000':
         return 'Join or Verify your Fanclub to enjoy various exclusive content and benefits'
@@ -29,4 +30,22 @@ def api_error_handle(code: str) -> Optional[str]:
         return 'You cannot join again within 24 hours you leave the community'
     if code == 'FS_CU2050':
         return 'This post mine be not found or deleted, Null post id.'
+    if code == 'FS_MD9040':
+        return 'Join or Verify your Fanclub to enjoy various exclusive content and benefits'
+    if code == 'FS_ME2020':
+        return "You've exceeded the code request limit. Please try again after 1 hour."
+    if code == 'FS_ME2050':
+        return 'OTP code does not match. Please try again'
+    if code == 'FS_ER5010':
+        return 'This account may not be registered in the Berriz database'
+    if code == 'FS_ME1010':
+        return 'This email address is already registered'
+    if code == 'FS_ME2060':
+        return "Invalid email address(Only lowercase letters)"
+    if code == 'FS_ER4010':
+        return 'Please enter a combination of alphanumeric and special characters'
+    if code == 'FS_AU4002':
+        return 'Invalid authenticateKey.'
+    if code == 'FS_AU4030':
+        return 'Unfortunately, your account has been suspended. Additional authentication is required to re-enable'
     return code

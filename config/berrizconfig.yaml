@@ -8,7 +8,7 @@ duplicate:
 
 
 headers:
-  #User-Agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_1 like Mac OS X) AppleWebKit/605.1.16 (KHTML, like Gecko) Mobile/15E148; iPhone18.6.1; iPhone17,2'
+  Fake-User-Agent: true
   User-Agent: 'curl/7.64.1'
 
 
@@ -49,7 +49,7 @@ TimeZone:
 
 KeyService:
   # mspr wv watora_wv cdrm_wv cdrm_mspr
-  source: watora_wv
+  source: mspr
 
 
 CDM:
@@ -69,3 +69,13 @@ logging:
   level: INFO
   # formact only show in log file not on console
   format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+
+
+Proxy:
+  Proxy_Enable: false
+  # static\proxy\proxy.txt
+  use_proxy_list: false
+  # if not use_proxy_list than run this proxy
+  use_proxy: http
+  http: ['socks5://127.0.0.1:40000']
+  https: ['http://104.17.35.217:80', 'socks4://122.54.193.69:8082' ]

@@ -10,6 +10,7 @@ from static.color import Color
 from unit.handle.handle_log import setup_logging
 from unit.__init__ import USERAGENT
 
+
 logger = setup_logging('class_ImageDownloader', 'sienna')
 
 
@@ -123,7 +124,7 @@ class ImageDownloader:
             True if download successful, False otherwise
         """
         async def _download_with_session(sess: aiohttp.ClientSession) -> bool:
-            for attempt in range(1, 11):
+            for attempt in range(7, 14):
                 try:
                     async with sess.get(url) as resp:
                         logger.info(f"{Color.fg('light_gray')}{url}{Color.reset()} - {Color.fg('graphite')}{resp.status}{Color.reset()}")

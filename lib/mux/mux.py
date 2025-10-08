@@ -51,12 +51,10 @@ class FFmpegMuxer:
 
     async def process_decryption_key(self) -> str:
         if type(self.decryption_key) is list:
-            # 假設子列表中的內容是可轉換為 str 的
             key: str = ' '.join([str(sublist).replace('[', '').replace(']', '') for sublist in self.decryption_key])
             return key
         elif type(self.decryption_key) is str:
             return self.decryption_key
-        
         return ""
     
     async def decrypt(self,) -> bool:
@@ -146,7 +144,7 @@ class FFmpegMuxer:
             )
             logger.debug(f"Packager output: {result.stdout}")
 
-            # 成功後改回指定副檔名
+            # 成功後.m4v 改回指定副檔名
             final_output_path = packager_output_path.with_suffix(f".{container}")
             packager_output_path.rename(final_output_path)
             return True
@@ -160,14 +158,12 @@ class FFmpegMuxer:
     
     async def mux_main(self, merge_type: str, tempfile_name: str) -> bool:
         # Prepare video and audio tracks
-        async with asyncio.TaskGroup() as tg:
-            video_task: asyncio.Task[Optional[Path]] = tg.create_task(self._prepare_track("video"))
-            audio_task: asyncio.Task[Optional[Path]] = tg.create_task(self._prepare_track("audio"))
-
-        # task.result() 實際上會回傳 Path 或 None
-        video_file: Optional[Path] = video_task.result()
-        audio_file: Optional[Path] = audio_task.result()
-        
+        video_file: Optional[Path]
+        audio_file: Optional[Path]
+        video_file, audio_file = await asyncio.gather(
+            self._prepare_track("video"),
+            self._prepare_track("audio"),
+        )
         if merge_type == 'mpd' and (not video_file or not audio_file) and paramstore.get('skip_merge') is not True:
             logger.error(
                  "Error: Valid video and audio must exist simultaneously for multiplexing."

@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-import xml.etree.ElementTree as ET
+from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
-from typing import Dict, List, Optional, Any
+import xml.etree.ElementTree as ET
+
+from rich import box
 from rich.console import Console
 from rich.table import Table
-from rich import box
-from typing import Optional
 
 
 @dataclass
@@ -114,7 +114,6 @@ class MPDParser:
             pssh_value = widevine_prot.findtext("./cenc:pssh", "", namespaces=self.namespaces)
             if pssh_value and len(pssh_value) == 76 and pssh_value.endswith("="):
                 drm_info["widevine_pssh"] = pssh_value
-
         return drm_info
 
     def _parse_segment_timeline(self, seg_template: ET.Element) -> List[Segment]:
@@ -137,7 +136,6 @@ class MPDParser:
             except ValueError as e:
                 print(f"Warning: Skipping invalid segment: {e}")
                 continue
-
         return segments
 
     def _generate_segment_urls(
