@@ -1,26 +1,24 @@
 from typing import Any, Dict, List
 
+class IMG_PlaybackContext:
+    def __init__(self, playback_contexts: List[Dict[str, Any]]) -> None:
+        if not playback_contexts:
+            raise ValueError("public_contexts is empty")
 
-async def parse_playback_contexts(playback_contexts: List[Dict[str, Any]]) -> List[Any]:
-    if not playback_contexts:
-        raise ValueError("public_contexts is empty")
+        ctx: Dict[str, Any] = playback_contexts[0]
 
-    ctx: Dict[str, Any] = playback_contexts[0]
+        # root
+        self.code: Any = ctx.get("code")
+        self.message: Any = ctx.get("message")
+        data: Dict[str, Any] = ctx.get("data", {})
 
-    # root
-    code: Any = ctx.get("code")
-    message: Any = ctx.get("message")
-    data: Dict[str, Any] = ctx.get("data", {})
+        # data
+        self.vod: Any = data.get("vod")
+        photo: Dict[str, Any] = data.get("photo", {})
+        self.youtube: Any = data.get("youtube")
+        self.tracking: Any = data.get("tracking")
+        self.settlement: Any = data.get("settlement")
 
-    # data
-    vod: Any = data.get("vod")
-    photo: Dict[str, Any] = data.get("photo", {})
-    youtube: Any = data.get("youtube")
-    tracking: Any = data.get("tracking")
-    settlement: Any = data.get("settlement")
-
-    # photo
-    image_count: Any = photo.get("imageCount")
-    images: List[Any] = photo.get("images", [])
-
-    return images
+        # photo
+        self.image_count: Any = photo.get("imageCount")
+        self.images: List[Any] = photo.get("images", [])

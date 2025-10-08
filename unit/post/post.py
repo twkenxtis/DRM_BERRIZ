@@ -11,12 +11,10 @@ from typing import Any, Dict, List, Tuple, Optional, TypedDict
 import aiofiles
 import orjson
 from httpx import URL
-from pprint import pprint
 
 from lib.__init__ import dl_folder_name, OutputFormatter
 from lib.load_yaml_config import CFG
 from lib.artis.request_artis import ArtisManger
-from static.color import Color
 from unit.post.save_html import SaveHTML
 from unit.handle.handle_board_from import JsonBuilder, BoardFetcher
 from unit.image.class_ImageDownloader import ImageDownloader
@@ -153,12 +151,12 @@ class MainProcessor:
         self.folder_path: Path = Path(folder)
         self.FDTF = File_date_time_formact(post_media['folderName'], post_media['video_meta'])
         self.new_file_name = self.FDTF.new_file_name()
-        self.json_data_obj = PostJsonDate(self.post_media['index'], self.post_id, self.new_file_name)
         self.communityId: int = self.post_media['communityId']
         self.title: str = self.post_media['title']
         self.body: str = self.post_media['index']['post']['body']
         self.time: str = self.post_media['publishedAt']
         self.artis: str = self.post_media['writer_name']
+        self.json_data_obj = PostJsonDate(self.post_media['index'], self.post_id, self.new_file_name)
         self.ArtisManger = ArtisManger(self.communityId)
         self.TYPE: bool = None
         self.image_list: List[URL] = None

@@ -1,12 +1,11 @@
 import asyncio
-import re
 import yaml
 
 from pathlib import Path
 from functools import lru_cache
 
 import aiofiles
-
+from fake_useragent import UserAgent
 import httpagentparser
 
 from static.color import Color
@@ -52,11 +51,17 @@ def is_user_agent(ua: str) -> bool:
 
 def get_useragent() -> str:
     USERAGENT = CFG['headers']['User-Agent']
+    fakseua = CFG['headers']['Fake-User-Agent']
     try:
         if USERAGENT is None:
             raise AttributeError
         if is_user_agent(USERAGENT) is False:
             raise AttributeError
+        if not isinstance(fakseua, bool):
+            raise AttributeError
+        if fakseua is True:
+            ua = UserAgent(platforms='mobile')
+            USERAGENT = ua.random
     except AttributeError:
         logger.warning(f"Unsupported User-Agent: {Color.bg('ruby')}{USERAGENT}{Color.fg('gold')}, try default setting to continue ...")
         USERAGENT = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_1 like Mac OS X) AppleWebKit/605.1.16 (KHTML, like Gecko) Mobile/15E148; iPhone18.6.1; iPhone17,2'

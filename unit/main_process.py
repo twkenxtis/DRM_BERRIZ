@@ -83,9 +83,7 @@ logger.info(
 
 
 class MediaProcessor:
-    """A class to process media items from a queue, handling VOD and photo items."""
-
-    # 為了精確標記非同步處理函式，定義 ProcessorFunc 類型別名
+    """A class to process media items from a queue, handling VOD and photo items"""
     ProcessorFunc = Callable[[Any, Any], Awaitable[None]]
 
     def __init__(self, selected_media: dict[str, Any]) -> None:
@@ -100,6 +98,7 @@ class MediaProcessor:
             "POST": self._process_post_items,
             "NOTICE": self._process_notice_items,
         }
+        self.IMGmediaDownloader = IMGmediaDownloader()
 
     def cookie_check(self, media_ids: List[str]) -> bool:
         if cookie_session == {} and paramstore.get('no_cookie') is True:
@@ -129,7 +128,7 @@ class MediaProcessor:
             self.store.add(x)
 
     async def _process_vod_items(self, media_ids: List[Tuple[str, str]]) -> None:
-        """Process VOD items using BerrizProcessor."""
+        """Process VOD items using BerrizProcessor"""
         match paramstore.get('key'):
             case True:
                 self.print_process_items(media_ids, media_ids[0][1])
@@ -159,10 +158,9 @@ class MediaProcessor:
         """Process a list of photo items concurrently."""
         self.print_process_items(media_ids, 'Photo')
         # Assuming run_image_dl can handle a list of media_ids
-        await IMGmediaDownloader().run_image_dl(media_ids)
+        await self.IMGmediaDownloader.run_image_dl(media_ids)
         if image_dup is False:
             self.add_to_duplicate(media_ids)
-
 
     async def _process_post_items(self, post_ids: List[str]) -> None:
         """Process a list of photo items concurrently."""

@@ -1,6 +1,5 @@
 import asyncio
 import json
-import sys
 from typing import Any, List, Tuple, Optional, Dict
 
 from rich.console import Console
@@ -9,6 +8,8 @@ from rich import box
 
 from lib.download import run_dl
 from lib.mux.parse_m3u8 import rebuild_master_playlist
+from lib.__init__ import use_proxy
+from lib.load_yaml_config import CFG, ConfigLoader
 
 from key.GetClearKey import get_clear_key
 from key.local_vault import SQLiteKeyVault
@@ -19,12 +20,10 @@ from static.PlaybackInfo import LivePlaybackInfo, PlaybackInfo
 from static.PublicInfo import PublicInfo
 from static.api_error_handle import api_error_handle
 from static.color import Color
-
-from lib.load_yaml_config import CFG, ConfigLoader
+from static.parameter import paramstore
 
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import Live, Playback_info, Public_context
-from static.parameter import paramstore
 
 
 logger = setup_logging('berriz_drm', 'tomato')
@@ -40,6 +39,7 @@ class Key_handle:
         self.media_id: str = media_id
         self.raw_mpd: Any = raw_mpd
         self.drm_type: str = self.drm_type()
+        self.vault = SQLiteKeyVault()
 
     @property
     def msprpro(self) -> Optional[List[str]]:
@@ -99,14 +99,13 @@ class Key_handle:
         return p
 
     async def save_key(self, key: str) -> None:
-        vault = SQLiteKeyVault()
         if not key:
             logger.error("Key is None. Cannot save to vault.")
             return
 
         async def _store_and_log(pssh: str, drm: str) -> None:
-            await vault.store_single(pssh, key, drm)
-            exists: bool = vault.contains(pssh)
+            await self.vault.store_single(pssh, key, drm)
+            exists: bool = self.vault.contains(pssh)
             tag, reset = Color.fg("iceberg"), Color.reset()
             if exists:
                 logger.info(
@@ -128,18 +127,20 @@ class Key_handle:
             await asyncio.gather(*jobs)
 
     async def search_keys(self) -> Optional[str]:
-        vault = SQLiteKeyVault()
         wv: Optional[str] = None
         ms_pr: Optional[str] = None
         if self.wv_pssh:
             for all_pssh in self.wv_pssh:
-                wv = await vault.retrieve(all_pssh)
+                wv = await self.vault.retrieve(all_pssh)
         if self.msprpro:
             for all_pssh in self.msprpro:
-                ms_pr = await vault.retrieve(all_pssh)
-            key: Optional[str] = ms_pr or wv 
+                ms_pr = await self.vault.retrieve(all_pssh)
+            key: Optional[str] = ms_pr or wv
             if key is not None:
-                logger.info(f"{Color.fg('mint')}Use local key vault keys:{Color.reset()} {Color.fg('ruby')}{key}{Color.reset()}")
+                logger.info(
+                    f"{Color.fg('mint')}Use local key vault keys:{Color.reset()}"
+                    f"{Color.fg('ruby')}{key}{Color.reset()}"
+                )
                 return key
         return None
 
@@ -167,6 +168,7 @@ async def start_download(public_info: PublicInfo, playback_info : PlaybackInfo, 
     playback_dict: Dict[str, Any] = json.loads(playback_info.to_json())
     playback_dict["Decryption_key"] = key
     json_data = (public_dict, playback_dict)
+    
     logger.debug(f"{Color.fg('gold')}{json_data}{Color.reset()}")
     
     if paramstore.get('key') is True:
@@ -192,9 +194,11 @@ async def start_download(public_info: PublicInfo, playback_info : PlaybackInfo, 
 
         console.print(table)
     else:
-        logger.info(f"{Color.fg('khaki')}MPD: {Color.fg('dark_cyan')}{dash_playback_url} {Color.reset()}")
-        logger.info(f"{Color.fg('sky_blue')}HLS: {Color.fg('dark_cyan')}{hls_playback_url} {Color.reset()}")
-        await run_dl(dash_playback_url, key, json_data, raw_mpd, hls_playback_url, raw_hls)
+        if (dash_playback_url and dash_playback_url.startswith('http')) or \
+        (hls_playback_url and hls_playback_url.startswith('http')):
+            logger.info(f"{Color.fg('khaki')}MPD: {Color.fg('dark_cyan')}{dash_playback_url} {Color.reset()}")
+            logger.info(f"{Color.fg('sky_blue')}HLS: {Color.fg('dark_cyan')}{hls_playback_url} {Color.reset()}")
+            await run_dl(dash_playback_url, key, json_data, raw_mpd, hls_playback_url, raw_hls)
 
 
 class BerrizProcessor:
@@ -208,19 +212,34 @@ class BerrizProcessor:
 
     async def fetch_contexts(self) -> None:
         # Live-replay and VOD different
-        if self.media_type == 'VOD':
-            playback, public = await asyncio.gather(
-                self.Playback_info.get_playback_context(self.media_id),
-                self.Public_context.get_public_context(self.media_id),
-            )
-        elif self.media_type == 'LIVE':
-            LP = self.selected_media.get('lives', [])[0]['live']['liveStatus']
-            if LP == 'REPLAY':
-                playback = await self.Playback_info.get_live_playback_info(self.media_id)
-                public = await self.Public_context.get_public_context(self.media_id)
-        return playback, public
+        match paramstore.get('no_cookie'):
+            case True:
+                logger.info(
+                    f"{Color.fg('ruby')}Skip download because without cookie: "
+                    f"{Color.fg('light_magenta')}{self.media_id}{Color.reset()}"
+                )
+                return None, None
+            case _:
+                if self.media_type == 'VOD':
+                    playback, public = await asyncio.gather(
+                        self.Playback_info.get_playback_context(self.media_id, use_proxy),
+                        self.Public_context.get_public_context(self.media_id, use_proxy),
+                    )
+                elif self.media_type == 'LIVE':
+                    lives_list = self.selected_media.get('lives', [])
+                    LP = lives_list[0].get('live', {}).get('liveStatus') if lives_list else None
+                    if LP == 'REPLAY':
+                        playback = await self.Playback_info.get_live_playback_info(self.media_id, use_proxy)
+                        public = await self.Public_context.get_public_context(self.media_id, use_proxy)
+                return playback, public
 
     async def prepare_download_tasks(self, playback, public) -> None:
+        if (playback, public) is None:
+            for i in public:
+                logger.warning(
+                    f"Skip {Color.fg('sunflower')}{i.get("data", {}).get("media", {}).get("title", "")}{Color.reset()}"
+                )
+            return False
         match playback:
             case []:
                 return False
@@ -239,10 +258,12 @@ class BerrizProcessor:
                         asyncio.to_thread(PublicInfo, public_ctx),
                     )
                 return await self.pre_make_download(playback_info, public_info)
-    
+
     async def pre_make_download(self, playback_info: PlaybackInfo | LivePlaybackInfo, public_info: PublicInfo) -> None:
+        
         logger.debug(playback_info.to_dict())
         logger.debug(public_info.to_dict())
+        
         logger.info(BerrizProcessor.print_title(public_info))
         key, dash_playback_url, raw_mpd, hls_playback_url, raw_hls = await self.drm_handle(playback_info)
         if not any(not v for v in (dash_playback_url, raw_mpd, hls_playback_url, raw_hls)):
@@ -268,16 +289,21 @@ class BerrizProcessor:
     async def drm_handle(self, playback_info: Any) -> Tuple[Optional[str], Optional[str], Any, Optional[str], Optional[str]]:
         # Handle DRM and obtain information needed for download
         if getattr(playback_info, "code", None) != "0000":
-            logger.warning(f"{Color.bg('maroon')}{api_error_handle(playback_info.code)}{Color.reset()}")
-            sys.exit(1)
+            logger.warning(
+                f"{Color.bg('maroon')}{api_error_handle(playback_info.code)}{Color.reset()}"
+            )
+            return '', 'MPEG-DASH-URL', 'MPD-OBJECT', 'HLS-URL', 'HLS-OBJECT'
 
         raw_mpd: Any = None
         raw_hls: Optional[str] = None
+        
         if getattr(playback_info, "dash_playback_url", None):
-            raw_mpd = await self.Live.fetch_mpd(playback_info.dash_playback_url)
+            raw_mpd = await self.Live.fetch_mpd(playback_info.dash_playback_url, use_proxy)
+            
         if getattr(playback_info, "hls_playback_url", None):
-            response_hls = await self.Live.fetch_mpd(playback_info.hls_playback_url)
+            response_hls = await self.Live.fetch_mpd(playback_info.hls_playback_url, use_proxy)
             raw_hls = await rebuild_master_playlist(response_hls, playback_info.hls_playback_url)
+            
         if getattr(playback_info, "is_drm", None) is True:
             key_handler = Key_handle(playback_info, self.media_id, raw_mpd)
             await self.print_drm_info(key_handler)

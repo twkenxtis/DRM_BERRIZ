@@ -85,7 +85,7 @@ class MainProcessor:
             f"{Color.fg('gray')}/{Color.fg('mint')}{self.total}{Color.fg('gray')}]"
             f"({Color.fg('fern')}{MainProcessor.completed/self.total*100:.1f}{Color.fg('gray')}%)"
         )
-        title: str = self.fetcher.get_title()
+        title: str = FilenameSanitizer.sanitize_filename(self.fetcher.get_title())
         ISO8601: str = self.fetcher.get_reservedAt()
         await SaveHTML(title, ISO8601, self.body, self.folder_path, self.new_file_name).update_template_file()
 
