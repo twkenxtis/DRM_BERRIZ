@@ -17,6 +17,7 @@ from unit.data.data import get_formatted_publish_date, get_timestamp_formact
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import Playback_info, Public_context
 from unit.image.class_ImageDownloader import ImageDownloader
+#from unit.image.class_ImageDownloaderQUIC import ImageDownloader
 from unit.image.parse_playback_contexts import IMG_PlaybackContext
 from unit.image.parse_public_contexts import IMG_PublicContext
 
