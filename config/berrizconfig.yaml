@@ -42,6 +42,8 @@ Container:
 HLS or MPEG-SASH:
   # Download with MPEG-DASH or HLS but if content DRM protect will forced DASH-MPEG
   HLS: false
+  # 1080 720 480 360 144 ask
+  Video_Resolution_Choice: 1080p
 
 
 TimeZone:

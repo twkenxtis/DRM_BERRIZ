@@ -68,7 +68,7 @@ class ConfigLoader:
         try:
             cls.check_cfg(config)
         except Exception as e:
-            logger.error(f"{Color.fg('ruby')}Failed to load config: {e}{Color.reset()}")
+            logger.error(f"{Color.fg('black')}Failed to load config: {e}{Color.reset()}")
             sys.exit(1)
         return config
 
@@ -184,12 +184,21 @@ class ConfigLoader:
 
         # 6. HLS or MPEG-SASH 區段
         hls_sec = config.get("HLS or MPEG-SASH", {})
+        video_resolution = hls_sec.get("Video_Resolution_Choice")
         if not isinstance(hls_sec, dict):
             raise TypeError("HLS or MPEG-SASH must be a dict")
         if not isinstance(hls_sec.get("HLS"), bool):
             ConfigLoader.print_warning('HLS or MPEG-SASH.HLS', hls_sec.get("HLS"), 'Set to not use HLS for dl')
             hls_sec["HLS"] = False
-        config["HLS or MPEG-SASH"] = hls_sec
+        if isinstance(video_resolution, (str, int)):
+            str_res = str(video_resolution).lower()
+            str_res = re.sub(r'(?i)p|i$', '', str_res).strip()
+            if str_res not in ("144", "256", "360", "640", "480", "854", "720", "1280", "1080", "1920", "ask"):
+                ConfigLoader.print_warning('Video_Resolution_Choice', video_resolution, 'ask')
+                hls_sec["Video_Resolution_Choice"] = "ask"
+            else:
+                str_res = str_res.strip()
+                hls_sec["Video_Resolution_Choice"] = str_res
 
         # 7. TimeZone 區段
         tz = config.get("TimeZone", {})

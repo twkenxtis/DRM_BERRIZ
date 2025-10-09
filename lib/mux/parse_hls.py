@@ -1,14 +1,16 @@
 import asyncio
 import re
+from pprint import pprint
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 
+from InquirerPy import inquirer
 from rich.console import Console
 from rich.table import Table
 from rich import box
 
-from lib.__init__ import use_proxy
+from lib.__init__ import use_proxy, CFG
 from static.color import Color
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import GetRequest
@@ -44,25 +46,30 @@ class HLS_Paser:
         self.GetRequest = GetRequest()
 
     def make_obj(self, highest_video: Any, highest_audio: Any, base_url: Optional[str], best_info:str) -> HLSContent:
-        return HLSContent(
-            video_track=highest_video,
-            audio_track=highest_audio,
-            base_url=base_url,
-            audio_link=self.audio_link,
-            video_link=self.m3u8_highest,
-            best_info=best_info
-        )
+        try:
+            return HLSContent(
+                video_track=highest_video,
+                audio_track=highest_audio,
+                base_url=base_url,
+                audio_link=self.audio_link,
+                video_link=self.m3u8_highest,
+                best_info=best_info
+            )
+        except AttributeError:
+            pass
 
-    async def _parse_media_m3u8(
-        self,
-        m3u8_content_str: str,
-    ) -> HLSContent:
+    async def _parse_media_m3u8(self, m3u8_content_str: str) -> HLSContent:
         """Main method to parse M3U8 playlist and orchestrate processing"""
         # Master Playlist 分支
         lines: List[str] = self._preprocess_content(m3u8_content_str)
-        if self._check_master_playlist(lines):
-            best_info = await self._process_master_playlist(lines, m3u8_content_str)
-
+        resolution_choice: str = CFG['HLS or MPEG-SASH']['Video_Resolution_Choice']
+        try:
+            if self._check_master_playlist(lines):
+                best_info = await self._process_master_playlist(lines, m3u8_content_str, resolution_choice)
+        except ValueError as e:
+            logger.error(f"Error parsing master playlist: {e}")
+            return None
+            
         # 定義共用 helper：取回並過濾出 ts 與 tag
         async def _fetch_and_filter(url: str) -> List[str]:
             resp = await self.GetRequest.get_request(url, use_proxy)
@@ -105,35 +112,64 @@ class HLS_Paser:
         return any(line.startswith("#EXT-X-STREAM-INF:") for line in lines)
     
     async def _process_master_playlist(
-            self, lines: List[str], m3u8_str: str
-        ) -> str:
-            """Select and parse the best resolution sub-playlist from a master playlist"""
-            
-            best_height: int = -1
-            best_link: Optional[str] = None
-            best_info: str = ""
-            audio_link: Optional[str] = None
-            for i, line in enumerate(lines):
-                if line.startswith("#EXT-X-STREAM-INF:"):
-                    height: int = self._extract_resolution_height(line)
-                    if (
-                        height > best_height
-                        and i + 1 < len(lines)
-                        and not lines[i + 1].startswith("#")
-                    ):
-                        best_height = height
+        self,
+        lines: List[str],
+        m3u8_str: str,
+        resolution_choice: str
+    ) -> str:
+        """Select and parse a specific resolution sub-playlist from a master playlist."""
+
+        resolution_list: List[Tuple[int, int]] = self.extract_sorted_resolutions(lines)
+        audio_links = self.extract_all_audio_tracks(lines, m3u8_str)
+
+        if len(audio_links) == 1:
+            self.audio_link = audio_links[0]
+        elif len(audio_links) > 1:
+            answer = await inquirer.select(
+                message="Select audio stream:",
+                choices=audio_links,
+                default=audio_links[0]
+            ).execute_async()
+            self.audio_link = answer
+
+        if resolution_choice in {"ask", "Ask", "ASK"}:
+            choices = [f"{w}x{h}" for w, h in resolution_list]
+            answer = await inquirer.select(
+                message="Select resolution:",
+                choices=choices,
+                default=choices[-1]
+            ).execute_async()
+            selected_resolution = tuple(map(int, answer.split("x")))
+
+        elif resolution_choice.isdigit():
+            target_height = int(resolution_choice)
+            filtered = [(w, h) for w, h in resolution_list if target_height in (w, h)]
+            if not filtered:
+                raise ValueError(f"No resolution found with height {target_height}")
+            selected_resolution = filtered[0]
+        else:
+            raise ValueError(f"Invalid resolution choice: {resolution_choice}")
+
+        for i, line in enumerate(lines):
+            if line.startswith("#EXT-X-STREAM-INF:"):
+                resolutions = self.extract_all_resolutions(line)
+                if selected_resolution in resolutions:
+                    if i + 1 < len(lines) and not lines[i + 1].startswith("#"):
                         best_link = urljoin(m3u8_str, lines[i + 1])
-                        m = re.search(r'URI="([^"]*)"', urljoin(m3u8_str, lines[i-1]))
-                        audio_link = m.group(1) if m else None
-                        best_info = line
+                        self.m3u8_highest = best_link
+                        return line
 
-            if best_link:
-                self.m3u8_highest = best_link
-                if audio_link:
-                    self.audio_link = audio_link
-                return best_info
-
-            return ""
+        raise ValueError(f"Resolution {selected_resolution} not found in playlist")
+        
+    def extract_sorted_resolutions(self, lines: List[str]) -> List[Tuple[int, int]]:
+        """Extract all resolution pairs (width, height) from the playlist, sorted by height ascending. Duplicates preserved."""
+        resolutions: List[Tuple[int, int]] = []
+        for line in lines:
+            if line.startswith("#EXT-X-STREAM-INF:"):
+                matches = re.findall(r"RESOLUTION=(\d+)x(\d+)", line)
+                for w, h in matches:
+                    resolutions.append((int(w), int(h)))
+        return sorted(resolutions, key=lambda r: r[1])
 
     def _process_media_playlist(
         self, lines: List[str], m3u8_url: str
@@ -166,11 +202,21 @@ class HLS_Paser:
         """Process a segment line to extract URL and sequence number."""
         segment_url: str = urljoin(m3u8_url, line)
         return segment_url
-
-    def _extract_resolution_height(self, line: str) -> int:
-        """Extract the resolution height from a STREAM-INF line."""
-        resolution_match = re.search(r"RESOLUTION=(\d+)x(\d+)", line)
-        return int(resolution_match.group(2)) if resolution_match else -1
+    
+    def extract_all_resolutions(self, text: str) -> List[Tuple[int, int]]:
+        """Extract all resolution pairs (width, height) from the input text, preserving duplicates and order."""
+        matches = re.findall(r"RESOLUTION=(\d+)x(\d+)", text)
+        return [(int(w), int(h)) for w, h in matches]
+    
+    def extract_all_audio_tracks(self, lines: List[str], m3u8_str: str) -> List[str]:
+        """Extract all audio track URIs from the playlist, preserving order."""
+        audio_links = []
+        for line in lines:
+            if line.startswith("#EXT-X-MEDIA:") and "TYPE=AUDIO" in line:
+                m = re.search(r'URI="([^"]+)"', line)
+                if m:
+                    audio_links.append(urljoin(m3u8_str, m.group(1)))
+        return audio_links
 
     def _finalize_results(
         self,
@@ -205,40 +251,43 @@ class HLS_Paser:
             
     def rich_table_print(self, obj: HLSContent):
         """Print rich table of HLS content"""
-        console = Console()
-        
-        info = obj.best_info.split(":", 1)[1]
-        pairs = [p.strip() for p in info.split(",")]
-        kv = {}
-        for p in pairs:
-            if "=" in p:
-                k, v = p.split("=", 1)
-                kv[k.strip()] = v.strip('"')
+        try:
+            console = Console()
+            
+            info = obj.best_info.split(":", 1)[1]
+            pairs = [p.strip() for p in info.split(",")]
+            kv = {}
+            for p in pairs:
+                if "=" in p:
+                    k, v = p.split("=", 1)
+                    kv[k.strip()] = v.strip('"')
 
-        table = Table(
-            title="HLS Parsing Result",
-            box=box.ROUNDED,
-            show_header=False,
-            border_style="bright_blue",
-        )
+            table = Table(
+                title="HLS Parsing Result",
+                box=box.ROUNDED,
+                show_header=False,
+                border_style="bright_blue",
+            )
 
-        table.add_column("Field", style="cyan", no_wrap=True)
-        table.add_column("Value", style="white")
+            table.add_column("Field", style="cyan", no_wrap=True)
+            table.add_column("Value", style="white")
 
-        colored_values = []
-        for key, value in kv.items():
-            color = {
-                "BANDWIDTH": "orange_red1",
-                "CODECS": "light_salmon1",
-                "AUDIO": "light_steel_blue",
-                "RESOLUTION": "light_goldenrod2",
-            }.get(key, "white")
-            colored_values.append(f"[{color}]{value}[/]")
+            colored_values = []
+            for key, value in kv.items():
+                color = {
+                    "CODECS": "light_salmon1",
+                    "BANDWIDTH": "orange_red1",
+                    "RESOLUTION": "light_goldenrod2",
+                    "AUDIO": "light_steel_blue",
+                }.get(key, "white")
+                colored_values.append(f"[{color}]{value}[/]")
 
-        joined_values = " | ".join(colored_values)
-        table.add_row("[bold magenta]INFO[/bold magenta]", joined_values)
-        table.add_row("[bold yellow]Base Url[/bold yellow]", f"[cornsilk1]{obj.base_url}[/]")
-        table.add_row("[bold cyan]Video Link[/bold cyan]", f"[cornsilk1]{obj.video_link}[/]")
-        table.add_row("[bold blue]Audio Link[/bold blue]", f"[cornsilk1]{obj.audio_link}[/]")
+            joined_values = " | ".join(colored_values)
+            table.add_row("[bold magenta]INFO[/bold magenta]", joined_values)
+            table.add_row("[bold yellow]Base Url[/bold yellow]", f"[cornsilk1]{obj.base_url}[/]")
+            table.add_row("[bold cyan]Video Link[/bold cyan]", f"[cornsilk1]{obj.video_link}[/]")
+            table.add_row("[bold blue]Audio Link[/bold blue]", f"[cornsilk1]{obj.audio_link}[/]")
 
-        console.print(table)
+            console.print(table)
+        except AttributeError:
+            pass
