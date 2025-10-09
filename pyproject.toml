@@ -7,7 +7,7 @@ dependencies = [
     "aiofiles",
     "click",
     "validators",
-    "ruamel",
+    "ruamel.yaml",
     "aiohttp",
     "aioquic",
     "bs4",
