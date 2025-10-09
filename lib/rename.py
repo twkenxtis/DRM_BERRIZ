@@ -17,7 +17,7 @@ from static.color import Color
 from static.PublicInfo import PublicInfo_Custom
 from static.parameter import paramstore
 from unit.http.request_berriz_api import GetRequest
-from unit.data.data import get_timestamp_formact
+from unit.date.date import get_timestamp_formact
 from unit.community.community import custom_dict
 from unit.handle.handle_log import setup_logging
 

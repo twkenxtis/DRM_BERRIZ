@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any
 import orjson
 
 from lib.load_yaml_config import CFG
-from unit.data.data import get_formatted_publish_date
+from unit.date.date import get_formatted_publish_date
 
 
 class PublicInfo:

@@ -13,7 +13,7 @@ from lib.__init__ import dl_folder_name, use_proxy, FilenameSanitizer, OutputFor
 from lib.save_json_data import save_json_data
 from lib.load_yaml_config import CFG
 from lib.path import Path
-from unit.data.data import get_formatted_publish_date, get_timestamp_formact
+from unit.date.date import get_formatted_publish_date, get_timestamp_formact
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import Playback_info, Public_context
 from unit.image.class_ImageDownloader import ImageDownloader
