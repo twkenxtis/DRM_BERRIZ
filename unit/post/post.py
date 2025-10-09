@@ -15,6 +15,8 @@ from httpx import URL
 from lib.__init__ import dl_folder_name, OutputFormatter
 from lib.load_yaml_config import CFG
 from lib.artis.request_artis import ArtisManger
+from static.color import Color
+from static.parameter import paramstore
 from unit.post.save_html import SaveHTML
 from unit.handle.handle_board_from import JsonBuilder, BoardFetcher
 from unit.image.class_ImageDownloader import ImageDownloader
@@ -166,7 +168,10 @@ class MainProcessor:
         image_data, none_image_data = self.filter_post_data()
         if image_data:
             self.TYPE = True
-            await self.process_image(image_data)
+            if paramstore.get('nodl') is True:
+                logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}POST IAMGE")
+            else:
+                await self.process_image(image_data)
         elif none_image_data:
             self.TYPE = False
             await asyncio.gather(

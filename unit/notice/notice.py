@@ -106,7 +106,7 @@ class MainProcessor:
         
     async def process_image(self) -> None:
         if paramstore.get('nodl') is True:
-            logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}NOTICE")
+            logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}NOTICE IMAGE")
         else:
             await self.DownloadImage.download_images()
 
