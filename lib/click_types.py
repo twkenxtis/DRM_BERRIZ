@@ -42,6 +42,7 @@ known_flags: List[str] = [
     "--skip-mux",
     "--signup", "--HLS", "--hls",
     "--skip-dl", "--skip-download",
+    "--skip-json",
 ]
 
 
@@ -114,6 +115,7 @@ def _get_arg(key: str, default: Any = None) -> Any:
 @click.option('--notice', '--notice-only', '-N', 'noticeonly', is_flag=True, help='Choose notice')
 @click.option('--g', '--group', '-G', 'group', default='ive', help='Group name (default: ive)')
 @click.option('--skip-dl', '--skip-download', 'nodl', is_flag=True , help='No download (default: False)')
+@click.option('--skip-json', 'nojson', is_flag=True , help='No Json download (default: False)')
 @click.argument('unknown', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def main(
@@ -140,7 +142,8 @@ def main(
     photoonly: bool,
     noticeonly: bool,
     group: str,
-    nodl: str,
+    nodl: bool,
+    nojson: bool,
     unknown: tuple
 ) -> None:
     """
@@ -175,6 +178,7 @@ def main(
         'noticeonly': noticeonly,
         'group': group,
         'nodl': nodl,
+        'nojson': nojson,
     }
     
     ctx.obj = args_dict
@@ -224,6 +228,9 @@ def main(
         
     if nodl:
         paramstore._store["nodl"] = True
+        
+    if nojson:
+        paramstore._store["nojson"] = True
     
     # 這些需要顯式設置 True/False
     paramstore._store["mediaonly"] = mediaonly
@@ -369,6 +376,10 @@ def signup() -> bool:
 def nodl() -> bool:
     """是否跳過下載"""
     return _get_arg('nodl', False)
+
+def nojson() -> bool:
+    """是否跳過下載"""
+    return _get_arg('nojson', False)
 
 async def join_cm():
     await BerrizCreateCommunity(await cm(join_community()), join_community()).community_join()

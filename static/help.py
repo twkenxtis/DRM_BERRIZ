@@ -22,7 +22,8 @@ def print_help() -> None:
         "--fanclub-only --fanclub --fc", "--no-fanclub --nfc", "",
         "--t, --time, -T", "--signup", "--change-password", "",
         "--hls", "--del-after-done 'True'(default)", "--skip-merge 'False'(default)",
-        "--skip-mux 'False'(default)", "--key, --keys", "--skip-dl --skip-download"
+        "--skip-mux 'False'(default)", "--key, --keys", "--skip-dl --skip-download",
+        "--skip-json"
     ]
 
     # 右列（描述）
@@ -48,8 +49,9 @@ def print_help() -> None:
         "完成後是否刪除 (true/false) / Whether to delete after completion (true/false)",
         "完成後是否跳過合併 (true/false) / Whether to skip merge after completion (true/false)",
         "合併後是否跳過混流 (true/false) / Whether to skip mux after merge (true/false)",
-        "顯示金鑰並跳過下載 / Show key and skip download"
-        "跳過下載 全部圖片或影片 / SKIP DL ALL IMAGES OR VIDEOS"
+        "顯示金鑰並跳過下載 / Show key and skip download",
+        "跳過下載 全部圖片或影片 / SKIP DL ALL IMAGES OR VIDEOS",
+        "跳過下載並儲存 JSON 到本地/ SKIP download and save JSON to local",
     ]
 
     for option in options:
