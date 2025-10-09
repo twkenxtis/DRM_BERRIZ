@@ -3,7 +3,6 @@ import random
 import os
 import string
 import shutil
-from pathlib import Path
 
 import httpx
 
@@ -13,6 +12,7 @@ from static.color import Color
 from lib.__init__ import dl_folder_name, use_proxy, FilenameSanitizer, OutputFormatter
 from lib.save_json_data import save_json_data
 from lib.load_yaml_config import CFG
+from lib.path import Path
 from unit.data.data import get_formatted_publish_date, get_timestamp_formact
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import Playback_info, Public_context
@@ -141,12 +141,12 @@ class FolderManager():
 
     async def _ensure_unique_folder(self, folder_name: str) -> Path:
         base_dir = Path(dl_folder_name) / self.IMG_PublicContext.community_name / "Images"
-        await asyncio.to_thread(base_dir.mkdir, parents=True, exist_ok=True)
+        base_dir.mkdirp()
         while True:
             suffix = "".join(random.choices(string.ascii_lowercase, k=5))
             candidate = base_dir / (f"{folder_name}" if suffix == "" else f"{folder_name} [{suffix}]")
             try:
-                await asyncio.to_thread(candidate.mkdir, parents=True, exist_ok=False)
+                candidate.mkdirp()
                 return candidate
             except FileExistsError:
                 continue

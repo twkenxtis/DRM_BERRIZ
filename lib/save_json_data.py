@@ -1,5 +1,4 @@
 import asyncio
-from pathlib import Path
 from typing import Any, Union, Dict, Optional
 
 import aiofiles
@@ -7,6 +6,7 @@ import aiofiles.os as aios
 import orjson
 import httpx
 
+from lib.path import Path
 from unit.handle.handle_log import setup_logging
 
 
@@ -22,7 +22,7 @@ class save_json_data:
 
     def _ensure_dir(self) -> None:
         """Ensure the output directory exists."""
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir.mkdirp()
 
     async def _write_file(self, file_path: Path, content: Union[str, bytes], mode: str = "wb") -> None:
         """Write content to a file with retry logic and atomic replacement."""

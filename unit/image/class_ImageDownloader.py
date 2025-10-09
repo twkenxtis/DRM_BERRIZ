@@ -1,5 +1,4 @@
 import asyncio
-from pathlib import Path
 from typing import Union, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor
 import random
@@ -7,6 +6,7 @@ import random
 import aiohttp
 
 from static.color import Color
+from lib.path import Path
 from unit.handle.handle_log import setup_logging
 from unit.__init__ import USERAGENT
 
@@ -41,7 +41,7 @@ class ImageDownloader:
     @staticmethod
     def _write_chunks_sync(chunks: list[bytes], file_path: Path, max_retries: int = 3) -> None:
         """Synchronous function to write chunks to file in thread pool with retry logic."""
-        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.parent.mkdirp()
         
         for attempt in range(1, max_retries + 1):
             try:

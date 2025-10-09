@@ -1,6 +1,5 @@
 import asyncio
 import shutil
-from pathlib import Path
 from typing import List
 
 import aiofiles
@@ -13,6 +12,7 @@ from rich.progress import (
 )
 
 from static.color import Color
+from lib.path import Path
 from unit.handle.handle_log import setup_logging
 
 
@@ -29,7 +29,7 @@ class MERGE:
         merge_type: str
     ) -> bool:
         temp_dir: Path = output_file.parent / f"temp_merging_{track_type}"
-        temp_dir.mkdir(exist_ok=True)
+        temp_dir.mkdirp()
 
         try:
             if merge_type == 'mpd' and init_files:

@@ -1,9 +1,7 @@
 import asyncio
-from pathlib import Path
 from typing import Union, Dict, Optional, List, Tuple
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-import random
 import ssl
 
 
@@ -12,6 +10,7 @@ from aioquic.quic.configuration import QuicConfiguration
 
 
 from static.color import Color
+from lib.path import Path
 from unit.http.quic import HttpClient, QuicResponse
 from unit.handle.handle_log import setup_logging
 from unit.__init__ import USERAGENT
@@ -90,7 +89,7 @@ class ImageDownloader:
                 
                 # Write file
                 path = Path(file_path)
-                path.parent.mkdir(parents=True, exist_ok=True)
+                path.parent.mkdirp()
                 loop = asyncio.get_running_loop()
                 await loop.run_in_executor(
                     ImageDownloader._file_io_executor,

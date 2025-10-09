@@ -1,6 +1,6 @@
 import asyncio
 import shutil
-from pathlib import Path
+#from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import aiofiles
@@ -14,6 +14,7 @@ from lib.mux.parse_mpd import MPDContent, MPDParser, MediaTrack
 from lib.processbar import ProgressBar
 from lib.merge import MERGE
 from lib.video_folder import start_download_queue
+from lib.path import Path
 from static.color import Color
 from static.parameter import paramstore
 from unit.__init__ import USERAGENT
@@ -71,7 +72,7 @@ class MediaDownloader:
         progress_callback: Optional[Callable[[int], Any]] = None
     ) -> bool:
         retries: int = 0
-        save_path.parent.mkdir(parents=True, exist_ok=True)
+        save_path.parent.mkdirp()
         while retries <= max_retries:
             await self._ensure_session()
             try:
@@ -119,7 +120,7 @@ class MediaDownloader:
 
     async def download_track(self, track: MediaTrack, track_type: str, merge_type: str) -> bool:
         track_dir: Path = self.base_dir / track_type
-        track_dir.mkdir(exist_ok=True)
+        track_dir.mkdirp()
         if merge_type == 'hls':
             slice_parameters = track
             file_ext: str = '.bin'

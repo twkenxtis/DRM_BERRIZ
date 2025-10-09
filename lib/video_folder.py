@@ -2,7 +2,7 @@ import asyncio
 import shutil
 import time
 import random
-from pathlib import Path
+#from pathlib import Path
 from typing import Any, Dict, Optional, Union, List
 
 import aiofiles.os as aios
@@ -12,6 +12,7 @@ from lib.__init__ import dl_folder_name, OutputFormatter, get_artis_list, Filena
 from lib.load_yaml_config import CFG
 from lib.rename import SUCCESS
 from lib.save_json_data import save_json_data
+from lib.path import Path
 from static.color import Color
 from static.PublicInfo import PublicInfo_Custom
 from static.parameter import paramstore
@@ -45,7 +46,7 @@ class Video_folder:
         temp_folder_name: str = f"{self.time_str} {self.media_id}__({str(random.randint(2**32, 2**33 - 1))})"
         temp_name: str = self.FilenameSanitizer(temp_folder_name)
         temp_dir: Path = base_dir / temp_name / "temp"
-        temp_dir.mkdir(parents=True, exist_ok=True)
+        temp_dir.mkdirp()
         self.base_dir = base_dir
         self.output_dir = str(temp_dir.resolve())
         
