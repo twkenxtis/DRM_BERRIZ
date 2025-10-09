@@ -2,7 +2,7 @@ import sys
 import asyncio
 import difflib
 import click
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 
 
 from static.color import Color
@@ -72,7 +72,6 @@ def _get_arg(key: str, default: Any = None) -> Any:
     
     return default
 
-
 @click.command(
     add_help_option=False,  # 關鍵：禁用 Click 的預設 help
     context_settings=dict(
@@ -96,7 +95,13 @@ def _get_arg(key: str, default: Any = None) -> Any:
 @click.option('--no-fanclub', '--nfc', 'nofanclub', is_flag=True, help='Show only non-fanclub-only content')
 @click.option('--live', '--live-only', '-L', 'liveonly', is_flag=True, help='Show only live content')
 @click.option('--media', '--media-only', '-M', 'mediaonly', is_flag=True, help='Show only media content')
-@click.option('--t', '--time', '-T', 'time_date', is_flag=True, help='Filter content by date/time')
+@click.option(
+    '--t', '--time', '-T',
+    'time_date',
+    type=str,
+    nargs=1,
+    help='Filter content by date/time (use 1-2 times)'
+)
 @click.option('--community', is_flag=True, help='Show community content')
 @click.option('--change-password', '--change_password', 'change_password', is_flag=True, help='Change password')
 @click.option('--signup', is_flag=True, help='Signup')
@@ -307,9 +312,9 @@ def leave_community() -> str:
     return _get_arg('leave_community', '')
 
 
-def time_date() -> bool:
-    """是否按日期時間過濾"""
-    return _get_arg('time_date', False)
+def time_date() -> Optional[Tuple[str, str]]:
+    """取得日期範圍 兩個日期"""
+    return _get_arg('time_date', None)
 
 
 def dev() -> bool:

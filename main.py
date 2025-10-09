@@ -24,9 +24,8 @@ from unit.handle.handle_choice import Handle_Choice
 from unit.community.community import get_community_print
 from unit.date.date import process_time_inputs 
 
-
 if time_date():
-    time_a, time_b = process_time_inputs()
+    time_a, time_b = process_time_inputs(time_date())
 else:
     time_a, time_b = None, None
 
