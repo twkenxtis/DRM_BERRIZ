@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from datetime import datetime
 
 from InquirerPy import inquirer
@@ -80,13 +81,18 @@ class Board:
                     return {'type': 'board', 'iconType': 'artist', 'id': '', 'name': 'Unable to automatically select'}, [] 
     
     async def call_inquirer(self, filterchoice: List[Dict]) -> Dict:
-        return await asyncio.wait_for(
-            inquirer.select(
-                message="Please select a project: (After 7s auto choese default Options)",
-                choices=filterchoice
-            ).execute_async(),
-            timeout=7
-        )
+        try:
+            return await asyncio.wait_for(
+                inquirer.select(
+                    message="Please select a project: (After 7s auto choese default Options)",
+                    choices=filterchoice
+                ).execute_async(),
+                timeout=7
+            )
+        except KeyboardInterrupt:
+            logger.info(f"Program interrupted: {Color.fg('light_gray')}User canceled{Color.reset()}")
+            sys.exit(0)
+
         
     async def call_auto_choese(self, choices: List[Dict]) -> Dict:
         for value in choices:

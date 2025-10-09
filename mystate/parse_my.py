@@ -12,7 +12,7 @@ from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import My
 
 
-logger = setup_logging('parse_my', 'ruby')
+logger = setup_logging('parse_my', 'sunrise')
 
 
 async def request_my() -> None:
@@ -22,28 +22,23 @@ async def request_my() -> None:
     if not cookie_session:
         await Lock_Cookie.cookie_session()
 
-    try:
-        results = await asyncio.gather(
-            My().fetch_my(use_proxy),
-            My().fetch_location(use_proxy),
-            My().notifications(use_proxy),
-            My().fetch_me(use_proxy),
-            My().get_me_info(use_proxy),
-            return_exceptions=True
-        )
+    results = await asyncio.gather(
+        My().fetch_my(use_proxy),
+        My().fetch_location(use_proxy),
+        My().notifications(use_proxy),
+        My().fetch_me(use_proxy),
+        My().get_me_info(use_proxy),
+        return_exceptions=True
+    )
 
-        exceptions = [r for r in results if isinstance(r, Exception)]
-        if exceptions:
-            logger.error(exceptions)
-            return
+    exceptions = [r for r in results if isinstance(r, Exception)]
+    if exceptions:
+        return
 
-        data, locat, notif, my_data, me = results
-        if None in (data, locat, notif, my_data, me):
-            logger.warning("One or more API calls returned None")
-            return
-    except Exception as e:
-        # 這裡只捕獲 gather 外其他不可預期的錯誤
-        logger.error("Unexpected error", exc_info=e)
+    data, locat, notif, my_data, me = results
+    if None in (data, locat, notif, my_data, me):
+        logger.warning("One or more API calls returned None")
+        return
 
         
     my_id: Optional[str] = data.get('data', {}).get('memberInfo', {}).get('memberKey')

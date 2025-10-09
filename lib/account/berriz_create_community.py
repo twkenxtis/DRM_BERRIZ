@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 from typing import Optional, Dict, Any, Union, Tuple
 
@@ -46,22 +47,22 @@ class BerrizCreateCommunity:
                 logger.warning(f'{name} community name only accept length < 15')
             else:
                 break
-                
+
         data: Dict[str, Any] = await self.Community.create_community(community_id, name, use_proxy)
         code :str = data.get('code')
         if code == '0000':
             logger.info(f'{Color.fg("light_gray")}Welcome to {Color.fg("aquamarine")}{communityname} {Color.fg("light_gray")}community{Color.reset()}')
             if 'data' in data and isinstance(data['data'], dict):
                 self.print_data_with_fstring(data['data'])
-            return True
+            raise KeyboardInterrupt('exit program')
         elif code != '0000':
             logger.error(f"{api_error_handle(code)}")
-            logger.error(f"{Color.fg('red')}Failed to leave the {Color.fg('aquamarine')}{communityname} {Color.fg('light_gray')}community.{Color.reset()}")
-            return False
+            logger.error(f"{Color.fg('red')}Failed to join the {Color.fg('aquamarine')}{communityname} {Color.fg('light_gray')}community.{Color.reset()}")
+            raise KeyboardInterrupt('exit program')
         else:
             logger.error(data)
-            logger.error(f"{Color.fg('red')}Failed to leave the {Color.fg('aquamarine')}{communityname} {Color.fg('light_gray')}community.{Color.reset()}")
-            return False
+            logger.error(f"{Color.fg('red')}Failed to join the {Color.fg('aquamarine')}{communityname} {Color.fg('light_gray')}community.{Color.reset()}")
+            raise KeyboardInterrupt('exit program')
 
 
     async def leave_community_main(self) -> bool:
@@ -77,13 +78,12 @@ class BerrizCreateCommunity:
             )
             await asyncio.sleep(0.65)
             userinput = input(f'{Color.fg("gold")}typing YES to accept: {Color.reset()}').strip()
-            
             if userinput == 'YES':
                 break
             elif userinput == 'yes':
                 logger.warning('Try typing in all caps')
                 
-        data: Dict[str, Any] = await self.Community.leave_community(community_id)
+        data: Dict[str, Any] = await self.Community.leave_community(community_id, use_proxy)
         code :str = data.get('code')
         if code == '0000':
             logger.info(
@@ -91,13 +91,13 @@ class BerrizCreateCommunity:
                 f"{Color.fg('aquamarine')}{communityname} {Color.fg('light_gray')}"
                 f"community.{Color.reset()}"
             )
-            return True
+            raise KeyboardInterrupt('exit program')
         elif code != '0000':
             logger.error(f"{api_error_handle(code)}")
             logger.error(f"{Color.fg('red')}Failed to leave the {Color.fg('aquamarine')}{communityname} {Color.fg('light_gray')}community.{Color.reset()}")
-            return False
+            raise KeyboardInterrupt('exit program')
         else:
             logger.error(data)
             logger.error(f"{Color.fg('red')}Failed to leave the {Color.fg('aquamarine')}{communityname} {Color.fg('light_gray')}community.{Color.reset()}")
-            return False
+            raise KeyboardInterrupt('exit program')
             

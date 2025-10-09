@@ -1,10 +1,11 @@
-from pathlib import Path
+import sys
 from typing import List, Dict, Any, Optional, Union
 
 import aiofiles
 import orjson
 
 from lib.__init__ import use_proxy
+from lib.path import Path
 from static.color import Color
 from static.route import Route
 from unit.http.request_berriz_api import Community, My
@@ -21,6 +22,22 @@ CommunityDict = Dict[str, Union[int, str]]
 BASE_COMMUNITY_KEY_DICT: Path = Route().BASE_COMMUNITY_KEY_DICT
 BASE_COMMUNITY_NAME_DICT: Path = Route().BASE_COMMUNITY_NAME_DICT
 
+
+async def cm(input: Union[str, int]):
+    community = await get_community(input)
+    if community is None:
+        logger.error(
+            f"{Color.fg('black')}Input Community ID invaild{Color.reset()}"
+            f" → {Color.fg('gold')}【{input}】"
+            )
+        logger.info(
+            f"{Color.fg('sea_green')}Use {Color.fg('gold')}--community {Color.fg('sea_green')}for more info!{Color.reset()}"
+            )
+        await get_community_print()
+        sys.exit(1)
+    else:
+        return community
+    
 
 async def file_Check() -> None:
     if not BASE_COMMUNITY_KEY_DICT.exists():

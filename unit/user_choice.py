@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -95,13 +96,17 @@ class InquirerPySelector:
             return None
         
         # Initial selection with fuzzy search
-        cmd: Union[str, int] = await inquirer.fuzzy(
-            message="Select items or quick command:",
-            choices=quick_commands + item_choices,
-            default="",
-            cycle=False,
-            border=True,
-        ).execute_async()
+        try:
+            cmd: Union[str, int] = await inquirer.fuzzy(
+                message="Select items or quick command:",
+                choices=quick_commands + item_choices,
+                default="",
+                cycle=False,
+                border=True,
+            ).execute_async()
+        except KeyboardInterrupt:
+            logger.info(f"Program interrupted: {Color.fg('light_gray')}User canceled{Color.reset()}")
+            sys.exit(0)
 
         picks: Set[int] = set()
         if cmd == "all":
