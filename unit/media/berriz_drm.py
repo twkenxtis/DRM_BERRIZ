@@ -138,7 +138,7 @@ class Key_handle:
             key: Optional[str] = ms_pr or wv
             if key is not None:
                 logger.info(
-                    f"{Color.fg('mint')}Use local key vault keys:{Color.reset()}"
+                    f"{Color.fg('mint')}Use local key vault keys: {Color.reset()}"
                     f"{Color.fg('ruby')}{key}{Color.reset()}"
                 )
                 return key
@@ -181,16 +181,24 @@ async def start_download(public_info: PublicInfo, playback_info : PlaybackInfo, 
         )
         table.add_column("Label", style="cyan", no_wrap=True)
         table.add_column("Value", style="white")
+
         # Title
         title = json_data[0].get("media", {}).get("title", "")
         table.add_row("[light_gray]Title[/]", f"[olive]{title}[/]")
+
         # MPD URL
         table.add_row("[khaki]MPD[/]", f"[dark_cyan]{dash_playback_url}[/]")
+
         # HLS URL
         table.add_row("[sky_blue]HLS[/]", f"[dark_cyan]{hls_playback_url}[/]")
+
         # Key-only mode info
         key_mode = f"[ruby]--key only mode[/] [wheat]Skip download[/] {BerrizProcessor.print_title(public_info)}"
         table.add_row("[gold]Mode[/]", key_mode)
+
+        # Key info
+        if key is not None:
+            table.add_row("[red]Key[/]", f"[red]{key}[/]")
 
         console.print(table)
     else:
@@ -324,26 +332,30 @@ class BerrizProcessor:
         return key, dash_playback_url, raw_mpd, hls_playback_url, raw_hls
 
     async def print_drm_info(self, key_handler: Key_handle) -> None:
+        console = Console()
+        table = Table(
+            title="DRM Info",
+            box=box.ROUNDED,
+            show_header=False,
+            border_style="bright_blue",
+        )
+        table.add_column("Label", style="cyan", no_wrap=True)
+        table.add_column("Value", style="white")
+
         k: Optional[List[str]] = key_handler.wv_pssh
         p: Optional[List[str]] = key_handler.msprpro
-        if k is not None and isinstance(k, list):
+
+        if k:
             k_print: str = '\n'.join(k)
-            logger.info(f"{Color.fg('iron')}PSSH: "
-                        f"{Color.fg('orange')}{k_print}{Color.reset()}"
-                        )
-            logger.info(
-                f"{Color.fg('light_gray')}encryption support:{Color.reset()} "
-                f"{Color.fg('bright_cyan')}Widevine{Color.reset()}"
-            )
-        if p is not None and isinstance(p, list):
+            table.add_row("[light_gray]PSSH[/]", f"[orange]{k_print}[/]")
+            table.add_row("[light_gray]Encryption Support[/]", "[bright_cyan]Widevine[/]")
+
+        if p:
             p_print: str = '\n'.join(p)
-            logger.info(f"{Color.fg('iron')}PSSH: "
-                f"{Color.fg('yellow')}{p_print}{Color.reset()}"
-                )
-            logger.info(
-                f"{Color.fg('light_gray')}encryption support:{Color.reset()} "
-                f"{Color.fg('bright_cyan')}PlayReady{Color.reset()}"
-            )
+            table.add_row("[light_gray]PSSH[/]", f"[yellow]{p_print}[/]")
+            table.add_row("[light_gray]Encryption Support[/]", "[bright_cyan]PlayReady[/]")
+
+        console.print(table)
 
     async def run(self) -> None:
         playback, public = await self.fetch_contexts()
