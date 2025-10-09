@@ -186,7 +186,7 @@ def main(
     
     from static.parameter import paramstore
     
-    if had_key:
+    if has_key:
         paramstore._store["key"] = True
     
     if dev:
