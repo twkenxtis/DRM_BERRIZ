@@ -23,7 +23,8 @@ def print_help() -> None:
         "--t, --time, -T", "--signup", "--change-password", "",
         "--hls", "--del-after-done 'True'(default)", "--skip-merge 'False'(default)",
         "--skip-mux 'False'(default)", "--key, --keys", "--skip-dl --skip-download",
-        "--skip-json"
+        "--skip-json --skip-Json --skip-JSON", "--skip-thumbnails --skip-thb", "--skip-playlist --skip-Playlist --skip-pl",
+        "--skip-html --skip-Html --skip-HTML",
     ]
 
     # 右列（描述）
@@ -52,6 +53,9 @@ def print_help() -> None:
         "顯示金鑰並跳過下載 / Show key and skip download",
         "跳過下載 全部圖片或影片 / SKIP DL ALL IMAGES OR VIDEOS",
         "跳過下載並儲存 JSON 到本地/ SKIP download and save JSON to local",
+        "跳過下載封面縮圖到本地/ SKIP download and save thumbnails to local",
+        "跳過下載播放清單到本地/ SKIP download and save playlist to local",
+        "跳過保存成HTML到本地/ SKIP save HTML formact to local",
     ]
 
     for option in options:

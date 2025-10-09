@@ -43,6 +43,9 @@ known_flags: List[str] = [
     "--signup", "--HLS", "--hls",
     "--skip-dl", "--skip-download",
     "--skip-json",
+    "--skip-thumbnails", "--skip-thb",
+    "--skip-playlist", "--skip-pl",
+    "--skip-html",
 ]
 
 
@@ -108,14 +111,17 @@ def _get_arg(key: str, default: Any = None) -> Any:
 @click.option('--change-password', '--change_password', 'change_password', is_flag=True, help='Change password')
 @click.option('--signup', is_flag=True, help='Signup')
 @click.option('--del-after-done', 'clean_dl', type=click.BOOL, default=None, help='Delete after completion (true/false, default: true)')
-@click.option('--skip-merge', 'skip_merge', is_flag=True, help='Skip merge after completion')
-@click.option('--skip-mux', 'skip_mux', is_flag=True, help='Skip mux after merge')
+@click.option('--skip-merge', 'skip_merge', is_flag=True, help='Skip merge after completion (default: Disable)')
+@click.option('--skip-mux', 'skip_mux', is_flag=True, help='Skip mux after merge (default: Disable)')
 @click.option('--board', '-B', is_flag=True, help='Choose board')
 @click.option('--photo', '--photo-only', '-P', 'photoonly', is_flag=True, help='Choose photo')
 @click.option('--notice', '--notice-only', '-N', 'noticeonly', is_flag=True, help='Choose notice')
 @click.option('--g', '--group', '-G', 'group', default='ive', help='Group name (default: ive)')
-@click.option('--skip-dl', '--skip-download', 'nodl', is_flag=True , help='No download (default: False)')
-@click.option('--skip-json', 'nojson', is_flag=True , help='No Json download (default: False)')
+@click.option('--skip-dl', '--skip-download', 'nodl', is_flag=True , help='No download (default: Disable)')
+@click.option('--skip-json', '--skip-Json', '--skip-JSON', 'nojson', is_flag=True , help='No Json download (default: Disable)')
+@click.option('--skip-thumbnails', '--skip-thb', 'nothumbnails', is_flag=True, help='No thumbnails download (default: Disable)')
+@click.option('--skip-playlist', '--skip-pl', '--skip-Playlist', 'notplaylist', is_flag=True, help='No playlist download (default: Disable)')
+@click.option('--skip-html', '--skip-Html', '--skip-HTML','nohtml', is_flag=True, help='No html download (default: Disable)')
 @click.argument('unknown', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def main(
@@ -144,6 +150,9 @@ def main(
     group: str,
     nodl: bool,
     nojson: bool,
+    nothumbnails: bool,
+    notplaylist: bool,
+    nohtml: bool,
     unknown: tuple
 ) -> None:
     """
@@ -179,6 +188,9 @@ def main(
         'group': group,
         'nodl': nodl,
         'nojson': nojson,
+        'notplaylist': notplaylist,
+        'nothumbnails': nothumbnails,
+        'nohtml': nohtml,
     }
     
     ctx.obj = args_dict
@@ -231,6 +243,15 @@ def main(
         
     if nojson:
         paramstore._store["nojson"] = True
+        
+    if nothumbnails:
+        paramstore._store["nothumbnails"] = True
+        
+    if notplaylist:
+        paramstore._store["notplaylist"] = True
+        
+    if nohtml:
+        paramstore._store["nohtml"] = True
     
     # 這些需要顯式設置 True/False
     paramstore._store["mediaonly"] = mediaonly
@@ -378,8 +399,20 @@ def nodl() -> bool:
     return _get_arg('nodl', False)
 
 def nojson() -> bool:
-    """是否跳過下載"""
+    """是否跳過下載JSON"""
     return _get_arg('nojson', False)
+
+def nothumbnails() -> bool:
+    """是否跳過下載封面縮圖"""
+    return _get_arg('nothumbnails', False)
+
+def notplaylist() -> bool:
+    """是否跳過下載播放清單"""
+    return _get_arg('notplaylist', False)
+
+def nohtml() -> bool:
+    """是否跳過保存成HTML"""
+    return _get_arg('nohtml', False)
 
 async def join_cm():
     await BerrizCreateCommunity(await cm(join_community()), join_community()).community_join()
