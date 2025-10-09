@@ -24,7 +24,7 @@ def print_help() -> None:
         "--hls", "--del-after-done 'True'(default)", "--skip-merge 'False'(default)",
         "--skip-mux 'False'(default)", "--key, --keys", "--skip-dl --skip-download",
         "--skip-json --skip-Json --skip-JSON", "--skip-thumbnails --skip-thb", "--skip-playlist --skip-Playlist --skip-pl",
-        "--skip-html --skip-Html --skip-HTML",
+        "--skip-html --skip-Html --skip-HTML", "", "--no-info --noinfo", "--nosubfolder --no-subfolder --no_subfolder"
     ]
 
     # 右列（描述）
@@ -55,7 +55,9 @@ def print_help() -> None:
         "跳過下載並儲存 JSON 到本地/ SKIP download and save JSON to local",
         "跳過下載封面縮圖到本地/ SKIP download and save thumbnails to local",
         "跳過下載播放清單到本地/ SKIP download and save playlist to local",
-        "跳過保存成HTML到本地/ SKIP save HTML formact to local",
+        "跳過保存成HTML到本地/ SKIP save HTML formact to local", "",
+        "只有必要影片或相片檔案 / No JSON / HTML / m3u8 / MPD / thumbnails",
+        "沒有額外子檔案夾 / No sub folder",
     ]
 
     for option in options:

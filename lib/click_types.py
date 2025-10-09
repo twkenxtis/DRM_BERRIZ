@@ -46,6 +46,8 @@ known_flags: List[str] = [
     "--skip-thumbnails", "--skip-thb",
     "--skip-playlist", "--skip-pl",
     "--skip-html",
+    "--no-info", "--noinfo",
+    "--nosubfolder", "--no-subfolder", "--no_subfolder",
 ]
 
 
@@ -76,6 +78,13 @@ def _get_arg(key: str, default: Any = None) -> Any:
         pass
     
     return default
+
+def apply_no_info(ctx, param, value):
+    if value:
+        ctx.params['nojson'] = True
+        ctx.params['nothumbnails'] = True
+        ctx.params['notplaylist'] = True
+        ctx.params['nohtml'] = True
 
 @click.command(
     add_help_option=False,  # 關鍵：禁用 Click 的預設 help
@@ -122,6 +131,8 @@ def _get_arg(key: str, default: Any = None) -> Any:
 @click.option('--skip-thumbnails', '--skip-thb', 'nothumbnails', is_flag=True, help='No thumbnails download (default: Disable)')
 @click.option('--skip-playlist', '--skip-pl', '--skip-Playlist', 'notplaylist', is_flag=True, help='No playlist download (default: Disable)')
 @click.option('--skip-html', '--skip-Html', '--skip-HTML','nohtml', is_flag=True, help='No html download (default: Disable)')
+@click.option('--no-info', '--noinfo','no_info', is_flag=True, expose_value=True, callback=apply_no_info, help='Skip all info-related downloads (json, thumbnails, playlist, html)')
+@click.option('--nosubfolder', '--no-subfolder', '--no_subfolder', 'nosubfolder', is_flag=True, help='No SUB Folder (default: Disable)')
 @click.argument('unknown', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def main(
@@ -153,6 +164,8 @@ def main(
     nothumbnails: bool,
     notplaylist: bool,
     nohtml: bool,
+    no_info: bool,
+    nosubfolder: bool,
     unknown: tuple
 ) -> None:
     """
@@ -191,6 +204,8 @@ def main(
         'notplaylist': notplaylist,
         'nothumbnails': nothumbnails,
         'nohtml': nohtml,
+        'nosubfolder': nosubfolder,
+        'no_info': no_info,
     }
     
     ctx.obj = args_dict
@@ -252,6 +267,12 @@ def main(
         
     if nohtml:
         paramstore._store["nohtml"] = True
+        
+    if nosubfolder:
+        paramstore._store["nosubfolder"] = True
+    else:
+        paramstore._store["nosubfolder"] = False
+        
     
     # 這些需要顯式設置 True/False
     paramstore._store["mediaonly"] = mediaonly
@@ -413,6 +434,10 @@ def notplaylist() -> bool:
 def nohtml() -> bool:
     """是否跳過保存成HTML"""
     return _get_arg('nohtml', False)
+
+def nosubfolder() -> bool:
+    """是否不需要子資料夾"""
+    return _get_arg('nosubfolder', False)
 
 async def join_cm():
     await BerrizCreateCommunity(await cm(join_community()), join_community()).community_join()
