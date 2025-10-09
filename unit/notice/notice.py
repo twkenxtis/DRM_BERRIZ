@@ -2,11 +2,15 @@ import asyncio
 import random
 import string
 import shutil
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import orjson
+
 from lib.__init__ import dl_folder_name, FilenameSanitizer
+from lib.path import Path
+from lib.save_json_data import save_json_data
 from static.color import Color
+from static.parameter import paramstore
 from unit.post.post import File_date_time_formact
 from unit.handle.handle_board_from import BoardNoticeINFO, NoticeINFOFetcher
 from unit.community.community import custom_dict, get_community
@@ -68,13 +72,16 @@ class MainProcessor:
         self.new_file_name = self.FDTF.new_file_name()
         self.body: str = self.fetcher.get_body()
         self.DownloadImage = DownloadImage(self.body, self.folder_path)
+        self.title: str = FilenameSanitizer.sanitize_filename(self.fetcher.get_title())
         self.total = total
+        self.save_json_data = save_json_data(self.folder_path)
 
     async def parse_and_download(self) -> None:
         """Parse data image URLs and download them with concurrency control."""
         tasks = (
             asyncio.create_task(self.process_html()),
-            asyncio.create_task(self.process_image())
+            asyncio.create_task(self.process_image()),
+            asyncio.create_task(self.save_notice_json()),
         )
         await asyncio.gather(*tasks)
     
@@ -85,12 +92,23 @@ class MainProcessor:
             f"{Color.fg('gray')}/{Color.fg('mint')}{self.total}{Color.fg('gray')}]"
             f"({Color.fg('fern')}{MainProcessor.completed/self.total*100:.1f}{Color.fg('gray')}%)"
         )
-        title: str = FilenameSanitizer.sanitize_filename(self.fetcher.get_title())
         ISO8601: str = self.fetcher.get_reservedAt()
-        await SaveHTML(title, ISO8601, self.body, self.folder_path, self.new_file_name).update_template_file()
+        await SaveHTML(self.title, ISO8601, self.body, self.folder_path, self.new_file_name).update_template_file()
+        
+    async def save_notice_json(self):
+        """Save notice data to json file."""
+        data = dict(self.notice_media)  # 複製一份，避免動到原始資料
+        data.pop("fetcher", None)
 
+        json_data = orjson.dumps(data, option=orjson.OPT_INDENT_2)
+        json_file_path = Path(self.folder_path) / f"{self.title}.json"
+        await self.save_json_data._write_file(json_file_path, json_data)
+        
     async def process_image(self) -> None:
-        await self.DownloadImage.download_images()
+        if paramstore.get('nodl') is True:
+            logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}NOTICE")
+        else:
+            await self.DownloadImage.download_images()
 
 
 class RunNotice:
