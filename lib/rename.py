@@ -194,17 +194,21 @@ class SUCCESS:
 
     async def dl_thumbnail(self) -> None:
         """下載影片縮圖到上級目錄"""
-        thumbnail_url: Optional[str] = self.publicinfo.media_thumbnail_url
-        if not thumbnail_url:
-            logger.warning("No thumbnail URL found")
-            return
-        response: httpx.Response = await GetRequest().get_request(thumbnail_url, use_proxy)
-        thumbnail_name: str = os.path.basename(thumbnail_url)
-        save_path: Path = Path(self.base_dir).parent / thumbnail_name
-        try:
-            content: str = response.content
-            async with aiofiles.open(save_path, "wb") as f:
-                await f.write(content)
-        except Exception as e:
-            logger.error(f"Thumbnail download failed: {e}")
-            raise RuntimeError("Thumbnail download failed") from e
+        match paramstore.get('nothumbnails'):
+            case True:
+                logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}Vido Thumbnails")
+            case _:
+                thumbnail_url: Optional[str] = self.publicinfo.media_thumbnail_url
+                if not thumbnail_url:
+                    logger.warning("No thumbnail URL found")
+                    return
+                response: httpx.Response = await GetRequest().get_request(thumbnail_url, use_proxy)
+                thumbnail_name: str = os.path.basename(thumbnail_url)
+                save_path: Path = Path(self.base_dir).parent / thumbnail_name
+                try:
+                    content: str = response.content
+                    async with aiofiles.open(save_path, "wb") as f:
+                        await f.write(content)
+                except Exception as e:
+                    logger.error(f"Thumbnail download failed: {e}")
+                    raise RuntimeError("Thumbnail download failed") from e

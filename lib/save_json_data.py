@@ -8,6 +8,7 @@ import httpx
 
 from lib.path import Path
 from static.parameter import paramstore
+from static.color import Color
 from unit.handle.handle_log import setup_logging
 
 
@@ -52,31 +53,44 @@ class save_json_data:
     
     async def mpd_to_folder(self, raw_mpd: httpx.Response) -> None:
         """Save MPD content (expecting an object with a .text attribute) to manifest.mpd."""
-        if raw_mpd is None:
-            return
-        try:
-            content: str = raw_mpd.text
-            await self._write_file(self.output_dir / "manifest.mpd", content, mode="w")
-        except AttributeError as e:
-            raise ValueError("Invalid MPD object: missing 'text' attribute") from e
+        match paramstore.get('notplaylist'):
+            case True:
+                logger.info(f"{Color.fg('light_gray')}Skip save{Color.reset()} {Color.fg('light_gray')}mpd playlist file")
+            case _:
+                if raw_mpd is None:
+                    return
+                try:
+                    content: str = raw_mpd.text
+                    await self._write_file(self.output_dir / "manifest.mpd", content, mode="w")
+                except AttributeError as e:
+                    raise ValueError("Invalid MPD object: missing 'text' attribute") from e
 
     async def hls_to_folder(self, raw_hls: str) -> None:
         """Save HLS content to manifest.m3u8."""
-        if raw_hls is None:
-            return
-        content: str = raw_hls
-        await self._write_file(self.output_dir / "manifest.m3u8", content, mode="w")
+        match paramstore.get('notplaylist'):
+            case True:
+                logger.info(f"{Color.fg('light_gray')}Skip save{Color.reset()} {Color.fg('light_gray')}m3u8 playlist file")
+            case _:
+                if raw_hls is None:
+                    return
+                content: str = raw_hls
+                await self._write_file(self.output_dir / "manifest.m3u8", content, mode="w")
 
     async def play_list_to_folder(self, raw_play_list: object) -> None:
         """Save playlist JSON to meta.json."""
-        if raw_play_list is None:
-            return
-        try:
-            json_bytes: bytes = orjson.dumps(
-                raw_play_list,
-                option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS
-            )
-            await self._write_file(self.output_dir / "meta.json", json_bytes)
-        except orjson.JSONEncodeError as e:
-            if paramstore.get("mpd_video") is True:
-                raise ValueError("Failed to serialize playlist to JSON") from e
+        match paramstore.get('nojson'):
+            case True:
+                logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}Video metadata JSON")
+            case _:
+                if raw_play_list is None:
+                    return
+                try:
+                    json_bytes: bytes = orjson.dumps(
+                        raw_play_list,
+                        option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS
+                    )
+                    logger.info(f"Writing {self.output_dir /'meta.json'}")
+                    await self._write_file(self.output_dir / "meta.json", json_bytes)
+                except orjson.JSONEncodeError as e:
+                    if paramstore.get("mpd_video") is True:
+                        raise ValueError("Failed to serialize playlist to JSON") from e

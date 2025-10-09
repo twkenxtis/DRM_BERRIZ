@@ -226,19 +226,23 @@ class MainProcessor:
             return image_data, none_image_data
 
     async def process_html(self, image_list: List[str: URL]):
-        html_body = self.make_body(image_list)
-        avatar_link = await self.ArtisManger.get_artis_avatar(self.artis)
-        logger.info("Generating HTML...")
-        html_generator = SaveHTML(
-            self.title,
-            self.time,
-            html_body,
-            self.artis,
-            self.folder_path,
-            avatar_link,
-            self.new_file_name
-        )
-        await html_generator.update_template_file()
+        match paramstore.get('nohtml'):
+            case True:
+                logger.info(f"{Color.fg('light_gray')}Skip save{Color.reset()} {Color.fg('light_gray')}POST HTML")
+            case _:
+                html_body = self.make_body(image_list)
+                avatar_link = await self.ArtisManger.get_artis_avatar(self.artis)
+                logger.info("Generating HTML...")
+                html_generator = SaveHTML(
+                    self.title,
+                    self.time,
+                    html_body,
+                    self.artis,
+                    self.folder_path,
+                    avatar_link,
+                    self.new_file_name
+                )
+                await html_generator.update_template_file()
 
     def make_body(self, image_list: List[str: URL]) -> str:
         if self.TYPE is True:
@@ -258,15 +262,19 @@ class PostJsonDate:
         return await self.json_builder.build_translated_json()
 
     async def save_json_file_to_folder(self, file_path: Path) -> None:
-        logger.info(f"Saving JSON to {file_path}")
-        json_path: Path = file_path / f"{self.new_file_name}.json"
-        json_data: Dict[str, Any] = await self.get_json_data()
-        try:
-            async with aiofiles.open(json_path, 'wb') as f:
-                await f.write(orjson.dumps(json_data, option=orjson.OPT_INDENT_2))
-            logger.info(f"Saved JSON to {json_path}")
-        except Exception as e:
-            logger.error(f"Failed to save JSON to {json_path}: {e}")
+        match paramstore.get('nojson'):
+            case True:
+                logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}POST JSON")
+            case _:
+                logger.info(f"Saving JSON to {file_path}")
+                json_path: Path = file_path / f"{self.new_file_name}.json"
+                json_data: Dict[str, Any] = await self.get_json_data()
+                try:
+                    async with aiofiles.open(json_path, 'wb') as f:
+                        await f.write(orjson.dumps(json_data, option=orjson.OPT_INDENT_2))
+                    logger.info(f"Saved JSON to {json_path}")
+                except Exception as e:
+                    logger.error(f"Failed to save JSON to {json_path}: {e}")
 
 
 class Run_Post_dl:

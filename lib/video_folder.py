@@ -142,14 +142,18 @@ class Video_folder:
         
     async def save_json_to_folder(self, output_dir: Path) -> None:
         """將 JSON 資料儲存到下載資料夾中"""
-        output_path: Path = Path(output_dir).parent
-        file_name: Path = output_path / f"{self.safe_title}.json"
-        serialized: bytes = orjson.dumps(
-            self.json_data,
-            option=orjson.OPT_INDENT_2 | orjson.OPT_NON_STR_KEYS
-        )
-        serialized_str: str = serialized.decode('utf-8')
-        await save_json_data(output_path)._write_file(file_name, serialized_str)
+        match paramstore.get('nojson'):
+            case True:
+                logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}Video INFO JSON")
+            case _:
+                output_path: Path = Path(output_dir).parent
+                file_name: Path = output_path / f"{self.safe_title}.json"
+                serialized: bytes = orjson.dumps(
+                    self.json_data,
+                    option=orjson.OPT_INDENT_2 | orjson.OPT_NON_STR_KEYS
+                )
+                serialized_str: str = serialized.decode('utf-8')
+                await save_json_data(output_path)._write_file(file_name, serialized_str)
 
     async def get_community_name(self, community_id: int) -> str:
         """獲取媒體所屬的社群名稱"""

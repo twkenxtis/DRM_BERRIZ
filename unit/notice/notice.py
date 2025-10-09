@@ -87,22 +87,30 @@ class MainProcessor:
     
     async def process_html(self) -> None:
         MainProcessor.completed += 1
-        logger.info(
-            f"{Color.fg('gray')}Notice: [{Color.fg('mint')}{MainProcessor.completed}"
-            f"{Color.fg('gray')}/{Color.fg('mint')}{self.total}{Color.fg('gray')}]"
-            f"({Color.fg('fern')}{MainProcessor.completed/self.total*100:.1f}{Color.fg('gray')}%)"
-        )
-        ISO8601: str = self.fetcher.get_reservedAt()
-        await SaveHTML(self.title, ISO8601, self.body, self.folder_path, self.new_file_name).update_template_file()
+        match paramstore.get('nohtml'):
+            case True:
+                logger.info(f"{Color.fg('light_gray')}Skip save{Color.reset()} {Color.fg('light_gray')}NOTICE HTML")
+            case _:
+                logger.info(
+                    f"{Color.fg('gray')}Notice: [{Color.fg('mint')}{MainProcessor.completed}"
+                    f"{Color.fg('gray')}/{Color.fg('mint')}{self.total}{Color.fg('gray')}]"
+                    f"({Color.fg('fern')}{MainProcessor.completed/self.total*100:.1f}{Color.fg('gray')}%)"
+                )
+                ISO8601: str = self.fetcher.get_reservedAt()
+                await SaveHTML(self.title, ISO8601, self.body, self.folder_path, self.new_file_name).update_template_file()
         
     async def save_notice_json(self):
         """Save notice data to json file."""
-        data = dict(self.notice_media)  # 複製一份，避免動到原始資料
-        data.pop("fetcher", None)
+        match paramstore.get('nojson'):
+            case True:
+                logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}NOTICE JSON")
+            case _:
+                data = dict(self.notice_media)
+                data.pop("fetcher", None)
 
-        json_data = orjson.dumps(data, option=orjson.OPT_INDENT_2)
-        json_file_path = Path(self.folder_path) / f"{self.title}.json"
-        await self.save_json_data._write_file(json_file_path, json_data)
+                json_data = orjson.dumps(data, option=orjson.OPT_INDENT_2)
+                json_file_path = Path(self.folder_path) / f"{self.title}.json"
+                await self.save_json_data._write_file(json_file_path, json_data)
         
     async def process_image(self) -> None:
         if paramstore.get('nodl') is True:

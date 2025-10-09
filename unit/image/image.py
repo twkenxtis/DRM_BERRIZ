@@ -53,7 +53,11 @@ class IMGmediaDownloader:
             title: str = FilenameSanitizer.sanitize_filename(public_ctx.title)
             folder: Path = await folder_mgr.create_image_folder()
             json_path: Path = folder / f"{folder.name}{title}.json"
-            await save_json_data(json_path)._write_file(json_path, public_ctx.to_json())
+            match paramstore.get('nojson'):
+                case True:
+                    logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}IMAGE JSON")
+                case _:
+                    await save_json_data(json_path)._write_file(json_path, public_ctx.to_json())
             self.printer_image_info(public_ctx)
             if paramstore.get('nodl') is True:
                 logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}IMAGE")
