@@ -53,7 +53,7 @@ class SUCCESS:
             if mux_bool_status is True and not paramstore.get('nodl') is True:
                 video_file_name = await SUCCESS.re_name(self)
             elif paramstore.get('nodl') is True:
-                video_file_name = '[ NO-DL ]'
+                video_file_name = '[ SKIP-DL ]'
             else:
                 logger.warning("Mux failed, check console output for details")
                 video_file_name = '[ Mux failed ]' + f'\n{Color.bg("ruby")}Keep all segments in temp folder{Color.reset()}'

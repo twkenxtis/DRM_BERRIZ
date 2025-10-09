@@ -49,7 +49,7 @@ def print_help() -> None:
         "完成後是否跳過合併 (true/false) / Whether to skip merge after completion (true/false)",
         "合併後是否跳過混流 (true/false) / Whether to skip mux after merge (true/false)",
         "顯示金鑰並跳過下載 / Show key and skip download"
-        "不要下載 / NO DL"
+        "跳過下載 / SKIP DL"
     ]
 
     for option in options:

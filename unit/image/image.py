@@ -9,6 +9,7 @@ import httpx
 from typing import Any, Dict, List, Tuple, Optional
 
 from static.color import Color
+from static.parameter import paramstore
 from lib.__init__ import dl_folder_name, use_proxy, FilenameSanitizer, OutputFormatter
 from lib.save_json_data import save_json_data
 from lib.load_yaml_config import CFG
@@ -54,7 +55,10 @@ class IMGmediaDownloader:
             json_path: Path = folder / f"{folder.name}{title}.json"
             await save_json_data(json_path)._write_file(json_path, public_ctx.to_json())
             self.printer_image_info(public_ctx)
-            await parser.parse_and_download(folder)
+            if paramstore.get('nodl') is True:
+                logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}IMAGE")
+            else:
+                await parser.parse_and_download(folder)
 
     async def get_content(self, media_id: str) -> Tuple[IMG_PublicContext, IMG_PlaybackContext]:
         pub, play = await asyncio.gather(
@@ -142,11 +146,21 @@ class FolderManager():
     async def _ensure_unique_folder(self, folder_name: str) -> Path:
         base_dir = Path(dl_folder_name) / self.IMG_PublicContext.community_name / "Images"
         base_dir.mkdirp()
+        clean_candidate = base_dir / folder_name
+        if not clean_candidate.exists():
+            try:
+                clean_candidate.mkdirp()
+                return clean_candidate
+            except FileExistsError:
+                pass 
         while True:
             suffix = "".join(random.choices(string.ascii_lowercase, k=5))
-            candidate = base_dir / (f"{folder_name}" if suffix == "" else f"{folder_name} [{suffix}]")
-            try:
-                candidate.mkdirp()
-                return candidate
-            except FileExistsError:
-                continue
+            candidate = base_dir / f"{folder_name} [{suffix}]"
+            
+            if not candidate.exists():
+                try:
+                    candidate.mkdirp()
+                    return candidate
+                except FileExistsError:
+                    continue 
+            continue
