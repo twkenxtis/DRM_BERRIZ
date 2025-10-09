@@ -168,7 +168,7 @@ async def start_download_queue(
 ) -> None:
     """協調資料夾創建、資訊儲存、下載和後續處理的整個流程"""
     if mpd_content is None:
-        logger.error("Failed to parse MPD content.")
+        logger.error(f"Failed to parse Playlist.")
         return
     
     publicinfo: PublicInfo_Custom = PublicInfo_Custom(json_data)
