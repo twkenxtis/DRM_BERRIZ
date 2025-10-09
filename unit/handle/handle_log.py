@@ -24,7 +24,7 @@ try:
 except FileNotFoundError:
     # 若檔案遺失，回落到最小設定
     CFG = {'logging': {'level': 'INFO', 'format': '%(asctime)s [%(levelname)s] [%(name)s] %(message)s'}}
-    print(f"警告：設定檔案未在 {YAML_PATH} 找到，使用預設值", file=__import__('sys').stderr)
+    print(f"Log warring not found {YAML_PATH} Try use default config: {CFG}", file=__import__('sys').stderr)
 
 
 LOGGING_LEVEL = CFG['logging']['level']
@@ -53,7 +53,7 @@ class NonBlockingFileHandler(TimedRotatingFileHandler):
         except Exception as e:
             # 回落到 stderr
             import sys
-            print(f"日誌 emit 錯誤：{e}", file=sys.stderr)
+            print(f"Log emit got error：{e}", file=sys.stderr)
 
     def _sync_write(self, record: LogRecord, message: str) -> None:
         """若需要則執行輪轉，然後寫入"""
@@ -68,7 +68,7 @@ class NonBlockingFileHandler(TimedRotatingFileHandler):
                 self.stream.flush()
         except Exception as e:
             import sys
-            print(f"日誌寫入錯誤：{e}", file=sys.stderr)
+            print(f"Log doing write got error{e}", file=sys.stderr)
 
     def doRollover(self) -> None:
         """覆寫以支援壓縮：輪轉後壓縮舊檔案"""
@@ -96,7 +96,7 @@ class NonBlockingFileHandler(TimedRotatingFileHandler):
                 latest_old.unlink()
             except Exception as e:
                 import sys
-                print(f"壓縮備份錯誤：{e}", file=sys.stderr)
+                print(f"Log gz fail: {e}", file=sys.stderr)
 
     def close(self) -> None:
         try:
