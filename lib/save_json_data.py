@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import asdict
 from typing import Any, Union, Dict, Optional
 
 import aiofiles
@@ -7,6 +8,7 @@ import orjson
 import httpx
 
 from lib.path import Path
+from static.parameter import paramstore
 from unit.handle.handle_log import setup_logging
 
 
@@ -66,7 +68,7 @@ class save_json_data:
         content: str = raw_hls
         await self._write_file(self.output_dir / "manifest.m3u8", content, mode="w")
 
-    async def play_list_to_folder(self, raw_play_list: Optional[Dict[str, Any]]) -> None:
+    async def play_list_to_folder(self, raw_play_list: object) -> None:
         """Save playlist JSON to meta.json."""
         if raw_play_list is None:
             return
@@ -77,4 +79,5 @@ class save_json_data:
             )
             await self._write_file(self.output_dir / "meta.json", json_bytes)
         except orjson.JSONEncodeError as e:
-            raise ValueError("Failed to serialize playlist to JSON") from e
+            if paramstore.get("mpd_video") is True:
+                raise ValueError("Failed to serialize playlist to JSON") from e

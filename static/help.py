@@ -22,7 +22,7 @@ def print_help() -> None:
         "--fanclub-only --fanclub --fc", "--no-fanclub --nfc", "",
         "--t, --time, -T", "--signup", "--change-password", "",
         "--hls", "--del-after-done 'True'(default)", "--skip-merge 'False'(default)",
-        "--skip-mux 'False'(default)", "--key, --keys"
+        "--skip-mux 'False'(default)", "--key, --keys", "--skip-dl --skip-download"
     ]
 
     # 右列（描述）
@@ -49,6 +49,7 @@ def print_help() -> None:
         "完成後是否跳過合併 (true/false) / Whether to skip merge after completion (true/false)",
         "合併後是否跳過混流 (true/false) / Whether to skip mux after merge (true/false)",
         "顯示金鑰並跳過下載 / Show key and skip download"
+        "不要下載 / NO DL"
     ]
 
     for option in options:

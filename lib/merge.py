@@ -30,7 +30,6 @@ class MERGE:
     ) -> bool:
         temp_dir: Path = output_file.parent / f"temp_merging_{track_type}"
         temp_dir.mkdirp()
-
         try:
             if merge_type == 'mpd' and init_files:
                 async with aiofiles.open(init_files[0], 'rb') as src:

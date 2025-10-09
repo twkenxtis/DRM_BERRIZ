@@ -15,6 +15,7 @@ from lib.mux.mux import FFmpegMuxer
 from lib.load_yaml_config import CFG
 from static.color import Color
 from static.PublicInfo import PublicInfo_Custom
+from static.route import Route
 from static.parameter import paramstore
 from unit.http.request_berriz_api import GetRequest
 from unit.date.date import get_timestamp_formact
@@ -47,10 +48,12 @@ class SUCCESS:
         # Mux video and audio with FFmpeg
         muxer: FFmpegMuxer = FFmpegMuxer(self.base_dir, decryption_key)
         video_file_name = ''
-        mux_bool_status = await muxer.mux_main(merge_type, self.tempname)
+        mux_bool_status = await muxer.mux_main(merge_type, self.path)
         if paramstore.get('skip_mux') is not True:
-            if mux_bool_status is True:
+            if mux_bool_status is True and not paramstore.get('nodl') is True:
                 video_file_name = await SUCCESS.re_name(self)
+            elif paramstore.get('nodl') is True:
+                video_file_name = '[ NO-DL ]'
             else:
                 logger.warning("Mux failed, check console output for details")
                 video_file_name = '[ Mux failed ]' + f'\n{Color.bg("ruby")}Keep all segments in temp folder{Color.reset()}'
@@ -152,7 +155,13 @@ class SUCCESS:
                 "audio": video_audio_codec,
                 "tag": CFG['output_template']['tag']
             }
-        filename = OutputFormatter(f"{CFG['output_template']['video']}").format(video_meta) + f'.{container}'
+        filename_formact: str = CFG['output_template']['video']
+        if video_codec == "{video}":
+            filename_formact = filename_formact.replace('.{quality}', '')
+            filename_formact = filename_formact.replace('.{video}', '')
+        if video_audio_codec == "{audio}":
+            filename_formact = filename_formact.replace('.{audio}', '')
+        filename = OutputFormatter(filename_formact).format(video_meta) + f'.{container}'
         # 重新命名並移動到上級目錄
         await aios.rename(self.path, Path(self.base_dir).parent / filename)
         return filename
@@ -170,11 +179,17 @@ class SUCCESS:
         video_quality_label: str = quality_task.result()
         video_audio_codec: str = audio_task.result()
         if video_audio_codec == 'unknown':
-            logger.warning(f"Unknown audio codec: {video_audio_codec}")
-            video_audio_codec = 'x'
+            if paramstore.get('no_video_audio') is True:
+                video_audio_codec = '{audio}'
+            else:
+                logger.warning(f"Unknown audio codec: {video_audio_codec}")
+                video_audio_codec = 'x'
         if video_codec == 'unknown':
-            logger.warning(f"Unknown video codec: {video_codec}")
-            video_codec = 'x'
+            if paramstore.get('no_video_audio') is True:
+                video_codec = '{video}'
+            else:
+                logger.warning(f"Unknown video codec: {video_codec}")
+                video_codec = 'x'
         return video_codec, video_quality_label, video_audio_codec
 
     async def dl_thumbnail(self) -> None:

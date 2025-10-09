@@ -1,6 +1,4 @@
 from pathlib import Path
-
-
 class Route:
     def __init__(self):
         mainpath = Path(__file__)

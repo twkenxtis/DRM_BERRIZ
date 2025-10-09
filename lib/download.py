@@ -112,7 +112,7 @@ class MediaDownloader:
                         try:
                             shutil.rmtree(save_path, ignore_errors=True)
                         except Exception as e:
-                            logger.error(f"Failed to remove failed download: {e}")
+                            logger.error(f"{Color.fg('black')}Failed to remove failed download: {e}{Color.reset()}")
                     return False
             except Exception as e:
                 logger.error(f"Unexpected error: {e}")
@@ -134,19 +134,20 @@ class MediaDownloader:
             # Get appropriate extension for files
             file_ext = self._get_file_extension(track.mime_type)
             track_id = track.id
-
             # Download initialization segment
             init_path: Path = track_dir / f"init{file_ext}"
-            if not await self._download_file(track.init_url, init_path):
-                logger.error(f"{track_type} Initialization file download failed")
-                return False
-            logger.info(
-                f"{Color.fg('light_gray')}Start downloading{Color.reset()} "
-                f"{Color.bg('cyan')}{track_type}{Color.reset()} track: {Color.fg('cyan')}{track_id}{Color.reset()} "
-            )
-        return await self.task_and_dl(slice_parameters, track_dir, file_ext, track_type)
+            if len(track.init_url) > 4:
+                if not await self._download_file(track.init_url, init_path):
+                    logger.error(f"{track_type} Initialization file download failed")
+                    return False
+                logger.info(
+                    f"{Color.fg('light_gray')}Start downloading{Color.reset()} "
+                    f"{Color.bg('cyan')}{track_type}{Color.reset()} track: {Color.fg('cyan')}{track_id}{Color.reset()} "
+                )
+        if slice_parameters != []:
+            return await self.task_and_dl(slice_parameters, track_dir, file_ext, track_type)
 
-    async def task_and_dl(self, slice_parameters: Any, track_dir: Path, file_ext: str, track_type: str) -> bool:
+    async def task_and_dl(self, slice_parameters: List[str], track_dir: Path, file_ext: str, track_type: str) -> bool:
         total = len(slice_parameters)
         success_count = 0
         semaphore = asyncio.Semaphore(50)
@@ -181,24 +182,33 @@ class MediaDownloader:
         init_files: List[Path] = list(track_dir.glob("init.*"))
 
         if not init_files and merge_type == 'mpd':
-            logger.warning(f"Could not find {track_type} initialization file")
-            return False
+            if paramstore.get('mpd_audio') is True and track_type == 'audio':
+                logger.warning(f"Could not find {track_type} initialization file")
+                return False
+            if paramstore.get('mpd_video') is True and track_type == 'video':
+                logger.warning(f"Could not find {track_type} initialization file")
+                return False
 
         segments: List[Path] = sorted(
             track_dir.glob("seg_*.*"), key=lambda x: int(x.stem.split("_")[1])
         )
         if not segments:
-            logger.warning(f"No {track_type} fragment files found")
-            return False
+            if paramstore.get('mpd_audio') is True and track_type == 'audio':
+                logger.warning(f"No {track_type} fragment files found")                
+                return False
+            if paramstore.get('mpd_video') is True and track_type == 'video':
+                logger.warning(f"No {track_type} fragment files found")                
+                return False
+            
+        if len(segments) >= 1:
+            result: bool = await MERGE.binary_merge(output_file, init_files, segments, track_type, merge_type)
+            logger.info(f"{Color.fg('light_gray')}Merge{Color.reset()} {Color.fg('light_gray')}{track_type} "
+                        f"{Color.reset()}{Color.fg('light_gray')}tracks{Color.reset()}: {len(segments)} "
+                        f"{Color.fg('yellow')}{Color.reset()}{Color.fg('light_gray')}segments{Color.reset()}"
+                        )
+            return result
 
-        logger.info(f"{Color.fg('light_gray')}Merge{Color.reset()} {Color.fg('light_gray')}{track_type} "
-                    f"{Color.reset()}{Color.fg('light_gray')}tracks{Color.reset()}: {len(segments)} "
-                    f"{Color.fg('yellow')}{Color.reset()}{Color.fg('light_gray')}segments{Color.reset()}"
-                    )
-        result: bool = await MERGE.binary_merge(output_file, init_files, segments, track_type, merge_type)
-        return result
-
-    async def download_content(self, mpd_content: MPDContent) -> Tuple[bool, str]:
+    async def download_content(self, mpd_content: MPDContent | HLS_Paser) -> Tuple[bool, str]:
         if mpd_content.__class__.__name__ == 'MPDContent':
             logger.info(f"{Color.fg('light_gray')}Start downloading{Color.reset()} "
                         f"{Color.fg('light_gray')}content{Color.reset()} "
@@ -214,6 +224,10 @@ class MediaDownloader:
         else:
             merge_type = 'mpd'
         try:
+            if paramstore.get('nodl') is True:
+                logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}{merge_type}")
+                return True, merge_type
+            
             tasks: List["asyncio.Task[bool]"] = []
             if mpd_content.audio_track:
                 tasks.append(self.download_track(mpd_content.audio_track, "audio", merge_type))
@@ -221,14 +235,11 @@ class MediaDownloader:
                 tasks.append(self.download_track(mpd_content.video_track, "video", merge_type))
 
             download_results: List[bool] = await asyncio.gather(*tasks)
-
             if paramstore.get('skip_merge') is not True:
                 merge_results: List[bool] = []
-                if mpd_content.video_track and download_results[0]:
+                if mpd_content.video_track:
                     merge_results.append(await self._merge_track("video", merge_type))
-                if mpd_content.audio_track and (
-                    len(download_results) > 1 and download_results[1]
-                ):
+                if mpd_content.audio_track:
                     merge_results.append(await self._merge_track("audio", merge_type))
                 return all(merge_results), merge_type
             else:
@@ -252,32 +263,53 @@ class MediaDownloader:
         logger.error(f"Failed to remove after {max_retries} attempts: {path}")
         return False
 
-async def run_dl(mpd_uri: str, decryption_key: Optional[str], json_data: Dict[str, Any], raw_mpd: str, hls_playback_url: str, raw_hls: str) -> None:
-    mpd_parser: MPDParser = MPDParser(raw_mpd, mpd_uri)
-    hls_parser: HLS_Paser = HLS_Paser()
-    mpd_content: MPDContent = mpd_parser.get_highest_mpd_content()
-    hls_content: Any = await hls_parser._parse_media_m3u8(raw_hls)
-    mpd_parser.rich_table_print(mpd_content)
-    hls_parser.rich_table_print(hls_content)
-    if not mpd_content.video_track and not mpd_content.audio_track:
-        logger.error("Error: No valid audio or video tracks found in MPD.")
-        return
-    if mpd_content.drm_info is not None and mpd_content.drm_info.get("default_KID"):
-        logger.info(
-            f"Encrypted content detected (KID: {Color.fg('azure')}{mpd_content.drm_info['default_KID']}){Color.reset()}"
-        )
+async def run_dl(
+    mpd_uri: str,
+    decryption_key: Optional[str],
+    json_data: Dict[str, Any],
+    raw_mpd: str,
+    hls_playback_url: str,
+    raw_hls: str
+) -> None:
+    v_resolution_choice: str = CFG['HLS or MPEG-DASH']['Video_Resolution_Choice']
+    a_resolution_choice: str = CFG['HLS or MPEG-DASH']['Audio_Resolution_Choice']
+
     try:
-        hls_bool = CFG['HLS or MPEG-SASH']['HLS']
+        hls_bool = CFG['HLS or MPEG-DASH']['HLS']
     except AttributeError:
         hls_bool = False
+
     if hls_bool is True:
-        use_hls: Any = hls_content
-    elif hls_content is False:
-        use_hls: Any = mpd_content
+        source_type = "hls"
     elif decryption_key:
-        use_hls: Any = mpd_content
-    elif decryption_key is None and paramstore.get('hls_only_dl') is False:
-        use_hls: Any = mpd_content
-    elif paramstore.get('hls_only_dl') is True:
-        use_hls: Any = hls_content
+        source_type = "mpd"
+    elif paramstore.get("hls_only_dl") is True:
+        source_type = "hls"
+    else:
+        source_type = "mpd"
+    match source_type:
+        case "mpd":
+            mpd_parser = MPDParser(raw_mpd, mpd_uri)
+            mpd_content = await mpd_parser.get_selected_mpd_content(v_resolution_choice, a_resolution_choice)
+            mpd_parser.rich_table_print(mpd_content)
+
+            if not mpd_content.video_track and not mpd_content.audio_track:
+                logger.error("Error: No valid audio or video tracks found in MPD.")
+                return
+
+            if mpd_content.drm_info and mpd_content.drm_info.get("default_KID"):
+                logger.info(
+                    f"Encrypted content detected (KID: {Color.fg('azure')}{mpd_content.drm_info['default_KID']}){Color.reset()}"
+                )
+
+            use_hls = mpd_content
+        case "hls":
+            hls_parser = HLS_Paser()
+            hls_content = await hls_parser._parse_media_m3u8(raw_hls)
+            hls_parser.rich_table_print(hls_content)
+
+            if hls_content is False:
+                logger.error("Error: Failed to parse HLS content.")
+                return
+            use_hls = hls_content
     await start_download_queue(decryption_key, json_data, use_hls, raw_mpd, hls_playback_url, raw_hls)

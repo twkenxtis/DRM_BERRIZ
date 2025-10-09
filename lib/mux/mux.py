@@ -1,5 +1,6 @@
 import asyncio
 import subprocess
+import os
 from pathlib import Path
 from typing import List, Optional, Any, Union
 
@@ -156,7 +157,11 @@ class FFmpegMuxer:
             logger.exception(f"Unexpected error running packager: {e}")
             return False
     
-    async def mux_main(self, merge_type: str, tempfile_name: str) -> bool:
+    async def mux_main(self, merge_type: str, tempfile_path: Path) -> bool:
+        if paramstore.get('nodl') is True:
+            logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}{merge_type}")
+            return True
+        
         # Prepare video and audio tracks
         video_file: Optional[Path]
         audio_file: Optional[Path]
@@ -165,11 +170,33 @@ class FFmpegMuxer:
             self._prepare_track("audio"),
         )
         if merge_type == 'mpd' and (not video_file or not audio_file) and paramstore.get('skip_merge') is not True:
+            if paramstore.get('mpd_video') != paramstore.get('mpd_audio'):
+                if video_file is not None:
+                    if os.path.exists(video_file):
+                        os.rename(video_file, tempfile_path)
+                        paramstore._store['no_video_audio'] = True
+                        return True
+                if audio_file is not None:
+                    if os.path.exists(audio_file):
+                        paramstore._store['no_video_audio'] = True
+                        os.rename(audio_file, tempfile_path)
+                        return True
             logger.error(
                  "Error: Valid video and audio must exist simultaneously for multiplexing."
             )
             return False
-        elif merge_type == 'hls' and not video_file and paramstore.get('skip_merge') is not True:
+        elif merge_type == 'hls' and (not video_file or not audio_file) and paramstore.get('skip_merge') is not True:
+            if paramstore.get('hls_video') != paramstore.get('hls_audio'):
+                if video_file is not None:
+                    if os.path.exists(video_file):
+                        os.rename(video_file, tempfile_path)
+                        paramstore._store['no_video_audio'] = True
+                        return True
+                if audio_file is not None:
+                    if os.path.exists(audio_file):
+                        paramstore._store['no_video_audio'] = True
+                        os.rename(audio_file, tempfile_path)
+                        return True
             logger.error(
                  "Error: Valid video and audio must exist simultaneously for multiplexing."
             )
@@ -178,12 +205,11 @@ class FFmpegMuxer:
             return False
 
         # Standard FFmpeg command without modification
-        temp_file_path: Path = self.base_dir / tempfile_name
+        temp_file_path: Path = self.base_dir / tempfile_path.name
         
         video_file_str: str = str(video_file) if video_file else ""
         audio_file_str: Optional[str] = str(audio_file) if audio_file else None
-        
-        if paramstore.get('skip_mux') is True:
+        if paramstore.get('skip_mux') is True or paramstore.get('nodl') is True:
             return True
         else:
             return await self.choese_mux_tool(video_file_str, audio_file_str, temp_file_path)

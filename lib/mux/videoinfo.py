@@ -36,10 +36,10 @@ class VideoInfo:
 
     @property
     def codec(self) -> str:
-        H265_NAMES = ["hevc", "h.265", "x265"]
+        H265_NAMES = ["hevc", "h.265", "x265", "h265"]
         AV1_NAMES = ["av1", "av01"]
         VP9_NAMES = ["vp9"]
-        H264_NAMES = ["avc", "avc1", "h.264", "x264"]
+        H264_NAMES = ["avc", "avc1", "h.264", "x264", "h264"]
 
         for stream in self._vstreams:
             if stream.get("codec_type") == "video":

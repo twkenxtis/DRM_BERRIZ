@@ -201,15 +201,16 @@ class ConfigLoader:
                 str_vres = str_vres.strip()
                 hls_sec["Video_Resolution_Choice"] = str_vres
         if isinstance(audio_resolution, (str, int)):
-            str_ares = str(video_resolution).lower()
+            str_ares = str(audio_resolution).lower()
             str_ares = re.sub(r'(?i)p|i|k|m|g|kb|mb|kbs|mbs$', '', str_ares).strip()
-            if str_ares not in ("192", "ask", "none"):
-                ConfigLoader.print_warning('Video_Resolution_Choice', video_resolution, 'ask')
-                hls_sec["audio_resolution"] = "ask"
+            if str_ares not in ("192", "as", "none"):
+                ConfigLoader.print_warning('Audio_Resolution_Choice', audio_resolution, 'ask')
+                hls_sec["Audio_Resolution_Choice"] = "ask"
             else:
                 str_ares = str_ares.strip()
-                hls_sec["audio_resolution"] = str_ares
-        if str_vres and str_ares == "none":
+                str_ares = re.sub(r'(?i)p|i|k|m|g|kb|mb|kbs|mbs$', '', str_ares).strip()
+                hls_sec["Audio_Resolution_Choice"] = str_ares
+        if str_vres == "none" and str_ares == "none":
             raise ValueError("HLS or MPEG-DASH cant both None value")
         
 

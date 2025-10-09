@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
@@ -6,6 +7,13 @@ import xml.etree.ElementTree as ET
 from rich import box
 from rich.console import Console
 from rich.table import Table
+from InquirerPy import inquirer
+
+from static.parameter import paramstore
+from unit.handle.handle_log import setup_logging
+
+
+logger = setup_logging('parse_mpd', 'periwinkle')
 
 
 @dataclass
@@ -134,7 +142,7 @@ class MPDParser:
 
                 segments.append(Segment(t=t, d=d, r=r))
             except ValueError as e:
-                print(f"Warning: Skipping invalid segment: {e}")
+                logger.warning(f"Warning: Skipping invalid segment: {e}")
                 continue
         return segments
 
@@ -217,8 +225,8 @@ class MPDParser:
             audio_sampling_rate=audio_sampling_rate,
         )
 
-    def get_highest_mpd_content(self) -> MPDContent:
-        """提取 MPD 中最高質量的視頻和音頻軌道"""
+    async def get_selected_mpd_content(self, v_resolution_choice: str, a_resolution_choice: str) -> MPDContent:
+        """根據使用者選擇的解析度與音訊軌道 提取 MPD 中對應內容"""
         base_url: str = self.mpd_url.rsplit("/", 1)[0] + "/"
 
         period = self.root.find("./Period", self.namespaces)
@@ -243,19 +251,97 @@ class MPDParser:
                         audio_reps.append(track)
                 except (ValueError, TypeError) as e:
                     rep_id = rep_element.get("id", "unknown")
-                    print(f"Warning: Failed to parse Representation {rep_id}: {e}")
+                    logger.warning(f"Warning: Failed to parse Representation {rep_id}: {e}")
                     continue
 
-        highest_video = max(video_reps, key=lambda x: x.bandwidth) if video_reps else None
-        highest_audio = max(audio_reps, key=lambda x: x.bandwidth) if audio_reps else None
+        # 分離的選擇邏輯
+        selected_video = MediaTrack(id='', bandwidth=0, codecs='', segments=[], init_url='', segment_urls=[], mime_type='', width=0, height=0, timescale=0, audio_sampling_rate=0)
+        selected_audio = MediaTrack(id='', bandwidth=0, codecs='', segments=[], init_url='', segment_urls=[], mime_type='', width=0, height=0, timescale=0, audio_sampling_rate=0)
+        
+        if a_resolution_choice != "none":
+            paramstore._store["mpd_audio"] = True
+            selected_audio = await self._select_audio_track(audio_reps, a_resolution_choice)
+        else:
+            paramstore._store["mpd_audio"] = False
+            
+        if v_resolution_choice != "none":
+            paramstore._store["mpd_video"] = True
+            selected_video = await self._select_video_track(video_reps, v_resolution_choice)
+        else:
+            paramstore._store["mpd_video"] = False
+            
         drm_info = self._parse_drm_info()
-
+        
         return MPDContent(
-            video_track=highest_video,
-            audio_track=highest_audio,
+            video_track=selected_video,
+            audio_track=selected_audio,
             base_url=base_url,
             drm_info=drm_info,
         )
+
+
+    async def _select_audio_track(self, audio_reps: List[MediaTrack], a_resolution_choice: str) -> Optional[MediaTrack]:
+        """選擇音訊軌道"""
+        audio_rates = [(t.bandwidth, t.audio_sampling_rate, t.id) for t in audio_reps if t.audio_sampling_rate]
+
+        if not audio_rates:
+            return None
+
+        if str(a_resolution_choice).lower() in ("ask", "as"):
+            choices = [f"{id} ({bandwidth // 1000}kbps / {rate}Hz)" for bandwidth, rate, id in audio_rates]
+            answer = await inquirer.select(
+                message="Select audio track:",
+                choices=choices,
+                default=choices[0]
+            ).execute_async()
+            return next(t for t in audio_reps if t.id in answer)
+        
+        elif str(a_resolution_choice).isdigit():
+            target_kbps = int(a_resolution_choice)
+            matched = [
+                t for t in audio_reps
+                if t.bandwidth and (t.bandwidth // 1000) == target_kbps
+            ]
+            if not matched:
+                raise ValueError(f"No audio track found with bandwidth {target_kbps}kbps")
+            return matched[0]
+        
+        else:
+            raise ValueError(f"Invalid audio resolution choice: {a_resolution_choice}")
+
+
+    async def _select_video_track(self, video_reps: List[MediaTrack], v_resolution_choice: str) -> MediaTrack:
+        """選擇影像軌道"""
+        resolution_list = [(t.width, t.height) for t in video_reps if t.width and t.height]
+        
+        if v_resolution_choice.lower() == "ask":
+            choices = [f"{w}x{h}" for w, h in resolution_list]
+            answer = await inquirer.select(
+                message="Select video resolution:",
+                choices=choices,
+                default=choices[-1]
+            ).execute_async()
+            selected_resolution = tuple(map(int, answer.split("x")))
+        
+        elif v_resolution_choice.isdigit():
+            target = int(v_resolution_choice)
+            matched = [res for res in resolution_list if target in res]
+            if not matched:
+                raise ValueError(f"Resolution {v_resolution_choice} not found")
+            selected_resolution = matched[0]
+        
+        else:
+            raise ValueError(f"Invalid resolution choice: {v_resolution_choice}")
+
+        selected_video = next(
+            (t for t in video_reps if (t.width, t.height) == selected_resolution),
+            None
+        )
+        if not selected_video:
+            raise ValueError(f"No video track found for resolution {selected_resolution}")
+        
+        return selected_video
+
 
     def validate_mpd_structure(self) -> List[str]:
         """Validate MPD structure and return warnings/errors list"""
@@ -267,70 +353,70 @@ class MPDParser:
 
     def rich_table_print(self, mpd_content: Optional[MPDContent] = None) -> None:
         """Print MPD content details using a single Rich Table"""
-        if mpd_content is None:
-            mpd_content = self.get_highest_mpd_content()
+        try:
+            console = Console()
 
-        console = Console()
+            table = Table(
+                title="MPEG-DASH MPD Parsing Result",
+                box=box.ROUNDED,
+                show_header=False,
+                border_style="bright_blue",
+            )
 
-        table = Table(
-            title="MPEG-DASH MPD Parsing Result",
-            box=box.ROUNDED,
-            show_header=False,
-            border_style="bright_blue",
-        )
+            table.add_column("Field", style="cyan", no_wrap=True)
+            table.add_column("Value", style="white")
 
-        table.add_column("Field", style="cyan", no_wrap=True)
-        table.add_column("Value", style="white")
+            table.add_row("[bold magenta]Basic Info[/bold magenta]", "")
+            table.add_row("MPD URL", mpd_content.base_url)
+            table.add_row("Video Track", "[green]Present[/green]" if mpd_content.video_track else "[red]Not Present[/red]")
+            table.add_row("Audio Track", "[green]Present[/green]" if mpd_content.audio_track else "[red]Not Present[/red]")
 
-        table.add_row("[bold magenta]Basic Info[/bold magenta]", "")
-        table.add_row("MPD URL", mpd_content.base_url)
-        table.add_row("Video Track", "[green]Present[/green]" if mpd_content.video_track else "[red]Not Present[/red]")
-        table.add_row("Audio Track", "[green]Present[/green]" if mpd_content.audio_track else "[red]Not Present[/red]")
+            if mpd_content.video_track:
+                vt = mpd_content.video_track
+                table.add_row("[bold green]Video Track Info[/bold green]", "")
+                table.add_row("ID", f"[cyan]{vt.id}[/]")
+                table.add_row("Bandwidth", f"[orange_red1]{vt.bandwidth:,}[/] bps")
+                table.add_row("Codec", f"[light_salmon1]{vt.codecs}[/]")
+                table.add_row("MIME Type", f"[light_goldenrod2]{vt.mime_type}[/]")
+                table.add_row("Resolution", f"[green]{vt.width} × {vt.height}[/]" if vt.width and vt.height else "[red]N/A[/]")
+                table.add_row("Timescale", f"[yellow]{vt.timescale}[/]" if vt.timescale else "[red]N/A[/]")
+                table.add_row("Segment Count", f"[magenta]{len(vt.segments)}[/]")
+                table.add_row("URL Count", f"[magenta]{len(vt.segment_urls)}[/]")
+                table.add_row("Init URL", f"[white]{vt.init_url}[/]")
 
-        if mpd_content.video_track:
-            vt = mpd_content.video_track
-            table.add_row("[bold green]Video Track Info[/bold green]", "")
-            table.add_row("ID", f"[cyan]{vt.id}[/]")
-            table.add_row("Bandwidth", f"[orange_red1]{vt.bandwidth:,}[/] bps")
-            table.add_row("Codec", f"[light_salmon1]{vt.codecs}[/]")
-            table.add_row("MIME Type", f"[light_goldenrod2]{vt.mime_type}[/]")
-            table.add_row("Resolution", f"[green]{vt.width} × {vt.height}[/]" if vt.width and vt.height else "[red]N/A[/]")
-            table.add_row("Timescale", f"[yellow]{vt.timescale}[/]" if vt.timescale else "[red]N/A[/]")
-            table.add_row("Segment Count", f"[magenta]{len(vt.segments)}[/]")
-            table.add_row("URL Count", f"[magenta]{len(vt.segment_urls)}[/]")
-            table.add_row("Init URL", f"[white]{vt.init_url}[/]")
-
-            if mpd_content.audio_track:
-                at = mpd_content.audio_track
-                table.add_row("[bold blue]Audio Track Info[/bold blue]", "")
-                table.add_row("ID", f"[cyan]{at.id}[/]")
-                table.add_row("Bandwidth", f"[orange_red1]{at.bandwidth:,}[/] bps")
-                table.add_row("Codec", f"[light_salmon1]{at.codecs}[/]")
-                table.add_row("MIME Type", f"[light_goldenrod2]{at.mime_type}[/]")
-                table.add_row("Sampling Rate", f"[green]{at.audio_sampling_rate} Hz[/]" if at.audio_sampling_rate else "[red]N/A[/]")
-                table.add_row("Timescale", f"[yellow]{at.timescale}[/]" if at.timescale else "[red]N/A[/]")
-                table.add_row("Segment Count", f"[magenta]{len(at.segments)}[/]")
-                table.add_row("URL Count", f"[magenta]{len(at.segment_urls)}[/]")
-                table.add_row("Init URL", f"[white]{at.init_url}[/]")
+                if mpd_content.audio_track:
+                    at = mpd_content.audio_track
+                    table.add_row("[bold blue]Audio Track Info[/bold blue]", "")
+                    table.add_row("ID", f"[cyan]{at.id}[/]")
+                    table.add_row("Bandwidth", f"[orange_red1]{at.bandwidth:,}[/] bps")
+                    table.add_row("Codec", f"[light_salmon1]{at.codecs}[/]")
+                    table.add_row("MIME Type", f"[light_goldenrod2]{at.mime_type}[/]")
+                    table.add_row("Sampling Rate", f"[green]{at.audio_sampling_rate} Hz[/]" if at.audio_sampling_rate else "[red]N/A[/]")
+                    table.add_row("Timescale", f"[yellow]{at.timescale}[/]" if at.timescale else "[red]N/A[/]")
+                    table.add_row("Segment Count", f"[magenta]{len(at.segments)}[/]")
+                    table.add_row("URL Count", f"[magenta]{len(at.segment_urls)}[/]")
+                    table.add_row("Init URL", f"[white]{at.init_url}[/]")
 
 
-        if mpd_content.drm_info:
-            table.add_row("[bold red]DRM Protection Info[/bold red]", "")
-            for key, value in mpd_content.drm_info.items():
-                display_value = value
-                table.add_row(key, display_value)
+            if mpd_content.drm_info:
+                table.add_row("[bold red]DRM Protection Info[/bold red]", "")
+                for key, value in mpd_content.drm_info.items():
+                    display_value = value
+                    table.add_row(key, display_value)
 
-        if mpd_content.video_track and mpd_content.video_track.segments:
-            table.add_row("[bold yellow]Video Segment Info (first 5)[/bold yellow]", "")
-            for idx, seg in enumerate(mpd_content.video_track.segments[:5], 1):
-                table.add_row(f"Segment {idx}", f"t={seg.t}, d={seg.d}, r={seg.r}")
-            if len(mpd_content.video_track.segments) > 5:
-                table.add_row("...", f"[dim]{len(mpd_content.video_track.segments) - 5} more segments[/dim]")
+            if mpd_content.video_track and mpd_content.video_track.segments:
+                table.add_row("[bold yellow]Video Segment Info (first 5)[/bold yellow]", "")
+                for idx, seg in enumerate(mpd_content.video_track.segments[:5], 1):
+                    table.add_row(f"Segment {idx}", f"t={seg.t}, d={seg.d}, r={seg.r}")
+                if len(mpd_content.video_track.segments) > 5:
+                    table.add_row("...", f"[dim]{len(mpd_content.video_track.segments) - 5} more segments[/dim]")
 
-        issues = self.validate_mpd_structure()
-        if issues:
-            table.add_row("[bold red]Validation Issues[/bold red]", "")
-            for issue in issues:
-                table.add_row("•", issue)
+            issues = self.validate_mpd_structure()
+            if issues:
+                table.add_row("[bold red]Validation Issues[/bold red]", "")
+                for issue in issues:
+                    table.add_row("•", issue)
 
-        console.print(table)
+            console.print(table)
+        except AttributeError:
+            pass

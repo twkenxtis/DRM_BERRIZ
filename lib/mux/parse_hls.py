@@ -11,6 +11,7 @@ from rich.table import Table
 from rich import box
 
 from lib.__init__ import use_proxy, CFG
+from static.parameter import paramstore
 from static.color import Color
 from unit.handle.handle_log import setup_logging
 from unit.http.request_berriz_api import GetRequest
@@ -62,10 +63,11 @@ class HLS_Paser:
         """Main method to parse M3U8 playlist and orchestrate processing"""
         # Master Playlist 分支
         lines: List[str] = self._preprocess_content(m3u8_content_str)
-        resolution_choice: str = CFG['HLS or MPEG-SASH']['Video_Resolution_Choice']
+        v_resolution_choice: str = CFG['HLS or MPEG-DASH']['Video_Resolution_Choice']
+        a_resolution_choice: str = CFG['HLS or MPEG-DASH']['Audio_Resolution_Choice']
         try:
             if self._check_master_playlist(lines):
-                best_info = await self._process_master_playlist(lines, m3u8_content_str, resolution_choice)
+                best_info = await self._process_master_playlist(lines, m3u8_content_str, v_resolution_choice, a_resolution_choice)
         except ValueError as e:
             logger.error(f"Error parsing master playlist: {e}")
             return None
@@ -83,9 +85,9 @@ class HLS_Paser:
 
         video_list: Optional[List[str]] = tasks.get("video").result() if "video" in tasks else None
         audio_list: Optional[List[str]] = tasks.get("audio").result() if "audio" in tasks else None
-
         video_segments: tuple[str] = []
         audio_segments: tuple[str] = []
+        
         if video_list:
             video_segments = self._process_media_playlist(video_list, self.m3u8_highest or "")
         # 不可使用elif，避免條件只符合一個就退出判斷
@@ -111,45 +113,31 @@ class HLS_Paser:
         """Determine if the playlist is a master playlist."""
         return any(line.startswith("#EXT-X-STREAM-INF:") for line in lines)
     
-    async def _process_master_playlist(
-        self,
-        lines: List[str],
-        m3u8_str: str,
-        resolution_choice: str
-    ) -> str:
-        """Select and parse a specific resolution sub-playlist from a master playlist."""
-
+    async def _select_video_track(
+        self, lines: List[str], m3u8_str: str, v_resolution_choice: str) -> Optional[str]:
+        """Select video track based on user choice or input"""
+        if v_resolution_choice.lower() == "none":
+            return None
+        
         resolution_list: List[Tuple[int, int]] = self.extract_sorted_resolutions(lines)
-        audio_links = self.extract_all_audio_tracks(lines, m3u8_str)
-
-        if len(audio_links) == 1:
-            self.audio_link = audio_links[0]
-        elif len(audio_links) > 1:
-            answer = await inquirer.select(
-                message="Select audio stream:",
-                choices=audio_links,
-                default=audio_links[0]
-            ).execute_async()
-            self.audio_link = answer
-
-        if resolution_choice in {"ask", "Ask", "ASK"}:
+        if v_resolution_choice.lower() in {"ask", "as"}:
             choices = [f"{w}x{h}" for w, h in resolution_list]
             answer = await inquirer.select(
-                message="Select resolution:",
+                message="Select video resolution:",
                 choices=choices,
                 default=choices[-1]
             ).execute_async()
             selected_resolution = tuple(map(int, answer.split("x")))
-
-        elif resolution_choice.isdigit():
-            target_height = int(resolution_choice)
+        elif v_resolution_choice.isdigit():
+            target_height = int(v_resolution_choice)
             filtered = [(w, h) for w, h in resolution_list if target_height in (w, h)]
             if not filtered:
                 raise ValueError(f"No resolution found with height {target_height}")
             selected_resolution = filtered[0]
         else:
-            raise ValueError(f"Invalid resolution choice: {resolution_choice}")
-
+            raise ValueError(f"Invalid resolution choice: {v_resolution_choice}")
+        
+        # Find the corresponding playlist link
         for i, line in enumerate(lines):
             if line.startswith("#EXT-X-STREAM-INF:"):
                 resolutions = self.extract_all_resolutions(line)
@@ -158,9 +146,72 @@ class HLS_Paser:
                         best_link = urljoin(m3u8_str, lines[i + 1])
                         self.m3u8_highest = best_link
                         return line
-
-        raise ValueError(f"Resolution {selected_resolution} not found in playlist")
         
+        raise ValueError(f"Resolution {selected_resolution} not found in playlist")
+
+    async def _select_audio_track(self, lines: List[str], m3u8_str: str, choice: str) -> Optional[str]:
+        """選擇 HLS 音訊 URI，支援 ask 或 bitrate 匹配，找不到則 fallback 第一軌"""
+
+        # 抽出所有 EXT-X-MEDIA 音訊軌道
+        audio_tracks = []
+        for line in lines:
+            if line.startswith("#EXT-X-MEDIA:") and "TYPE=AUDIO" in line:
+                uri_match = re.search(r'URI="([^"]+)"', line)
+                name_match = re.search(r'NAME="([^"]+)"', line)
+                bandwidth = self._extract_bandwidth_kbps(line)
+                if uri_match:
+                    uri = urljoin(m3u8_str, uri_match.group(1))
+                    name = name_match.group(1) if name_match else uri
+                    audio_tracks.append((bandwidth, name, uri))
+
+        if not audio_tracks:
+            return None
+        
+        if choice == "none":
+            return []
+        
+        if choice.lower() in {"ask", "as"}:
+            choices = [f"{name} ({bw}) - {link}" for bw, name, link in audio_tracks]
+            answer = await inquirer.select(
+                message="Select audio stream:",
+                choices=choices,
+                default=choices[0]
+            ).execute_async()
+            selected = next(uri for bw, name, uri in audio_tracks if name in answer)
+            return selected
+
+        elif choice.isdigit():
+            target_kbps = int(choice)
+            matched = [uri for bw, _, uri in audio_tracks if bw == target_kbps]
+            return matched[0] if matched else audio_tracks[0][2]
+
+        raise ValueError(f"Invalid audio choice: {choice}")
+
+    def _extract_bandwidth_kbps(self, line: str) -> int:
+        """從 EXT-X-MEDIA 標籤中抽出 BANDWIDTH（以 kbps 回傳）"""
+        bw_match = re.search(r'BANDWIDTH=(\d+)', line)
+        if bw_match:
+            return int(bw_match.group(1)) // 1000
+        return 0
+
+    async def _process_master_playlist(
+        self, lines: List[str], m3u8_str: str, v_resolution_choice: str, a_resolution_choice: str) -> str:
+        """Select and parse a specific resolution sub-playlist from a master playlist"""
+        # Select audio track
+        if a_resolution_choice != "none": 
+            paramstore._store["hls_audio"] = True
+            audio_line = await self._select_audio_track(lines, m3u8_str, a_resolution_choice)
+            self.audio_link = audio_line
+        else:
+            paramstore._store["hls_audio"] = False
+        # Select video track
+        if v_resolution_choice != "none": 
+            paramstore._store["hls_video"] = True
+            video_line = await self._select_video_track(lines, m3u8_str, v_resolution_choice)
+            return video_line # EXT-X--STREAM-INFO # Video_link at funcation not here
+        else:
+            paramstore._store["hls_video"] = False
+
     def extract_sorted_resolutions(self, lines: List[str]) -> List[Tuple[int, int]]:
         """Extract all resolution pairs (width, height) from the playlist, sorted by height ascending. Duplicates preserved."""
         resolutions: List[Tuple[int, int]] = []

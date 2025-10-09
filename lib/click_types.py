@@ -40,7 +40,8 @@ known_flags: List[str] = [
     "--notice", "--notice-only", "-N",
     "--g", "--group", "-G",
     "--skip-mux",
-    "--signup", "--HLS", "--hls"
+    "--signup", "--HLS", "--hls",
+    "--skip-dl", "--skip-download",
 ]
 
 
@@ -112,6 +113,7 @@ def _get_arg(key: str, default: Any = None) -> Any:
 @click.option('--photo', '--photo-only', '-P', 'photoonly', is_flag=True, help='Choose photo')
 @click.option('--notice', '--notice-only', '-N', 'noticeonly', is_flag=True, help='Choose notice')
 @click.option('--g', '--group', '-G', 'group', default='ive', help='Group name (default: ive)')
+@click.option('--skip-dl', '--skip-download', 'nodl', is_flag=True , help='No download (default: False)')
 @click.argument('unknown', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def main(
@@ -138,6 +140,7 @@ def main(
     photoonly: bool,
     noticeonly: bool,
     group: str,
+    nodl: str,
     unknown: tuple
 ) -> None:
     """
@@ -171,6 +174,7 @@ def main(
         'photoonly': photoonly,
         'noticeonly': noticeonly,
         'group': group,
+        'nodl': nodl,
     }
     
     ctx.obj = args_dict
@@ -214,6 +218,12 @@ def main(
     
     if nofanclub:
         paramstore._store["fanclub"] = False
+        
+    if nofanclub:
+        paramstore._store["fanclub"] = False
+        
+    if nodl:
+        paramstore._store["nodl"] = True
     
     # 這些需要顯式設置 True/False
     paramstore._store["mediaonly"] = mediaonly
@@ -355,6 +365,10 @@ def hls_only_dl() -> bool:
 def signup() -> bool:
     """是否註冊"""
     return _get_arg('signup', False)
+
+def nodl() -> bool:
+    """是否跳過下載"""
+    return _get_arg('nodl', False)
 
 async def join_cm():
     await BerrizCreateCommunity(await cm(join_community()), join_community()).community_join()
