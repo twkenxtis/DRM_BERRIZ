@@ -168,10 +168,7 @@ class MainProcessor:
         image_data, none_image_data = self.filter_post_data()
         if image_data:
             self.TYPE = True
-            if paramstore.get('nodl') is True:
-                logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}POST IAMGE")
-            else:
-                await self.process_image(image_data)
+            await self.process_image(image_data)
         elif none_image_data:
             self.TYPE = False
             await asyncio.gather(
@@ -195,15 +192,18 @@ class MainProcessor:
             )
 
     async def download_images_concurrently(self, image_list: List[URL]) -> None:
-        for idx, image in enumerate(image_list):
-            try:
-                name = Path(str(image)).name or f"image_{idx}.jpg"
-                name = name.split("?")[0]
-                img_file_path = self.folder_path / name
-                logger.debug(f"Downloading: {image} → \n{img_file_path}")
-                await ImageDownloader.download_image(image, img_file_path)
-            except Exception as e:
-                logger.warning(f"Failed to download image {image}: {e}")
+        if paramstore.get('nodl') is True:
+            logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}POST IAMGE")
+        else:
+            for idx, image in enumerate(image_list):
+                try:
+                    name = Path(str(image)).name or f"image_{idx}.jpg"
+                    name = name.split("?")[0]
+                    img_file_path = self.folder_path / name
+                    logger.debug(f"Downloading: {image} → \n{img_file_path}")
+                    await ImageDownloader.download_image(image, img_file_path)
+                except Exception as e:
+                    logger.warning(f"Failed to download image {image}: {e}")
 
     def filter_post_data(self) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
             """過濾貼文資料，將包含圖片的資料與不包含圖片的資料分開
