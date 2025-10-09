@@ -8,6 +8,7 @@ dependencies = [
     "click",
     "validators",
     "ruamel.yaml",
+    "inputimeout",
     "aiohttp",
     "aioquic",
     "bs4",

@@ -3,15 +3,22 @@ from datetime import datetime, timedelta, timezone
 from dateutil import parser as dateutil_parser
 from typing import List, Optional, Tuple
 
+from inputimeout import inputimeout, TimeoutOccurred
+
+from static.color import Color
 from lib.load_yaml_config import CFG, ConfigLoader
 from unit.handle.handle_log import setup_logging
-
 
 logger = setup_logging('data', 'soft_coral')
 
 
+def get_time_zone(yaml_config = CFG['TimeZone']['time']) -> str:
+    return yaml_config
+
+tz_offset_hours = get_time_zone()
+
 # 定義時區常數的型別
-KST: timezone = timezone(timedelta(hours=9))
+KST: timezone = timezone(timedelta(hours=tz_offset_hours))
 
 # 定義模式元組的型別別名
 DatePattern = Tuple[str, Optional[int]]
@@ -21,7 +28,7 @@ class FlexibleDateParser:
     enable_fuzzy: bool
     patterns: List[DatePattern]
 
-    def __init__(self, tz_offset_hours: int = 9, enable_fuzzy: bool = True) -> None:
+    def __init__(self, enable_fuzzy: bool = True) -> None:
         self.tz: timezone = timezone(timedelta(hours=tz_offset_hours))
         self.enable_fuzzy: bool = enable_fuzzy
         self.patterns: List[DatePattern] = [
@@ -69,7 +76,7 @@ class FlexibleDateParser:
                 # dateutil_parser.parse 返回 datetime 物件
                 dt_obj = dateutil_parser.parse(raw_str)
                 
-                # 若沒有 tzinfo，補預設 KST
+                # 若沒有 tzinfo，補預設 YAML
                 if dt_obj.tzinfo is None:
                     dt_obj = dt_obj.replace(tzinfo=self.tz)
                 return dt_obj.replace(microsecond=0)
@@ -95,14 +102,20 @@ def _date_only(dt: datetime) -> bool:
     return dt.hour == 0 and dt.minute == 0 and dt.second == 0 and dt.microsecond == 0
 
 # 主要處理函式的型別提示
-def process_time_inputs() -> Tuple[datetime, datetime]:
+def process_time_inputs(time: str) -> Tuple[datetime, datetime]:
     try:
         parser: FlexibleDateParser = FlexibleDateParser()
 
-        print("Please enter the first date (accept any formact):")
-        dt_str1: str = input()
-        print("Please enter the second date (optional):")
-        dt_str2: str = input()
+        dt_str1 = str(time)
+        
+        try:
+            dt_str2: str = ""
+            logger.info('[Optional] by default using datetime now can press enter to skip')
+            dt_str2 = inputimeout(prompt="Please enter the second date (optional) [accept any format]: ", timeout=7)
+        except TimeoutOccurred:
+            pass
+        except KeyboardInterrupt:
+            logger.info(f"Program interrupted: {Color.fg('light_gray')}User canceled{Color.reset()}")
 
         if not dt_str1 and not dt_str2:
             logger.error("Both input date strings cannot be empty at the same time")
@@ -111,7 +124,6 @@ def process_time_inputs() -> Tuple[datetime, datetime]:
         dt1: Optional[datetime] = parser.parse(dt_str1) if dt_str1 else None
         dt2: Optional[datetime] = parser.parse(dt_str2) if dt_str2 else None
 
-        # 若空值，以「現在(KST)」補上
         dt1 = _coerce_now_if_none(dt1)
         dt2 = _coerce_now_if_none(dt2)
 
@@ -219,9 +231,6 @@ def get_timestamp_formact(fmt) -> str:
 def has_valid_datetime_format(fmt: str) -> bool:
     matches = re.findall(r"%[a-zA-Z]", fmt)
     return any(code in VALID_DATETIME_CODES for code in matches)
-
-def get_time_zone(yaml_config = CFG['TimeZone']['time']) -> str:
-    return yaml_config
 
 def get_formatted_publish_date(published_at: str, fmt :str) -> Optional[str]:
     """回傳格式化後的發布日期字串"""
