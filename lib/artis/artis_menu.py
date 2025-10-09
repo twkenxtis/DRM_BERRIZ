@@ -84,10 +84,10 @@ class Board:
         try:
             return await asyncio.wait_for(
                 inquirer.select(
-                    message="Please select a project: (After 7s auto choese default Options)",
+                    message="Please select a project: (After 3s auto choese default Options)",
                     choices=filterchoice
                 ).execute_async(),
-                timeout=7
+                timeout=3
             )
         except KeyboardInterrupt:
             logger.info(f"Program interrupted: {Color.fg('light_gray')}User canceled{Color.reset()}")
