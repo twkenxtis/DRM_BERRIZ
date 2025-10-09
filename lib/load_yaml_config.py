@@ -182,23 +182,36 @@ class ConfigLoader:
             if has_all_chars and (can_form_shaka or can_form_packa):
                 cont["decryption-engine"] = "SHAKA_PACKAGER"
 
-        # 6. HLS or MPEG-SASH 區段
-        hls_sec = config.get("HLS or MPEG-SASH", {})
+        # 6. HLS or MPEG-DASH 區段
+        hls_sec = config.get("HLS or MPEG-DASH", {})
         video_resolution = hls_sec.get("Video_Resolution_Choice")
+        audio_resolution = hls_sec.get("Audio_Resolution_Choice")
         if not isinstance(hls_sec, dict):
-            raise TypeError("HLS or MPEG-SASH must be a dict")
+            raise TypeError("HLS or MPEG-DASH must be a dict")
         if not isinstance(hls_sec.get("HLS"), bool):
-            ConfigLoader.print_warning('HLS or MPEG-SASH.HLS', hls_sec.get("HLS"), 'Set to not use HLS for dl')
+            ConfigLoader.print_warning('HLS or MPEG-DASH.HLS', hls_sec.get("HLS"), 'Set to not use HLS for dl')
             hls_sec["HLS"] = False
         if isinstance(video_resolution, (str, int)):
-            str_res = str(video_resolution).lower()
-            str_res = re.sub(r'(?i)p|i$', '', str_res).strip()
-            if str_res not in ("144", "256", "360", "640", "480", "854", "720", "1280", "1080", "1920", "ask"):
+            str_vres = str(video_resolution).lower()
+            str_vres = re.sub(r'(?i)p|i$', '', str_vres).strip()
+            if str_vres not in ("144", "256", "360", "640", "480", "854", "720", "1280", "1080", "1920", "ask", "none"):
                 ConfigLoader.print_warning('Video_Resolution_Choice', video_resolution, 'ask')
                 hls_sec["Video_Resolution_Choice"] = "ask"
             else:
-                str_res = str_res.strip()
-                hls_sec["Video_Resolution_Choice"] = str_res
+                str_vres = str_vres.strip()
+                hls_sec["Video_Resolution_Choice"] = str_vres
+        if isinstance(audio_resolution, (str, int)):
+            str_ares = str(video_resolution).lower()
+            str_ares = re.sub(r'(?i)p|i|k|m|g|kb|mb|kbs|mbs$', '', str_ares).strip()
+            if str_ares not in ("192", "ask", "none"):
+                ConfigLoader.print_warning('Video_Resolution_Choice', video_resolution, 'ask')
+                hls_sec["audio_resolution"] = "ask"
+            else:
+                str_ares = str_ares.strip()
+                hls_sec["audio_resolution"] = str_ares
+        if str_vres and str_ares == "none":
+            raise ValueError("HLS or MPEG-DASH cant both None value")
+        
 
         # 7. TimeZone 區段
         tz = config.get("TimeZone", {})
