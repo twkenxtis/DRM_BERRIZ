@@ -209,7 +209,7 @@ class SUCCESS:
                     return
                 response: httpx.Response = await GetRequest().get_request(thumbnail_url, use_proxy)
                 thumbnail_name: str = os.path.basename(thumbnail_url)
-                save_path: Path = Path(self.base_dir).parent / thumbnail_name
+                save_path: Path = Path(self.base_dir).parent / f"thumbnails_{thumbnail_name}"
                 try:
                     content: str = response.content
                     async with aiofiles.open(save_path, "wb") as f:

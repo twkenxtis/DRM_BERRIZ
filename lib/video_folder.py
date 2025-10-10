@@ -126,7 +126,6 @@ class Video_folder:
         
         printer_video_folder_path_info(new_path, video_file_name)
 
-
     async def del_temp_folder(self, temp_path: Path) -> None:
         """刪除下載完成後的 'temp' 暫存資料夾"""
         try:
@@ -147,13 +146,13 @@ class Video_folder:
                 logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}Video INFO JSON")
             case _:
                 output_path: Path = Path(output_dir).parent
-                file_name: Path = output_path / f"{self.safe_title}.json"
+                file_name: Path = output_path / f"{self.time_str} {self.safe_title}.json"
                 serialized: bytes = orjson.dumps(
                     self.json_data,
                     option=orjson.OPT_INDENT_2 | orjson.OPT_NON_STR_KEYS
                 )
                 serialized_str: str = serialized.decode('utf-8')
-                await save_json_data(output_path)._write_file(file_name, serialized_str)
+                await save_json_data(output_path, self.publicinfo)._write_file(file_name, serialized_str)
 
     async def get_community_name(self, community_id: int) -> str:
         """獲取媒體所屬的社群名稱"""
@@ -197,7 +196,7 @@ async def start_download_queue(
     )
     output_dir: Path = await video_folder_obj.video_folder_handle(custom_community_name, community_name)
     if output_dir is not None:
-        s_obhect: save_json_data = save_json_data(output_dir)
+        s_obhect: save_json_data = save_json_data(output_dir, publicinfo)
         # 異步並行儲存 manifest 和 JSON 檔案
         await asyncio.gather(
             asyncio.create_task(s_obhect.mpd_to_folder(raw_mpd)),

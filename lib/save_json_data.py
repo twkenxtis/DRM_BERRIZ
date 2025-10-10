@@ -7,8 +7,10 @@ import orjson
 import httpx
 
 from lib.path import Path
+from lib.__init__ import FilenameSanitizer
 from static.parameter import paramstore
 from static.color import Color
+from static.PublicInfo import PublicInfo_Custom
 from unit.handle.handle_log import setup_logging
 
 
@@ -16,11 +18,15 @@ logger = setup_logging('save_json_data', 'peach')
 
 
 class save_json_data:
-    def __init__(self, output_dir: Union[str, Path]) -> None:
+    def __init__(self, output_dir: Union[str, Path], publicinfo: PublicInfo_Custom) -> None:
         self.output_dir: Path = Path(output_dir).parent
         self.max_retries: int = 3
         self.retry_delay: int = 2
         self._ensure_dir()
+        
+        self.title: str = publicinfo.media_title
+        self.time_str: str = publicinfo.formatted_published_at
+        self.safe_title: str = FilenameSanitizer.sanitize_filename(self.title)
 
     def _ensure_dir(self) -> None:
         """Ensure the output directory exists."""
@@ -61,7 +67,7 @@ class save_json_data:
                     return
                 try:
                     content: str = raw_mpd.text
-                    await self._write_file(self.output_dir / "manifest.mpd", content, mode="w")
+                    await self._write_file(self.output_dir / f"{self.time_str} {self.safe_title} manifest.mpd", content, mode="w")
                 except AttributeError as e:
                     raise ValueError("Invalid MPD object: missing 'text' attribute") from e
 
@@ -74,7 +80,7 @@ class save_json_data:
                 if raw_hls is None:
                     return
                 content: str = raw_hls
-                await self._write_file(self.output_dir / "manifest.m3u8", content, mode="w")
+                await self._write_file(self.output_dir / f"{self.time_str} {self.safe_title} manifest.m3u8", content, mode="w")
 
     async def play_list_to_folder(self, raw_play_list: object) -> None:
         """Save playlist JSON to meta.json."""
@@ -89,8 +95,8 @@ class save_json_data:
                         raw_play_list,
                         option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS
                     )
-                    logger.info(f"Writing {self.output_dir /'meta.json'}")
-                    await self._write_file(self.output_dir / "meta.json", json_bytes)
+                    logger.info(f"Writing {self.output_dir / f"{self.time_str} {self.safe_title} meta.json"}")
+                    await self._write_file(self.output_dir / f"{self.time_str} {self.safe_title} meta.json", json_bytes)
                 except orjson.JSONEncodeError as e:
                     if paramstore.get("mpd_video") is True:
                         raise ValueError("Failed to serialize playlist to JSON") from e
