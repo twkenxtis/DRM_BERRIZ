@@ -3,6 +3,7 @@ import unicodedata
 import string
 import shutil
 import asyncio
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Optional
 
@@ -93,7 +94,35 @@ class OutputFormatter:
         pattern = rf"[\s\-._]*{{{field}}}[\s\-._]*"
         return re.sub(pattern, " ", template)
 
+
+class File_date_time_formact:
+    def __init__(self, folder_name: str, video_meta: dict) -> str:
+        self.video_meta = video_meta
+        self.folder_name = folder_name
+        self.drn = CFG['Donwload_Dir_Name']['dir_name']
+        self.oldfmt = CFG['Donwload_Dir_Name']['date_formact']
+        self.newfmt = CFG['output_template']['date_formact']
+        self.dt_str = self.video_meta.get("date", "")
+        
+    def new_dt(self) -> str:
+        dt: datetime = datetime.strptime(self.dt_str, self.oldfmt)
+        d:str = dt.strftime(self.newfmt)
+        return d
     
+    def new_file_name(self) -> str:
+        new_dt = self.new_dt()
+        video_meta: Dict[str, str] = {
+            "date": new_dt,
+            "title": self.video_meta.get("title", ""),
+            "community_name": self.video_meta.get("community_name", ""),
+            "artis": self.video_meta.get("artis", ""),
+            "source": "Berriz",
+            "tag": CFG['output_template']['tag']
+        }
+        folder_name: str = OutputFormatter(f"{CFG['Donwload_Dir_Name']['dir_name']}").format(video_meta)
+        return folder_name
+    
+
 def get_artis_list(artis_list: List[Dict[str, Optional[str]]]) -> str:
     all_artos_list = set()
     for i in artis_list:

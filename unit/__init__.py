@@ -1,9 +1,7 @@
 import asyncio
 import yaml
-
 from pathlib import Path
 from functools import lru_cache
-
 import aiofiles
 from fake_useragent import UserAgent
 import httpagentparser
@@ -68,5 +66,3 @@ def get_useragent() -> str:
         logger.info(USERAGENT)
     return USERAGENT
 USERAGENT = get_useragent()
-
-

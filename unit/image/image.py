@@ -151,7 +151,7 @@ class FolderManager():
 
     async def create_image_folder(self) -> Path:
         """Create a folder for images. If exists, append random 5-letter suffix."""
-        fmt = CFG['Donwload_Dir_Name']['date_formact']
+        fmt = CFG['output_template']['date_formact']
         fm:str = get_timestamp_formact(fmt) # %y%m%d_%H-%M
         dt:str = get_formatted_publish_date(self.IMG_PublicContext.published_at, fm)
         video_meta: Dict[str, str] = {

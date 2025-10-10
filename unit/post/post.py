@@ -3,7 +3,6 @@ import os
 import random
 import shutil
 import string
-from datetime import datetime
 from pathlib import Path
 
 from typing import Any, Dict, List, Tuple, Optional, TypedDict
@@ -12,8 +11,7 @@ import aiofiles
 import orjson
 from httpx import URL
 
-from lib.__init__ import dl_folder_name, OutputFormatter, move_contents_to_parent
-from lib.load_yaml_config import CFG
+from lib.__init__ import dl_folder_name, move_contents_to_parent, File_date_time_formact
 from lib.artis.request_artis import ArtisManger
 from static.color import Color
 from static.parameter import paramstore
@@ -320,31 +318,3 @@ class Run_Post_dl:
                 logger.info(f"Removed partial file: {folder}")
         except OSError as e:
             logger.warning(f"Failed to remove file {folder}: {e}")
-        
-
-class File_date_time_formact:
-    def __init__(self, folder_name: str, video_meta: dict) -> str:
-        self.video_meta = video_meta
-        self.folder_name = folder_name
-        self.drn = CFG['Donwload_Dir_Name']['dir_name']
-        self.oldfmt = CFG['Donwload_Dir_Name']['date_formact']
-        self.newfmt = CFG['output_template']['date_formact']
-        self.dt_str = self.video_meta.get("date", "")
-        
-    def new_dt(self) -> str:
-        dt: datetime = datetime.strptime(self.dt_str, self.oldfmt)
-        d:str = dt.strftime(self.newfmt)
-        return d
-    
-    def new_file_name(self) -> str:
-        new_dt = self.new_dt()
-        video_meta: Dict[str, str] = {
-            "date": new_dt,
-            "title": self.video_meta.get("title", ""),
-            "community_name": self.video_meta.get("community_name", ""),
-            "artis": self.video_meta.get("artis", ""),
-            "source": "Berriz",
-            "tag": CFG['output_template']['tag']
-        }
-        folder_name: str = OutputFormatter(f"{CFG['Donwload_Dir_Name']['dir_name']}").format(video_meta)
-        return folder_name
