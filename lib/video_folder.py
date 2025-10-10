@@ -1,14 +1,12 @@
 import asyncio
-import shutil
 import time
-import os
 from datetime import datetime
 from typing import Any, Dict, Optional, Union, List
 
 import aiofiles.os as aios
 import orjson
 
-from lib.__init__ import dl_folder_name, OutputFormatter, get_artis_list, FilenameSanitizer
+from lib.__init__ import dl_folder_name, OutputFormatter, get_artis_list, FilenameSanitizer, move_contents_to_parent, printer_video_folder_path_info
 from lib.load_yaml_config import CFG
 from lib.rename import SUCCESS
 from lib.save_json_data import save_json_data
@@ -86,7 +84,7 @@ class Video_folder:
         """將下載完成後的暫存資料夾名稱重新命名為最終標題"""
         if paramstore.get('nosubfolder') is True:
             logger.info(f"{Color.fg('light_gray')}No subfolder for{Color.reset()} {Color.fg('light_gray')}Video")
-            await self.move_contents_to_parent(Path(self.output_dir).parent, video_file_name)
+            await move_contents_to_parent(Path(self.output_dir).parent, video_file_name)
             return
         
         if self.output_dir is None:
@@ -125,44 +123,8 @@ class Video_folder:
                     logger.info(f"Retrying in {Color.fg('mist')}{delay_seconds}s {Color.reset()}")
                     time.sleep(delay_seconds)
         
-        self.printer_video_folder_path_info(new_path, video_file_name)
+        printer_video_folder_path_info(new_path, video_file_name)
 
-    async def move_contents_to_parent(self, path: Path, video_file_name: str) -> None:
-        """將 path 中所有檔案（含子資料夾）展平 async 搬到上一層，並刪除原始資料夾"""
-        if not path.is_dir():
-            raise ValueError(f"{path} is not a directory")
-
-        parent = path.parent
-        tasks = []
-
-        for item in path.rglob("*"):
-            if item.is_file():
-                target = parent / item.name
-
-                async def move(src=item, dst=target):
-                    if dst.exists():
-                        raise FileExistsError(f"Target already exists: {dst}")
-                    shutil.move(str(src), str(dst))
-
-                tasks.append(asyncio.create_task(move()))
-
-        await asyncio.gather(*tasks)
-
-        try:
-            shutil.rmtree(path)
-            video_file_name = f"{video_file_name}\
-            \n{Color.fg('flamingo_pink')}No subfolders. All files are located in the top-level directory.{Color.reset()}"
-            self.printer_video_folder_path_info(parent, video_file_name)
-        except Exception as e:
-            raise RuntimeError(f"Failed to remove original folder {path}: {e}")
-    
-    def printer_video_folder_path_info(self, new_path: Path, video_file_name: str) -> None:
-        if "Keep all segments in temp folder" in video_file_name:
-            video_file_name = f"{video_file_name} → {new_path}\\temp"
-        logger.info(
-            f"{Color.fg('yellow')}Final output file: {Color.reset()}"
-            f"{Color.fg('aquamarine')}{Path(new_path)}\n　➥ {video_file_name}{Color.reset()}"
-        )
 
     async def del_temp_folder(self, temp_path: Path) -> None:
         """刪除下載完成後的 'temp' 暫存資料夾"""

@@ -1,9 +1,13 @@
 import re
 import unicodedata
 import string
+import shutil
+import asyncio
 from typing import List, Dict, Optional
 
 from lib.load_yaml_config import CFG, ConfigLoader
+from lib.path import Path
+from static.color import Color
 from unit.handle.handle_log import setup_logging
 
 
@@ -96,3 +100,48 @@ def get_artis_list(artis_list: List[Dict[str, Optional[str]]]) -> str:
             all_artos_list.add(i['name'])
     all_artis_str: str  = " ".join(sorted(all_artos_list))
     return all_artis_str
+
+
+async def move_contents_to_parent(path: Path, video_file_name: str) -> None:
+    """將 path 中所有檔案（含子資料夾）展平 async 搬到上一層，並刪除原始資料夾"""
+    if not path.is_dir():
+        raise ValueError(f"{path} is not a directory")
+
+    parent = path.parent
+    tasks = []
+
+    for item in path.rglob("*"):
+        if item.is_file():
+            stem, suffix = item.stem, item.suffix
+            target = parent / item.name
+
+            async def move(src: Path, stem: str, suffix: str, dst: Path):
+                idx = 1
+                while dst.exists():
+                    dst = parent / f"{stem} ({idx}){suffix}"
+                    idx += 1
+                shutil.move(str(src), str(dst))
+
+            # 將參數綁定為當前 item 的值，避免 late binding
+            tasks.append(asyncio.create_task(move(item, stem, suffix, target)))
+
+    await asyncio.gather(*tasks)
+
+    try:
+        shutil.rmtree(path)
+        video_file_name += (
+            f"\n{Color.fg('flamingo_pink')}No subfolders. "
+            f"All files are located in the top-level directory.{Color.reset()}"
+        )
+        printer_video_folder_path_info(parent, video_file_name)
+    except Exception as e:
+        raise RuntimeError(f"Failed to remove original folder {path}: {e}")
+    
+
+def printer_video_folder_path_info(new_path: Path, video_file_name: str) -> None:
+    if "Keep all segments in temp folder" in video_file_name:
+        video_file_name = f"{video_file_name} → {new_path}\\temp"
+    logger.info(
+        f"{Color.fg('yellow')}Final output file: {Color.reset()}"
+        f"{Color.fg('aquamarine')}{Path(new_path)}\n　➥ {video_file_name}{Color.reset()}"
+    )

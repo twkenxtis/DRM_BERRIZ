@@ -52,6 +52,7 @@ class IMGmediaDownloader:
             parser: ImageUrlParser = ImageUrlParser(playback_ctx)
             title: str = FilenameSanitizer.sanitize_filename(public_ctx.title)
             folder: Path = await folder_mgr.create_image_folder()
+            print(folder)
             json_path: Path = folder / f"{folder.name}{title}.json"
             match paramstore.get('nojson'):
                 case True:
@@ -131,9 +132,16 @@ class FolderManager():
         self.IMG_PublicContext: IMG_PublicContext = _IMG_PublicContext
         self.title: str = FilenameSanitizer.sanitize_filename(self.IMG_PublicContext.title)
         self.community_name: str = self.IMG_PublicContext.community_name
+        self.base_dir = Path(dl_folder_name) / self.IMG_PublicContext.community_name / "Images"
+        self.base_dir.mkdirp()
 
     async def create_image_folder(self) -> Path:
         """Create a folder for images. If exists, append random 5-letter suffix."""
+        if paramstore.get('nosubfolder') is True:
+            logger.info(f"{Color.fg('light_gray')}No subfolder for{Color.reset()} {Color.fg('light_gray')}Video")
+            if Path.exists(self.base_dir):
+                return self.base_dir
+
         fmt = CFG['Donwload_Dir_Name']['date_formact']
         fm:str = get_timestamp_formact(fmt) # %y%m%d_%H-%M
         dt:str = get_formatted_publish_date(self.IMG_PublicContext.published_at, fm)
@@ -148,9 +156,7 @@ class FolderManager():
         return await self._ensure_unique_folder(folder_name)
 
     async def _ensure_unique_folder(self, folder_name: str) -> Path:
-        base_dir = Path(dl_folder_name) / self.IMG_PublicContext.community_name / "Images"
-        base_dir.mkdirp()
-        clean_candidate = base_dir / folder_name
+        clean_candidate = self.base_dir / folder_name
         if not clean_candidate.exists():
             try:
                 clean_candidate.mkdirp()
@@ -159,7 +165,7 @@ class FolderManager():
                 pass 
         while True:
             suffix = "".join(random.choices(string.ascii_lowercase, k=5))
-            candidate = base_dir / f"{folder_name} [{suffix}]"
+            candidate = self.base_dir / f"{folder_name} [{suffix}]"
             
             if not candidate.exists():
                 try:
