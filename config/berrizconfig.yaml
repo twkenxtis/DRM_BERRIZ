@@ -43,9 +43,9 @@ HLS or MPEG-DASH:
   # Download with MPEG-DASH or HLS but if content DRM protect will forced DASH-MPEG
   HLS: false
   # 1080 720 480 360 144 ask None
-  Video_Resolution_Choice: ask
+  Video_Resolution_Choice: 144
   # 192 ask None
-  Audio_Resolution_Choice: Ask
+  Audio_Resolution_Choice: 192
 
 
 TimeZone:

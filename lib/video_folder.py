@@ -84,8 +84,9 @@ class Video_folder:
         """將下載完成後的暫存資料夾名稱重新命名為最終標題"""
         if paramstore.get('nosubfolder') is True:
             logger.info(f"{Color.fg('light_gray')}No subfolder for{Color.reset()} {Color.fg('light_gray')}Video")
-            await move_contents_to_parent(Path(self.output_dir).parent, video_file_name)
-            return
+            if Path(self.output_dir).is_dir():
+                await move_contents_to_parent(Path(self.output_dir).parent, video_file_name)
+                return
         
         if self.output_dir is None:
             logger.warning("Output directory not set, skipping folder rename.")

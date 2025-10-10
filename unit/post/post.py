@@ -12,7 +12,7 @@ import aiofiles
 import orjson
 from httpx import URL
 
-from lib.__init__ import dl_folder_name, OutputFormatter
+from lib.__init__ import dl_folder_name, OutputFormatter, move_contents_to_parent
 from lib.load_yaml_config import CFG
 from lib.artis.request_artis import ArtisManger
 from static.color import Color
@@ -283,7 +283,7 @@ class Run_Post_dl:
     
     async def run_post_dl(self):
         semaphore = asyncio.Semaphore(7)
-        results = []
+        results: List[str] = []
         try:
             async def process(index: Dict[str, Any]) -> str:
                 folder = None
@@ -292,12 +292,19 @@ class Run_Post_dl:
                         folder = await FolderManager(index).create_folder()
                         MainProcessor.created_folders.add(folder)
                         await MainProcessor(index, folder).parse_and_download()
-                        return results
+                        return folder
                     except asyncio.CancelledError:
                         await self.handle_cancel(folder)
-                        return []
+                        return "Cancelled"
+
             tasks = [asyncio.create_task(process(index)) for index in self.selected_media]
-            await asyncio.gather(*tasks)
+            results = await asyncio.gather(*tasks)
+            if paramstore.get('nosubfolder') is True:
+                logger.info(f"{Color.fg('light_gray')}No subfolder for{Color.reset()} {Color.fg('light_gray')}POST")
+                for folder in results:
+                    if Path(folder).is_dir():
+                        await move_contents_to_parent(Path(folder), Path(folder).name)
+                return
         except Exception as e:
             # 只在整體失敗時清理所有資料夾
             for folder_path in MainProcessor.created_folders:

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import orjson
 
-from lib.__init__ import dl_folder_name, FilenameSanitizer
+from lib.__init__ import dl_folder_name, FilenameSanitizer, move_contents_to_parent
 from lib.path import Path
 from lib.save_json_data import save_json_data
 from static.color import Color
@@ -99,7 +99,7 @@ class MainProcessor:
                 ISO8601: str = self.fetcher.get_reservedAt()
                 await SaveHTML(self.title, ISO8601, self.body, self.folder_path, self.new_file_name).update_template_file()
         
-    async def save_notice_json(self):
+    async def save_notice_json(self) -> None:
         """Save notice data to json file."""
         match paramstore.get('nojson'):
             case True:
@@ -109,7 +109,7 @@ class MainProcessor:
                 data.pop("fetcher", None)
 
                 json_data = orjson.dumps(data, option=orjson.OPT_INDENT_2)
-                json_file_path = Path(self.folder_path) / f"{self.title}.json"
+                json_file_path = Path(self.folder_path) / f"{self.new_file_name}.json"
                 await self.save_json_data._write_file(json_file_path, json_data)
         
     async def process_image(self) -> None:
@@ -126,22 +126,32 @@ class RunNotice:
         self.folder_path = None
         self.folder_name = set()
 
-    async def run_notice_dl(self):
+    async def run_notice_dl(self) -> None:
         """Top Async ENTER"""
         semaphore = asyncio.Semaphore(7)
+        all_folders: List[Path] = []
+
         async def process(index: Dict[str, Any]) -> str:
             async with semaphore:
                 try:
-                    self.folder_name.add((index['title']))
+                    self.folder_name.add(index['title'])
                     notice_media: dict = await self.notice_media(index)
-                    folder: str = await self.folder(notice_media)
+                    folder: Path = await self.folder(notice_media)
+                    all_folders.append(folder)
                     await MainProcessor(notice_media, folder, len(self.selected_media)).parse_and_download()
                     return "OK"
                 except asyncio.CancelledError:
                     await self.handle_cancel()
                     raise asyncio.CancelledError
+
         tasks = [asyncio.create_task(process(index)) for index in self.selected_media]
         await asyncio.gather(*tasks)
+        if paramstore.get('nosubfolder') is True:
+            logger.info(f"{Color.fg('light_gray')}No subfolder for{Color.reset()} {Color.fg('light_gray')}POST")
+            for folder in all_folders:
+                if Path(folder).is_dir():
+                    await move_contents_to_parent(Path(folder), Path(folder).name)
+
 
     async def notice_media(self, index: Dict[str, Any]) -> Dict[str, Any]:
         data = await self.get_notice_info(index, index["mediaId"], index["communityId"])
@@ -164,7 +174,7 @@ class RunNotice:
             await self.handle_cancel()
             raise asyncio.CancelledError
         
-    async def handle_cancel(self):
+    async def handle_cancel(self) -> None:
         if self.folder_path.parent.iterdir():
             for all_folder in self.folder_path.parent.iterdir():
                 path = self.folder_path.parent / all_folder

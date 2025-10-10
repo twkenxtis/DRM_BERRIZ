@@ -46,7 +46,7 @@ class IMGmediaDownloader:
         
     async def process_single_media(self,
                                    public_ctx: IMG_PublicContext,
-                                   playback_ctx: IMG_PlaybackContext) -> None:
+                                   playback_ctx: IMG_PlaybackContext) -> List[Path]:
         async with IMGmediaDownloader.semaphore:
             folder_mgr: FolderManager = FolderManager(public_ctx)
             parser: ImageUrlParser = ImageUrlParser(playback_ctx)
@@ -62,7 +62,7 @@ class IMGmediaDownloader:
             if paramstore.get('nodl') is True:
                 logger.info(f"{Color.fg('light_gray')}Skip downloading{Color.reset()} {Color.fg('light_gray')}IMAGE")
             else:
-                await parser.parse_and_download(folder)
+                return await parser.parse_and_download(folder)
 
     async def get_content(self, media_id: str) -> Tuple[IMG_PublicContext, IMG_PlaybackContext]:
         pub, play = await asyncio.gather(
@@ -74,21 +74,29 @@ class IMGmediaDownloader:
             raise RuntimeError(f"fetch failed for {media_id}")
         return IMG_PublicContext(pub), IMG_PlaybackContext(play)
 
-    async def fetch_and_process(self, media_id: str) -> None:
+    async def fetch_and_process(self, media_id: str) -> List[Path]:
         public_ctx, playback_ctx = await self.get_content(media_id)
-        await self.process_single_media(public_ctx, playback_ctx)
+        return await self.process_single_media(public_ctx, playback_ctx)
 
     async def run_image_dl(self, media_ids: List[str]) -> None:
-        # 直接為整張清單建立並行任務
         tasks = [
             asyncio.create_task(self.fetch_and_process(mid))
             for mid in media_ids
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        # 記錄例外
+
+        all_paths: List[Path] = []
+        
         for idx, res in enumerate(results):
             if isinstance(res, Exception):
                 logger.warning(f"media_id={media_ids[idx]} failed: {res}")
+            else:
+                all_paths.extend(res)  # res 是 List[Path]
+        if paramstore.get('nosubfolder') is True and all_paths:
+            logger.info(f"{Color.fg('light_gray')}No subfolder for{Color.reset()} {Color.fg('light_gray')}IMAGE")
+            for image_path in all_paths:
+                if image_path.parent.is_dir():
+                    await move_contents_to_parent(image_path.parent, image_path.name)
 
 
 class ImageUrlParser:
@@ -96,7 +104,9 @@ class ImageUrlParser:
         self.IMG_PlaybackContext: IMG_PlaybackContext = _IMG_PlaybackContext
         self.ImageDownloader: ImageDownloader = ImageDownloader()
 
-    async def parse_and_download(self, folder_path: Path) -> None:
+    async def parse_and_download(self, folder_path: Path) -> List[Path]:
+        all_downloaded_paths: List[Path] = []
+
         try:
             tasks: List[asyncio.Task[Any]] = []
 
@@ -104,28 +114,28 @@ class ImageUrlParser:
                 url: Optional[str] = image.get("imageUrl")
                 if not url:
                     continue
+
                 name: str = Path(url).name or f"image_{idx}.png"
-                # 移除所有query参数
-                name = name.split("?")[0]
-                IMG_File_Path: Path = Path(folder_path) / name
-                task: asyncio.Task[Any] = asyncio.create_task(self._download(url, IMG_File_Path))
+                name = name.split("?")[0]  # 移除 query 參數
+                IMG_File_Path: Path = folder_path / name
+                all_downloaded_paths.append(IMG_File_Path)
+                task = asyncio.create_task(self._download(url, IMG_File_Path))
                 tasks.append(task)
+
             await asyncio.gather(*tasks)
-            
-            if paramstore.get('nosubfolder') is True:
-                logger.info(f"{Color.fg('light_gray')}No subfolder for{Color.reset()} {Color.fg('light_gray')}IAMGE")
-                await move_contents_to_parent(Path(IMG_File_Path).parent, name)
-                return
+            return all_downloaded_paths
         except asyncio.CancelledError:
-            logger.warning(f"Download cancelled. Cleaning up folder...")
+            logger.warning("Download cancelled. Cleaning up folder...")
             if folder_path and os.path.isdir(folder_path):
                 logger.info(f"{Color.fg('light_gray')}Removing folder: {folder_path}{Color.reset()}")
                 shutil.rmtree(folder_path, ignore_errors=True)
-                raise KeyboardInterrupt('Cancelled img download by user.')
+            raise KeyboardInterrupt("Cancelled img download by user.")
+
         except Exception as e:
             if folder_path and os.path.isdir(folder_path):
                 shutil.rmtree(folder_path, ignore_errors=True)
-                logger.exception(f"Unexpected error during download: {e}")
+            logger.exception(f"Unexpected error during download: {e}")
+            return []
 
     async def _download(self, url: httpx.URL, file_path: Path) -> None:
         await self.ImageDownloader.download_image(url, file_path)
