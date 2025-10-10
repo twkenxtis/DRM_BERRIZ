@@ -1,8 +1,8 @@
 import asyncio
 import shutil
 import time
-import random
-#from pathlib import Path
+import os
+from datetime import datetime
 from typing import Any, Dict, Optional, Union, List
 
 import aiofiles.os as aios
@@ -13,6 +13,7 @@ from lib.load_yaml_config import CFG
 from lib.rename import SUCCESS
 from lib.save_json_data import save_json_data
 from lib.path import Path
+from lib.base64 import encode
 from static.color import Color
 from static.PublicInfo import PublicInfo_Custom
 from static.parameter import paramstore
@@ -43,9 +44,9 @@ class Video_folder:
     async def video_folder_handle(self, custom_community_name: str, community_name: str) -> Path:
         """根據 community_name 和媒體資訊建立下載資料夾路徑"""
         base_dir: Path = Path(dl_folder_name) / custom_community_name / "Videos"
-        temp_folder_name: str = f"{self.time_str} {self.media_id}__({str(random.randint(2**32, 2**33 - 1))})"
+        temp_folder_name: str = f"temp_{self.time_str}_{self.media_id}_{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
         temp_name: str = self.FilenameSanitizer(temp_folder_name)
-        temp_dir: Path = base_dir / temp_name / f"temp_{self.time_str}_{self.safe_title}_slice"
+        temp_dir: Path = base_dir / temp_name / encode(f"temp_{self.time_str}_{self.media_id}")
         temp_dir.mkdirp()
         self.base_dir = base_dir
         self.output_dir = str(temp_dir.resolve())
@@ -91,6 +92,7 @@ class Video_folder:
         if self.output_dir is None:
             logger.warning("Output directory not set, skipping folder rename.")
             return
+        
         new_path: Path = self.base_dir / self.folder_name
         full_path: Path = Path.cwd() / Path(self.output_dir)
         original_name: str = full_path.parent.name
@@ -168,10 +170,12 @@ class Video_folder:
             if temp_path.exists():
                 if temp_path.exists() and (paramstore.get('skip_merge') is None and paramstore.get('skip_mux') is None):
                     await aios.rmdir(temp_path)
+                else:
+                    await aios.rename(temp_path, temp_path.parent / self.folder_name)
         except TypeError:
             logger.warning(f'Fail to del temp folder -> {temp_path}')
-        except Exception:
-            shutil.rmtree(temp_path, ignore_errors=True)
+        except Exception as e:
+            logger.warning(f'Fail to del temp folder -> {temp_path} -> {e}')
         
     async def save_json_to_folder(self, output_dir: Path) -> None:
         """將 JSON 資料儲存到下載資料夾中"""

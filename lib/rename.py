@@ -15,7 +15,6 @@ from lib.mux.mux import FFmpegMuxer
 from lib.load_yaml_config import CFG
 from static.color import Color
 from static.PublicInfo import PublicInfo_Custom
-from static.route import Route
 from static.parameter import paramstore
 from unit.http.request_berriz_api import GetRequest
 from unit.date.date import get_timestamp_formact
@@ -49,7 +48,7 @@ class SUCCESS:
         muxer: FFmpegMuxer = FFmpegMuxer(self.base_dir, decryption_key)
         video_file_name = ''
         mux_bool_status = await muxer.mux_main(merge_type, self.path)
-        if paramstore.get('skip_mux') is not True:
+        if paramstore.get('skip_mux') is not True and paramstore.get('skip_merge') is not True:
             if mux_bool_status is True and not paramstore.get('nodl') is True:
                 video_file_name = await SUCCESS.re_name(self)
             elif paramstore.get('nodl') is True:
@@ -64,16 +63,20 @@ class SUCCESS:
                 await SUCCESS.clean_file(self, decryption_key, merge_type)
             else:
                 logger.info(f"{Color.fg('yellow')}Skipping file cleaning, keep segments after done{Color.reset()}")
-        elif paramstore.get('skip_merge') is True: 
+        elif paramstore.get('skip_merge') is True and mux_bool_status is False:
             logger.info(f"{Color.fg('yellow')}Skipping file cleaning, keep segments after done{Color.reset()}")
+            
         match video_file_name:
             case '':
                 if paramstore.get('skip_merge'):
-                    return '[ User choese SKIP MERGE ]'
+                    video_file_name = '[ User choese SKIP MERGE ]'
+                    mux_bool_status = True
                 if paramstore.get('skip_mux'):
-                    return '[ User choese SKIP MUX ]'
+                    video_file_name = '[ User choese SKIP MUX ]'
+                    mux_bool_status = True
             case _:
-                return video_file_name, mux_bool_status
+                pass
+        return video_file_name, mux_bool_status
 
     async def clean_file(self, had_drm: Optional[Union[bytes, str]], merge_type: str) -> None:
         """清理下載過程中的暫存檔案、加密檔案和暫存目錄"""
