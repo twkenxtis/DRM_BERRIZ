@@ -34,7 +34,7 @@ class SUCCESS:
         self.community_name: str = community_name
         self.custom_community_name: str = custom_community_name
         self.base_dir: Path = self.downloader.base_dir
-        self.tempname: str = f"temp_output_DO_NOT_DEL.{container}"
+        self.tempname: str = f"temp_mux_{self.publicinfo.media_id}.{container}"
         self.path: Path = self.base_dir / self.tempname
         self.artis_list: List[Dict[str, Optional[str]]] = self.publicinfo.artist_list
         self.filenameSanitizer = FilenameSanitizer.sanitize_filename
@@ -54,6 +54,8 @@ class SUCCESS:
                 video_file_name = await SUCCESS.re_name(self)
             elif paramstore.get('nodl') is True:
                 video_file_name = '[ SKIP-DL ]'
+            elif paramstore.get('slice_path_fail') is True:
+                video_file_name = '[ Fail to create folder for download slice ]'
             else:
                 logger.warning("Mux failed, check console output for details")
                 video_file_name = '[ Mux failed ]' + f'\n{Color.bg("ruby")}Keep all segments in temp folder{Color.reset()}'

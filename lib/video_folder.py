@@ -45,7 +45,7 @@ class Video_folder:
         base_dir: Path = Path(dl_folder_name) / custom_community_name / "Videos"
         temp_folder_name: str = f"{self.time_str} {self.media_id}__({str(random.randint(2**32, 2**33 - 1))})"
         temp_name: str = self.FilenameSanitizer(temp_folder_name)
-        temp_dir: Path = base_dir / temp_name / "temp"
+        temp_dir: Path = base_dir / temp_name / f"temp_{self.time_str}_{self.safe_title}_slice"
         temp_dir.mkdirp()
         self.base_dir = base_dir
         self.output_dir = str(temp_dir.resolve())
@@ -83,10 +83,14 @@ class Video_folder:
 
     async def re_name_folder(self, video_file_name:str, mux_bool_status: bool) -> None:
         """將下載完成後的暫存資料夾名稱重新命名為最終標題"""
+        if paramstore.get('nosubfolder') is True:
+            logger.info(f"{Color.fg('light_gray')}No subfolder for{Color.reset()} {Color.fg('light_gray')}Video")
+            await self.move_contents_to_parent(Path(self.output_dir).parent, video_file_name)
+            return
+        
         if self.output_dir is None:
             logger.warning("Output directory not set, skipping folder rename.")
             return
-        
         new_path: Path = self.base_dir / self.folder_name
         full_path: Path = Path.cwd() / Path(self.output_dir)
         original_name: str = full_path.parent.name
@@ -120,7 +124,36 @@ class Video_folder:
                     time.sleep(delay_seconds)
         
         self.printer_video_folder_path_info(new_path, video_file_name)
-        
+
+    async def move_contents_to_parent(self, path: Path, video_file_name: str) -> None:
+        """將 path 中所有檔案（含子資料夾）展平 async 搬到上一層，並刪除原始資料夾"""
+        if not path.is_dir():
+            raise ValueError(f"{path} is not a directory")
+
+        parent = path.parent
+        tasks = []
+
+        for item in path.rglob("*"):
+            if item.is_file():
+                target = parent / item.name
+
+                async def move(src=item, dst=target):
+                    if dst.exists():
+                        raise FileExistsError(f"Target already exists: {dst}")
+                    shutil.move(str(src), str(dst))
+
+                tasks.append(asyncio.create_task(move()))
+
+        await asyncio.gather(*tasks)
+
+        try:
+            shutil.rmtree(path)
+            video_file_name = f"{video_file_name}\
+            \n{Color.fg('flamingo_pink')}No subfolders. All files are located in the top-level directory.{Color.reset()}"
+            self.printer_video_folder_path_info(parent, video_file_name)
+        except Exception as e:
+            raise RuntimeError(f"Failed to remove original folder {path}: {e}")
+    
     def printer_video_folder_path_info(self, new_path: Path, video_file_name: str) -> None:
         if "Keep all segments in temp folder" in video_file_name:
             video_file_name = f"{video_file_name} → {new_path}\\temp"

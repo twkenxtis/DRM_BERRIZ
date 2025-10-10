@@ -1,6 +1,6 @@
 import asyncio
 import shutil
-#from pathlib import Path
+import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import aiofiles
@@ -118,34 +118,55 @@ class MediaDownloader:
                 logger.error(f"Unexpected error: {e}")
         return False
 
+    def check_download_dir(self, folder_path: Path) -> bool:
+        if not os.path.exists(folder_path):
+            paramstore._store['slice_path_fail'] = True
+            logger.warning(f"{Color.fg('light_gray')}Fail to create directory{Color.reset()}: {folder_path}")
+            return False
+        else:
+            return True
+
     async def download_track(self, track: MediaTrack, track_type: str, merge_type: str) -> bool:
         track_dir: Path = self.base_dir / track_type
-        track_dir.mkdirp()
-        if merge_type == 'hls':
-            slice_parameters = track
-            file_ext: str = '.bin'
-            track_id: str = track[0].split('/')[-2]
+        logger.debug(track_dir)
+        try:
+            track_dir.mkdirp()
+        except FileNotFoundError as e:
             logger.info(
-                f"{Color.fg('light_gray')}Start downloading{Color.reset()} "
-                f"{Color.bg('cyan')}{track_type}{Color.reset()} track: {Color.fg('cyan')}{track_id}{Color.reset()} "
+                f"{Color.bg('firebrick')}The folder name may contain spaces, illegal characters, and cannot meet the specifications.{Color.reset()}"
             )
-        else:
-            slice_parameters = track.segment_urls
-            # Get appropriate extension for files
-            file_ext = self._get_file_extension(track.mime_type)
-            track_id = track.id
-            # Download initialization segment
-            init_path: Path = track_dir / f"init{file_ext}"
-            if len(track.init_url) > 4:
-                if not await self._download_file(track.init_url, init_path):
-                    logger.error(f"{track_type} Initialization file download failed")
-                    return False
-                logger.info(
-                    f"{Color.fg('light_gray')}Start downloading{Color.reset()} "
-                    f"{Color.bg('cyan')}{track_type}{Color.reset()} track: {Color.fg('cyan')}{track_id}{Color.reset()} "
-                )
-        if slice_parameters != []:
-            return await self.task_and_dl(slice_parameters, track_dir, file_ext, track_type)
+            paramstore._store['slice_path_fail'] = True
+            logger.error(e)
+            return False
+        match self.check_download_dir(track_dir):
+            case False:
+                return False
+            case True:
+                if merge_type == 'hls':
+                    slice_parameters = track
+                    file_ext: str = '.bin'
+                    track_id: str = track[0].split('/')[-2]
+                    logger.info(
+                        f"{Color.fg('light_gray')}Start downloading{Color.reset()} "
+                        f"{Color.bg('cyan')}{track_type}{Color.reset()} track: {Color.fg('cyan')}{track_id}{Color.reset()} "
+                    )
+                else:
+                    slice_parameters = track.segment_urls
+                    # Get appropriate extension for files
+                    file_ext = self._get_file_extension(track.mime_type)
+                    track_id = track.id
+                    # Download initialization segment
+                    init_path: Path = track_dir / f"init_{track_type}_{file_ext}"
+                    if len(track.init_url) > 4:
+                        if not await self._download_file(track.init_url, init_path):
+                            logger.error(f"{track_type} Initialization file download failed")
+                            return False
+                        logger.info(
+                            f"{Color.fg('light_gray')}Start downloading{Color.reset()} "
+                            f"{Color.bg('cyan')}{track_type}{Color.reset()} track: {Color.fg('cyan')}{track_id}{Color.reset()} "
+                        )
+                if slice_parameters != []:
+                    return await self.task_and_dl(slice_parameters, track_dir, file_ext, track_type)
 
     async def task_and_dl(self, slice_parameters: List[str], track_dir: Path, file_ext: str, track_type: str) -> bool:
         total = len(slice_parameters)
@@ -153,7 +174,7 @@ class MediaDownloader:
         semaphore = asyncio.Semaphore(50)
         async def bounded_download(i, url):
             async with semaphore:
-                seg_path = track_dir / f"seg_{i}{file_ext}"
+                seg_path = track_dir / f"seg_{track_type}_{i}{file_ext}"
                 return await self._download_file(url, seg_path)
 
         tasks = [bounded_download(i, url) for i, url in enumerate(slice_parameters)]
@@ -179,8 +200,7 @@ class MediaDownloader:
     async def _merge_track(self, track_type: str, merge_type: str) -> bool:
         track_dir: Path = self.base_dir / track_type
         output_file: Path = self.base_dir / f"{track_type}.{container}"
-        init_files: List[Path] = list(track_dir.glob("init.*"))
-
+        init_files: List[Path] = list(track_dir.glob(f"init_{track_type}_.*"))
         if not init_files and merge_type == 'mpd':
             if paramstore.get('mpd_audio') is True and track_type == 'audio':
                 logger.warning(f"Could not find {track_type} initialization file")
@@ -190,7 +210,19 @@ class MediaDownloader:
                 return False
 
         segments: List[Path] = sorted(
-            track_dir.glob("seg_*.*"), key=lambda x: int(x.stem.split("_")[1])
+            # 過濾步驟 (列表生成式):
+            # 從目錄中尋找所有以 "seg_" 開頭的檔案 例如 seg_video_001.mp4
+            [
+                p for p in track_dir.glob("seg_*.*") 
+                # 過濾條件 1: 確保檔名主幹 (p.stem) 經 "_" 分割後恰有三個部分
+                # (例如 ['seg', 'video', '001'])，這排除了非預期格式的檔案，如 'video' 或 'seg_001'
+                # 過濾條件 2: 確保分割後的第三個部分 (索引 [2]，即序號) 是純數字
+                if len(p.stem.split("_")) == 3 and p.stem.split("_")[2].isdigit()
+            ],
+            # 排序步驟:
+            # 使用 lambda 函數定義排序鍵它將檔名主幹分割後的第三個部分 (即序號) 轉換為整數
+            # 這樣可以確保依檔案序號正確地進行數字排序 (例如 '..._10' 會排在 '..._9' 之後)
+            key=lambda x: int(x.stem.split("_")[2])
         )
         if not segments:
             if paramstore.get('mpd_audio') is True and track_type == 'audio':

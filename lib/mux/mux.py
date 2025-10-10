@@ -181,6 +181,9 @@ class FFmpegMuxer:
                         paramstore._store['no_video_audio'] = True
                         os.rename(audio_file, tempfile_path)
                         return True
+            elif paramstore.get('slice_path_fail') is True:
+                logger.warning('No slice download skip mux.')
+                return False
             logger.error(
                  "Error: Valid video and audio must exist simultaneously for multiplexing."
             )
@@ -197,6 +200,9 @@ class FFmpegMuxer:
                         paramstore._store['no_video_audio'] = True
                         os.rename(audio_file, tempfile_path)
                         return True
+            elif paramstore.get('slice_path_fail') is True:
+                logger.warning('No slice download skip mux.')
+                return False
             logger.error(
                  "Error: Valid video and audio must exist simultaneously for multiplexing."
             )
