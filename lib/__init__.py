@@ -3,6 +3,7 @@ import unicodedata
 import string
 import shutil
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Optional
 
 from lib.load_yaml_config import CFG, ConfigLoader
@@ -12,7 +13,7 @@ from unit.handle.handle_log import setup_logging
 
 
 logger = setup_logging('lib.__init__', 'fern')
-
+executor = ThreadPoolExecutor()
 
 class FilenameSanitizer:
     """Handles sanitization of filenames to remove invalid characters."""
@@ -91,7 +92,7 @@ class OutputFormatter:
         # 移除連接符與欄位，包含前後空格
         pattern = rf"[\s\-._]*{{{field}}}[\s\-._]*"
         return re.sub(pattern, " ", template)
-    
+
     
 def get_artis_list(artis_list: List[Dict[str, Optional[str]]]) -> str:
     all_artos_list = set()
@@ -101,17 +102,23 @@ def get_artis_list(artis_list: List[Dict[str, Optional[str]]]) -> str:
     all_artis_str: str  = " ".join(sorted(all_artos_list))
     return all_artis_str
 
+def sync_move(src: Path, dst: Path) -> str:
+    shutil.move(str(src), str(dst))
+    return dst.name
+
 async def move(src: Path, stem: str, suffix: str, dst: Path, parent: Path) -> str:
     idx = 1
     while dst.exists():
         dst = parent / f"{stem} ({idx}){suffix}"
         idx += 1
-    shutil.move(str(src), str(dst))
-    printer_video_folder_path_info(parent, str(dst.name))
-    return str(dst.name)
+
+    loop = asyncio.get_running_loop()
+    moved_name = await loop.run_in_executor(executor, sync_move, src, dst)
+    printer_video_folder_path_info(parent, moved_name)
+    return moved_name
 
 async def move_contents_to_parent(path: Path, file_name: str) -> None:
-    """將 path 中所有檔案（含子資料夾）展平 async 搬到上一層，並刪除原始資料夾"""
+    """將 path 中所有檔案（含子資料夾）展平 async 搬到上一層 完成後刪除原始資料夾"""
     if not path.is_dir():
         raise ValueError(f"{path} is not a directory")
 
@@ -122,7 +129,7 @@ async def move_contents_to_parent(path: Path, file_name: str) -> None:
         if item.is_file():
             stem, suffix = item.stem, item.suffix
             target = parent / item.name
-            tasks.append(asyncio.create_task(move(item, stem, suffix, target, parent)))
+            tasks.append(move(item, stem, suffix, target, parent))
 
     await asyncio.gather(*tasks)
 
@@ -132,7 +139,6 @@ async def move_contents_to_parent(path: Path, file_name: str) -> None:
             f"\n{Color.fg('flamingo_pink')}No subfolders. "
             f"All files are located in the top-level directory.{Color.reset()}"
         )
-        
     except Exception as e:
         raise RuntimeError(f"Failed to remove original folder {path}: {e}")
                 

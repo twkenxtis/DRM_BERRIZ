@@ -111,6 +111,7 @@ class ImageUrlParser:
                 task: asyncio.Task[Any] = asyncio.create_task(self._download(url, IMG_File_Path))
                 tasks.append(task)
             await asyncio.gather(*tasks)
+            
             if paramstore.get('nosubfolder') is True:
                 logger.info(f"{Color.fg('light_gray')}No subfolder for{Color.reset()} {Color.fg('light_gray')}IAMGE")
                 await move_contents_to_parent(Path(IMG_File_Path).parent, name)
