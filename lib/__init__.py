@@ -101,8 +101,16 @@ def get_artis_list(artis_list: List[Dict[str, Optional[str]]]) -> str:
     all_artis_str: str  = " ".join(sorted(all_artos_list))
     return all_artis_str
 
+async def move(src: Path, stem: str, suffix: str, dst: Path, parent: Path) -> str:
+    idx = 1
+    while dst.exists():
+        dst = parent / f"{stem} ({idx}){suffix}"
+        idx += 1
+    shutil.move(str(src), str(dst))
+    printer_video_folder_path_info(parent, str(dst.name))
+    return str(dst.name)
 
-async def move_contents_to_parent(path: Path, video_file_name: str) -> None:
+async def move_contents_to_parent(path: Path, file_name: str) -> None:
     """將 path 中所有檔案（含子資料夾）展平 async 搬到上一層，並刪除原始資料夾"""
     if not path.is_dir():
         raise ValueError(f"{path} is not a directory")
@@ -114,30 +122,20 @@ async def move_contents_to_parent(path: Path, video_file_name: str) -> None:
         if item.is_file():
             stem, suffix = item.stem, item.suffix
             target = parent / item.name
-
-            async def move(src: Path, stem: str, suffix: str, dst: Path):
-                idx = 1
-                while dst.exists():
-                    dst = parent / f"{stem} ({idx}){suffix}"
-                    idx += 1
-                shutil.move(str(src), str(dst))
-
-            # 將參數綁定為當前 item 的值，避免 late binding
-            tasks.append(asyncio.create_task(move(item, stem, suffix, target)))
+            tasks.append(asyncio.create_task(move(item, stem, suffix, target, parent)))
 
     await asyncio.gather(*tasks)
 
     try:
         shutil.rmtree(path)
-        video_file_name += (
+        file_name += (
             f"\n{Color.fg('flamingo_pink')}No subfolders. "
             f"All files are located in the top-level directory.{Color.reset()}"
         )
-        printer_video_folder_path_info(parent, video_file_name)
+        
     except Exception as e:
         raise RuntimeError(f"Failed to remove original folder {path}: {e}")
-    
-
+                
 def printer_video_folder_path_info(new_path: Path, video_file_name: str) -> None:
     if "Keep all segments in temp folder" in video_file_name:
         video_file_name = f"{video_file_name} → {new_path}\\temp"
