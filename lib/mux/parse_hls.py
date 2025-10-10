@@ -122,6 +122,7 @@ class HLS_Paser:
         resolution_list: List[Tuple[int, int]] = self.extract_sorted_resolutions(lines)
         if v_resolution_choice.lower() in {"ask", "as"}:
             choices = [f"{w}x{h}" for w, h in resolution_list]
+            print(choices)
             answer = await inquirer.select(
                 message="Select video resolution:",
                 choices=choices,

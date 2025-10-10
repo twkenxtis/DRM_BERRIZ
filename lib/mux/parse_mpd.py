@@ -292,7 +292,7 @@ class MPDParser:
             answer = await inquirer.select(
                 message="Select audio track:",
                 choices=choices,
-                default=choices[0]
+                default=choices[-1]
             ).execute_async()
             return next(t for t in audio_reps if t.id in answer)
         
@@ -315,7 +315,7 @@ class MPDParser:
         resolution_list = [(t.width, t.height) for t in video_reps if t.width and t.height]
         
         if v_resolution_choice.lower() == "ask":
-            choices = [f"{w}x{h}" for w, h in resolution_list]
+            choices = list(reversed([f"{w}x{h}" for w, h in resolution_list]))
             answer = await inquirer.select(
                 message="Select video resolution:",
                 choices=choices,
